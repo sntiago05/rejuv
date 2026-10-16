@@ -31,10 +31,10 @@ Claude Project = architect: designs, writes task specs in `docs/tasks/`, reviews
 Rule from `AGENTS.md`: update this file after each task with verified facts only; with several worktrees active, defer the update until branches are integrated.
 
 ## Plan
-21 tasks in `docs/implementation-plan.md`, ADRs 0001-0015 in `docs/adr/`. Fast track in `docs/roadmap.md`: week 1 = tasks 001-010 (MVP, tester gate before public launch on day 5), week 2 = tasks 011-021 (hero utilities, social, web reports, premium behind a feature flag until ~30 weekly active users).
+23 tasks in `docs/implementation-plan.md` (022-023 added for match metadata), ADRs 0001-0015 in `docs/adr/`. Fast track in `docs/roadmap.md`: week 1 = tasks 001-010 plus 022 before 007 (MVP, tester gate before public launch on day 5), week 2 = tasks 011-021 (hero utilities, social, web reports, premium behind a feature flag until ~30 weekly active users). `roadmap.md` has not been updated for 022 yet. Task 023 (raw protobuf fallback) is scheduled only if the JSON metadata endpoint fails often during testing.
 
 ## Current status
-Last updated during task 003 (implemented on its branch, verification pending, not merged).
+Last updated while planning Task 004, after Task 003 was merged into `main` (confirmed by the owner).
 
 ### Done (verified)
 - Setup: `AGENTS.md`, Antigravity rule, Claude Code settings and the `new-discord-command` skill. All planning docs and ADRs 0001-0015 written.
@@ -47,26 +47,40 @@ Last updated during task 003 (implemented on its branch, verification pending, n
   - `/help` ephemeral slash command (`HelpCommand`) registered alongside `/ping` in the dev guild.
   - Sourced all user-facing text from the catalog in `CommandRouter` and `PingCommand` (`ping.description`, `ping.reply`, `error.unknown_command`, `error.generic`).
   - Verified with `.\mvnw.cmd verify` (22 tests, 0 failures), covering unit behavior, catalog validation, and Spring context integration.
+- **Task 003** (PostgreSQL, Flyway, `linked_account`), report in `docs/task-reports/003-postgres-flyway-linked-account.md`:
+  - PostgreSQL 17 in `compose.yaml` (localhost-only port, healthcheck, volume `postgres-data`).
+  - Removed TEMP auto-configuration exclusions from `application.yaml`, configured datasource from `POSTGRES_*` variables with `ddl-auto: validate`.
+  - Flyway migration `V1__create_linked_account.sql`, `LinkedAccount` entity, `LinkedAccountRepository`.
+  - Testcontainers configuration with `postgres:17` and `@ServiceConnection`.
+  - Verified: `./mvnw clean verify` (31 tests, 0 failures); manual check with `docker compose up -d postgres`, `spring-boot:run` (initial migration + idempotent second run), and `psql` schema check confirming table `linked_account`.
 
 ### In progress (not verified, not merged)
-- **Task 003** (PostgreSQL, Flyway, `linked_account`) on branch `feature/003-postgres-flyway-linked-account`, report in `docs/task-reports/003-postgres-flyway-linked-account.md`:
-  - Code written: `compose.yaml` (`postgres:17`, localhost-only port), datasource from `POSTGRES_*` with `ddl-auto: validate`, TEMP auto-configuration exclusions removed, migration `V1__create_linked_account.sql`, `LinkedAccount` entity, `LinkedAccountRepository`, Testcontainers test configuration, 9 new tests.
-  - Pending: `.\mvnw.cmd clean verify` with Docker running (Testcontainers) and the manual Compose startup check. Only an auxiliary harness run against a local PostgreSQL 16 has passed (31 tests); see the report.
+Planning only: a draft spec for Task 004 exists at `docs/tasks/004-deadlock-api-client.md` and is being revised against real API responses (see below). No code for 004 exists.
 
 ### Not started (planned only)
-Tasks 004-021. Nothing beyond `/ping` and `/help` exists yet: no Deadlock API client, no `/link`, `/analyze`, AI client, web server, premium or Patreon check. The MVP has not been built, launched or deployed.
+Tasks 004-023. Nothing beyond `/ping`, `/help` and the database baseline exists yet: no Deadlock API client, no `/link`, `/analyze`, AI client, web server, premium or Patreon check. The MVP has not been built, launched or deployed.
 
 ### Next
-Finish Task 003 verification on Windows, review and merge. Task 004 (`DeadlockApiClient`, depends on 001) is eligible in parallel; Task 005 needs 003 and 004.
+Finalize the Task 004 spec (`DeadlockApiClient`: history, benchmarks, assets, player rank; no metadata), then write the Task 022 spec (match metadata port + JSON adapter). Task 005 (`/link`, `/unlink`) depends on 003 and 004; Task 007 depends on 004 and 022.
+
+### Deadlock API facts observed in real responses (2026-10-16, evidence collected by the owner)
+- Host `https://api.deadlock-api.com`. `GET /v1/players/{account_id}/match-history` returns an array, newest first. An account without data returns 200 `[]` (not 404). The payload is large (about 5 MB for 6,842 matches), so a client must cap what it keeps.
+- In the history, `player_match_outcome` is 0 (invalid) for matches before about 2026-07-30; win = outcome 1, and `match_result == player_team` matched every scored match (inference, not documented). `ranked_display_badge` is non-null only when `match_mode == 4` (inferred to be ranked); it is null for unranked matches.
+- `GET /v1/analytics/player-stats/metrics` filters by `hero_ids`, `min_average_badge`, `max_average_badge` (average of both teams); it defaults to the last 30 days and to normal ranked/unranked matches. It returned 29 metrics (32 with `include_buff_metrics=true`), for example `net_worth_per_min`, `player_damage_per_min`, `last_hits`, `denies`, `deaths`, `kda`, `permanent_buffs`, `first_permanent_buff_time_s`. There is no benchmark for net worth at 10/20 min or for item purchase times.
+- `GET /v1/players/{account_id}/rank` returns `badge`, `rank`, `subrank`, `last_match`; an unranked player returns 200 with zeros (no 404 observed).
+- Assets: ranks have tiers 0-11; heroes expose `id`, `class_name`, `name`; `/v1/assets/items` has 764 entries (about 8 MB; types upgrade/ability/weapon; upgrades carry `item_tier` 1-5, `item_slot_type`, `cost`).
+- `GET /v1/matches/{match_id}/metadata` returns JSON wrapped in `match_info` with 12 players: items (`game_time_s`, `sold_time_s`), stat snapshots at 180, 360, 540, 720, 900, 1200, 1500, 1800, 2100 s plus a final one (net worth, damage, healing), `power_up_buffs` with pickup times, and `player_rank_data.initial_display_rank`. `average_badge_team0/1` can be 0. Item ids resolve in `/v1/assets/items`. It once returned 503 "Steam is busy" (`Retry-After` 1265 s) and worked later for the same match; the Steam fallback is limited to 3 requests per hour per IP. `GET /v1/matches/{match_id}/metadata/raw` (bz2 protobuf) worked while the JSON endpoint failed.
 
 ## Constraints
 - User-facing behavior is English-only (ADR-0008); all user-facing text lives in `messages.properties` and is accessed via `Messages`.
 - Discord credentials come from environment variables (`.env`, see `.env.example`) and must never be committed. Manual Discord checks need `DISCORD_TOKEN` and `DEV_GUILD_ID`.
-- After Task 003 merges: the app needs a reachable PostgreSQL at startup (`POSTGRES_*` variables, no default password), Flyway is the only schema authority (`ddl-auto: validate`), and `verify` needs Docker running for Testcontainers.
+- After Task 003: the app needs a reachable PostgreSQL at startup (`POSTGRES_*` variables, no default password), Flyway is the only schema authority (`ddl-auto: validate`), and `verify` needs Docker running for Testcontainers.
 
 ## Known limitations and risks
 - On this Windows machine the Maven wrapper may need `MAVEN_USER_HOME` pointed at a temporary junction to the existing Maven home (null-target issue in PowerShell).
 - deadlock-api data coverage gaps; many competing tracker sites.
+- Match metadata can be unavailable (503 while Steam is busy, strict Steam fallback quota). `/analyze` needs a degraded mode based on history data only (Task 009); a raw protobuf fallback is planned as Task 023.
+- Open decision: the source of an item-timing benchmark (the MVP spec compares item purchase times, but `player-stats/metrics` has none). Net worth at 10 min has no exact snapshot (540 s and 720 s exist), so it must be interpolated; 20 min is exact (1200 s).
 - Claude Pro usage limits on heavy days: keep implementation in Antigravity.
 
 ## References
@@ -75,4 +89,5 @@ Finish Task 003 verification on Windows, review and merge. Task 004 (`DeadlockAp
 - Task 001: `docs/tasks/001-project-skeleton.md`, `docs/task-reports/001-project-skeleton.md`
 - Task 002: `docs/tasks/002-i18n-and-help.md`, `docs/task-reports/002-i18n-and-help.md`
 - Task 003: `docs/tasks/003-postgres-flyway-linked-account.md`, `docs/task-reports/003-postgres-flyway-linked-account.md`
+- Task 004 (draft, being revised): `docs/tasks/004-deadlock-api-client.md`
 - ADRs most relevant so far: `0001-java21-spring-boot-jda.md`, `0002-postgresql-and-caffeine.md`, `0005-oracle-cloud-docker-compose.md`, `0008-english-only-i18n-ready.md`, `0009-claude-plans-antigravity-implements.md`
