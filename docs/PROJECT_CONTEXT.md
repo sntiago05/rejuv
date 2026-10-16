@@ -34,7 +34,7 @@ Rule from `AGENTS.md`: update this file after each task with verified facts only
 21 tasks in `docs/implementation-plan.md`, ADRs 0001-0015 in `docs/adr/`. Fast track in `docs/roadmap.md`: week 1 = tasks 001-010 (MVP, tester gate before public launch on day 5), week 2 = tasks 011-021 (hero utilities, social, web reports, premium behind a feature flag until ~30 weekly active users).
 
 ## Current status
-Last updated after task 002.
+Last updated during task 003 (implemented on its branch, verification pending, not merged).
 
 ### Done (verified)
 - Setup: `AGENTS.md`, Antigravity rule, Claude Code settings and the `new-discord-command` skill. All planning docs and ADRs 0001-0015 written.
@@ -48,15 +48,21 @@ Last updated after task 002.
   - Sourced all user-facing text from the catalog in `CommandRouter` and `PingCommand` (`ping.description`, `ping.reply`, `error.unknown_command`, `error.generic`).
   - Verified with `.\mvnw.cmd verify` (22 tests, 0 failures), covering unit behavior, catalog validation, and Spring context integration.
 
+### In progress (not verified, not merged)
+- **Task 003** (PostgreSQL, Flyway, `linked_account`) on branch `feature/003-postgres-flyway-linked-account`, report in `docs/task-reports/003-postgres-flyway-linked-account.md`:
+  - Code written: `compose.yaml` (`postgres:17`, localhost-only port), datasource from `POSTGRES_*` with `ddl-auto: validate`, TEMP auto-configuration exclusions removed, migration `V1__create_linked_account.sql`, `LinkedAccount` entity, `LinkedAccountRepository`, Testcontainers test configuration, 9 new tests.
+  - Pending: `.\mvnw.cmd clean verify` with Docker running (Testcontainers) and the manual Compose startup check. Only an auxiliary harness run against a local PostgreSQL 16 has passed (31 tests); see the report.
+
 ### Not started (planned only)
-Tasks 003-021. Nothing beyond `/ping` and `/help` exists yet: no database, no Deadlock API client, no `/link`, `/analyze`, AI client, web server, premium or Patreon check. The MVP has not been built, launched or deployed.
+Tasks 004-021. Nothing beyond `/ping` and `/help` exists yet: no Deadlock API client, no `/link`, `/analyze`, AI client, web server, premium or Patreon check. The MVP has not been built, launched or deployed.
 
 ### Next
-Task 003 (PostgreSQL, Flyway, `linked_account`, remove the TEMP exclusions in `application.yaml`).
+Finish Task 003 verification on Windows, review and merge. Task 004 (`DeadlockApiClient`, depends on 001) is eligible in parallel; Task 005 needs 003 and 004.
 
 ## Constraints
 - User-facing behavior is English-only (ADR-0008); all user-facing text lives in `messages.properties` and is accessed via `Messages`.
 - Discord credentials come from environment variables (`.env`, see `.env.example`) and must never be committed. Manual Discord checks need `DISCORD_TOKEN` and `DEV_GUILD_ID`.
+- After Task 003 merges: the app needs a reachable PostgreSQL at startup (`POSTGRES_*` variables, no default password), Flyway is the only schema authority (`ddl-auto: validate`), and `verify` needs Docker running for Testcontainers.
 
 ## Known limitations and risks
 - On this Windows machine the Maven wrapper may need `MAVEN_USER_HOME` pointed at a temporary junction to the existing Maven home (null-target issue in PowerShell).
@@ -68,4 +74,5 @@ Task 003 (PostgreSQL, Flyway, `linked_account`, remove the TEMP exclusions in `a
 - Process: `docs/implementation-plan.md`, `docs/roadmap.md`, `docs/agent-workflow.md`, `docs/getting-started.md`
 - Task 001: `docs/tasks/001-project-skeleton.md`, `docs/task-reports/001-project-skeleton.md`
 - Task 002: `docs/tasks/002-i18n-and-help.md`, `docs/task-reports/002-i18n-and-help.md`
+- Task 003: `docs/tasks/003-postgres-flyway-linked-account.md`, `docs/task-reports/003-postgres-flyway-linked-account.md`
 - ADRs most relevant so far: `0001-java21-spring-boot-jda.md`, `0002-postgresql-and-caffeine.md`, `0005-oracle-cloud-docker-compose.md`, `0008-english-only-i18n-ready.md`, `0009-claude-plans-antigravity-implements.md`

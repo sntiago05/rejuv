@@ -13,12 +13,15 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.NoSuchMessageException;
+import org.springframework.context.annotation.Import;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.core.io.support.EncodedResource;
 import org.springframework.core.io.support.PropertiesLoaderUtils;
+import sntiago05.rejuv.TestcontainersConfiguration;
 import sntiago05.rejuv.commands.SlashCommand;
 
 @SpringBootTest(properties = {"bot.token=", "bot.dev-guild-id="})
+@Import(TestcontainersConfiguration.class)
 class MessagesIntegrationTest {
 
     private static final Pattern KEY_PATTERN = Pattern.compile("^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)+$");
