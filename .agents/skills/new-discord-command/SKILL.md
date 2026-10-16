@@ -15,7 +15,7 @@ description: Create or modify a Discord slash command in the Rejuv bot following
 - Use ephemeral replies for errors and private info; public replies only where the spec says so.
 
 ## Steps
-1. Read the task spec and `AGENTS.md`.
+1. Read the task spec and `../../../AGENTS.md`.
 2. Add message keys to `messages.properties` (prefix with the command name, e.g. `profile.not_linked`).
 3. Create or extend the service; write its unit tests first.
 4. Create the command class: `name()`, `data()` (options with descriptions), `handle()`.

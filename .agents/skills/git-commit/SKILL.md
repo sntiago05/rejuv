@@ -8,7 +8,7 @@ description: Stage and commit changes in the Rejuv repo with Conventional Commit
 ## Hard rules
 - Never commit on `main`. If the current branch is `main`, stop and tell the user.
 - Never run `git push`, `git push --force`, `git rebase` or `git reset --hard`. Pushing is done by the human.
-- Never stage `.env`, `.env.*` (except `.env.example`), `target/`, IDE folders or credentials. If any appear in `git status`, stop and warn.
+- Never stage `../../../.env`, `.env.*` (except `.env.example`), `target/`, IDE folders or credentials. If any appear in `git status`, stop and warn.
 - Never use `git add .` or `git add -A`. Stage explicit paths.
 
 ## Steps

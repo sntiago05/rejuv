@@ -11,7 +11,7 @@
 ## Shared context
 - `AGENTS.md` at repo root is the single source of rules (stack, architecture, conventions).
 - `CLAUDE.md` only contains `@AGENTS.md`.
-- Skills live in `.claude/skills/` (Claude Code) and are mirrored in `.agent/skills/` (Antigravity).
+- Skills live in `.claude/skills/` (Claude Code) and are mirrored in `../.agents/skills` (Antigravity).
 - Create a skill only after explaining the same thing to an agent 2-3 times.
 
 ## Flow for each task

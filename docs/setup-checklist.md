@@ -25,5 +25,5 @@
 
 ## Repo
 - [ ] Spring Initializr project + `docs/` copied in, first commit pushed
-- [ ] `AGENTS.md`, `CLAUDE.md`, `.agent/rules/`, first skill (drafted in Claude Project)
+- [ ] `AGENTS.md`, `CLAUDE.md`, `../.agents/rules`, first skill (drafted in Claude Project)
 - [ ] GitHub Projects board with tasks 001-010 as cards
