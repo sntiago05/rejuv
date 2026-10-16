@@ -6,12 +6,13 @@ spring:
   docker:
     compose:
       enabled: false
-  autoconfigure:
-    exclude:
-      # TEMP: removed in task 003
-      - org.springframework.boot.jdbc.autoconfigure.DataSourceAutoConfiguration
-      - org.springframework.boot.hibernate.autoconfigure.HibernateJpaAutoConfiguration
-      - org.springframework.boot.flyway.autoconfigure.FlywayAutoConfiguration
+  datasource:
+    url: jdbc:postgresql://${POSTGRES_HOST:localhost}:${POSTGRES_PORT:5432}/${POSTGRES_DB:rejuv}
+    username: ${POSTGRES_USER:rejuv}
+    password: ${POSTGRES_PASSWORD:}
+  jpa:
+    hibernate:
+      ddl-auto: validate
 
 bot:
   token: ${DISCORD_TOKEN:}
