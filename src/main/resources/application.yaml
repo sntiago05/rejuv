@@ -17,3 +17,10 @@ spring:
 bot:
   token: ${DISCORD_TOKEN:}
   dev-guild-id: ${DEV_GUILD_ID:}
+
+deadlock-api:
+  base-url: https://api.deadlock-api.com
+  connect-timeout: 3s
+  read-timeout: 10s
+  default-retry-after: 2s
+  max-retry-after: 10s
