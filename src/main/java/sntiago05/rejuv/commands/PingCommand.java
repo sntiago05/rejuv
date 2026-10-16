@@ -4,9 +4,16 @@ import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEve
 import net.dv8tion.jda.api.interactions.commands.build.Commands;
 import net.dv8tion.jda.api.interactions.commands.build.SlashCommandData;
 import org.springframework.stereotype.Component;
+import sntiago05.rejuv.services.Messages;
 
 @Component
 public class PingCommand implements SlashCommand {
+
+    private final Messages messages;
+
+    public PingCommand(Messages messages) {
+        this.messages = messages;
+    }
 
     @Override
     public String name() {
@@ -15,12 +22,12 @@ public class PingCommand implements SlashCommand {
 
     @Override
     public SlashCommandData data() {
-        return Commands.slash(name(), "Check the bot gateway latency");
+        return Commands.slash(name(), messages.get("ping.description"));
     }
 
     @Override
     public void handle(SlashCommandInteractionEvent event) {
-        event.reply("Pong! " + event.getJDA().getGatewayPing() + " ms")
+        event.reply(messages.get("ping.reply", String.valueOf(event.getJDA().getGatewayPing())))
                 .setEphemeral(true)
                 .queue();
     }

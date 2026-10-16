@@ -1,6 +1,6 @@
 # Rejuv
 
-Rejuv is an English-language Discord bot for Deadlock players. This skeleton starts a Java 21 / Spring Boot 4.1 application, logs in with JDA 5, and registers a dev-guild `/ping` command.
+Rejuv is an English-language Discord bot for Deadlock players. This skeleton starts a Java 21 / Spring Boot 4.1 application, logs in with JDA 5, and registers dev-guild `/ping` and `/help` commands.
 
 ## Prerequisites
 
@@ -21,4 +21,4 @@ Rejuv is an English-language Discord bot for Deadlock players. This skeleton sta
    .\mvnw.cmd spring-boot:run
    ```
 
-The app is non-web and disables database-related auto-configuration until the database task is implemented. With valid Discord credentials, the bot comes online and registers `/ping` in the configured dev guild.
+The app is non-web and disables database-related auto-configuration until the database task is implemented. With valid Discord credentials, the bot comes online and registers `/ping` and `/help` in the configured dev guild.

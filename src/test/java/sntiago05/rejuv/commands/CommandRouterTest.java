@@ -16,13 +16,14 @@ import net.dv8tion.jda.api.interactions.commands.build.SlashCommandData;
 import net.dv8tion.jda.api.requests.restaction.interactions.ReplyCallbackAction;
 import org.junit.jupiter.api.Test;
 import sntiago05.rejuv.config.BotProperties;
+import sntiago05.rejuv.services.MessagesFixture;
 
 class CommandRouterTest {
 
     @Test
     void routesKnownCommandByName() {
         TestSlashCommand ping = new TestSlashCommand("ping");
-        CommandRouter router = new CommandRouter(new BotProperties("token", "123"), List.of(ping));
+        CommandRouter router = new CommandRouter(new BotProperties("token", "123"), List.of(ping), MessagesFixture.english());
         SlashCommandInteractionEvent event = eventNamed("ping");
 
         router.onSlashCommandInteraction(event);
@@ -33,7 +34,7 @@ class CommandRouterTest {
 
     @Test
     void repliesEphemerallyForUnknownCommand() {
-        CommandRouter router = new CommandRouter(new BotProperties("token", "123"), List.of(new TestSlashCommand("ping")));
+        CommandRouter router = new CommandRouter(new BotProperties("token", "123"), List.of(new TestSlashCommand("ping")), MessagesFixture.english());
         SlashCommandInteractionEvent event = eventNamed("missing");
         ReplyCallbackAction reply = replyFor(event, "Unknown command");
 
@@ -46,7 +47,7 @@ class CommandRouterTest {
     @Test
     void catchesHandlerExceptionAndRepliesEphemerally() {
         SlashCommand failing = new FailingSlashCommand("ping");
-        CommandRouter router = new CommandRouter(new BotProperties("token", "123"), List.of(failing));
+        CommandRouter router = new CommandRouter(new BotProperties("token", "123"), List.of(failing), MessagesFixture.english());
         SlashCommandInteractionEvent event = eventNamed("ping");
         ReplyCallbackAction reply = mock(ReplyCallbackAction.class);
         when(event.reply(org.mockito.ArgumentMatchers.startsWith("Something went wrong. Error id: "))).thenReturn(reply);

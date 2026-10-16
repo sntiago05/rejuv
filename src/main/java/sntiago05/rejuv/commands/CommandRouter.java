@@ -15,6 +15,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 import sntiago05.rejuv.config.BotProperties;
+import sntiago05.rejuv.services.Messages;
 
 @Component
 public class CommandRouter extends ListenerAdapter {
@@ -24,12 +25,14 @@ public class CommandRouter extends ListenerAdapter {
     private final BotProperties botProperties;
     private final List<SlashCommand> commands;
     private final Map<String, SlashCommand> commandsByName;
+    private final Messages messages;
 
-    public CommandRouter(BotProperties botProperties, List<SlashCommand> commands) {
+    public CommandRouter(BotProperties botProperties, List<SlashCommand> commands, Messages messages) {
         this.botProperties = botProperties;
         this.commands = List.copyOf(commands);
         this.commandsByName = commands.stream()
                 .collect(Collectors.toUnmodifiableMap(SlashCommand::name, Function.identity()));
+        this.messages = messages;
     }
 
     @Override
@@ -53,7 +56,7 @@ public class CommandRouter extends ListenerAdapter {
         String commandName = event.getName();
         SlashCommand command = commandsByName.get(commandName);
         if (command == null) {
-            event.reply("Unknown command").setEphemeral(true).queue();
+            event.reply(messages.get("error.unknown_command")).setEphemeral(true).queue();
             log.warn("Unknown slash command userId={} command={}", event.getUser().getId(), commandName);
             log.info("Slash command userId={} command={} durationMs={} outcome=unknown", event.getUser().getId(), commandName,
                     durationMillis(startedAt));
@@ -67,7 +70,7 @@ public class CommandRouter extends ListenerAdapter {
         } catch (RuntimeException ex) {
             String errorId = UUID.randomUUID().toString();
             log.error("Slash command failed errorId={} userId={} command={}", errorId, event.getUser().getId(), commandName, ex);
-            event.reply("Something went wrong. Error id: " + errorId).setEphemeral(true).queue();
+            event.reply(messages.get("error.generic", errorId)).setEphemeral(true).queue();
             log.info("Slash command userId={} command={} durationMs={} outcome=error", event.getUser().getId(), commandName,
                     durationMillis(startedAt));
         }
