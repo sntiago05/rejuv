@@ -1,0 +1,17 @@
+[
+  {
+    "tier": 0,
+    "name": "Obscurus",
+    "color": "#333333"
+  },
+  {
+    "tier": 1,
+    "name": "Initiate",
+    "color": "#6A3E1E"
+  },
+  {
+    "tier": 2,
+    "name": "Seeker",
+    "color": "#882355"
+  }
+]

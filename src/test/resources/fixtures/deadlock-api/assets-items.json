@@ -1,0 +1,32 @@
+[
+  {
+    "id": 1548066885,
+    "class_name": "upgrade_clip_size",
+    "name": "Extended Magazine",
+    "type": "upgrade",
+    "item_tier": 1,
+    "item_slot_type": "weapon",
+    "cost": 800,
+    "shopable": true
+  },
+  {
+    "id": 2521299219,
+    "class_name": "ability_golden_idol",
+    "name": "Soul Urn",
+    "type": "ability",
+    "item_tier": null,
+    "item_slot_type": null,
+    "cost": null,
+    "shopable": null
+  },
+  {
+    "id": 2826225210,
+    "class_name": "weapon_alternative_rmb_activate",
+    "name": "weapon_alternative_rmb_activate",
+    "type": "weapon",
+    "item_tier": null,
+    "item_slot_type": null,
+    "cost": null,
+    "shopable": null
+  }
+]
