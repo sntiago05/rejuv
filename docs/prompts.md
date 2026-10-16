@@ -28,5 +28,5 @@ Answer with a short list ordered by severity, then "OK to merge" or "Fix first".
 
 ## End of day: status update
 ```
-Today I merged: <tasks>. Problems: <...>. Update the "Current status" section of PROJECT_CONTEXT.md (max 5 lines).
+Today I merged: <tasks>. Problems: <...>. Update the "Current status" section of docs/PROJECT_CONTEXT.md (max 5 lines).
 ```

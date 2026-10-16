@@ -1,3 +1,18 @@
 spring:
   application:
     name: rejuv
+  main:
+    web-application-type: none
+  docker:
+    compose:
+      enabled: false
+  autoconfigure:
+    exclude:
+      # TEMP: removed in task 003
+      - org.springframework.boot.jdbc.autoconfigure.DataSourceAutoConfiguration
+      - org.springframework.boot.hibernate.autoconfigure.HibernateJpaAutoConfiguration
+      - org.springframework.boot.flyway.autoconfigure.FlywayAutoConfiguration
+
+bot:
+  token: ${DISCORD_TOKEN:}
+  dev-guild-id: ${DEV_GUILD_ID:}

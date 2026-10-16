@@ -6,7 +6,7 @@
 - [ ] Java 21 JDK, Maven, Docker Desktop
 - [ ] Antigravity with Java and Spring Boot extensions
 - [ ] Claude Code installed; JetBrains plugin
-- [ ] Claude Project created; `PROJECT_CONTEXT.md` uploaded
+- [ ] Claude Project created; `docs/PROJECT_CONTEXT.md` uploaded
 
 ## Discord
 - [ ] Discord Developer Portal: create application + bot, copy token into `.env`
