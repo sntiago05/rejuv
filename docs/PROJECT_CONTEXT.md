@@ -34,7 +34,7 @@ Rule from `AGENTS.md`: update this file after each task with verified facts only
 21 tasks in `docs/implementation-plan.md`, ADRs 0001-0015 in `docs/adr/`. Fast track in `docs/roadmap.md`: week 1 = tasks 001-010 (MVP, tester gate before public launch on day 5), week 2 = tasks 011-021 (hero utilities, social, web reports, premium behind a feature flag until ~30 weekly active users).
 
 ## Current status
-Last updated during task 003 (implemented on its branch, verification pending, not merged).
+Last updated after Task 003 full verification on `feature/003-postgres-flyway-linked-account` (ready to merge).
 
 ### Done (verified)
 - Setup: `AGENTS.md`, Antigravity rule, Claude Code settings and the `new-discord-command` skill. All planning docs and ADRs 0001-0015 written.
@@ -47,22 +47,26 @@ Last updated during task 003 (implemented on its branch, verification pending, n
   - `/help` ephemeral slash command (`HelpCommand`) registered alongside `/ping` in the dev guild.
   - Sourced all user-facing text from the catalog in `CommandRouter` and `PingCommand` (`ping.description`, `ping.reply`, `error.unknown_command`, `error.generic`).
   - Verified with `.\mvnw.cmd verify` (22 tests, 0 failures), covering unit behavior, catalog validation, and Spring context integration.
+- **Task 003** (PostgreSQL, Flyway, `linked_account`), report in `docs/task-reports/003-postgres-flyway-linked-account.md`:
+  - PostgreSQL 17 in `compose.yaml` (localhost-only port, healthcheck, volume `postgres-data`).
+  - Removed TEMP auto-configuration exclusions from `application.yaml`, configured datasource from `POSTGRES_*` variables with `ddl-auto: validate`.
+  - Flyway migration `V1__create_linked_account.sql`, `LinkedAccount` entity, `LinkedAccountRepository`.
+  - Testcontainers configuration with `postgres:17` and `@ServiceConnection`.
+  - Verified: `./mvnw clean verify` (31 tests, 0 failures); manual check with `docker compose up -d postgres`, `spring-boot:run` (initial migration + idempotent second run), and `psql` schema check confirming table `linked_account`.
 
 ### In progress (not verified, not merged)
-- **Task 003** (PostgreSQL, Flyway, `linked_account`) on branch `feature/003-postgres-flyway-linked-account`, report in `docs/task-reports/003-postgres-flyway-linked-account.md`:
-  - Code written: `compose.yaml` (`postgres:17`, localhost-only port), datasource from `POSTGRES_*` with `ddl-auto: validate`, TEMP auto-configuration exclusions removed, migration `V1__create_linked_account.sql`, `LinkedAccount` entity, `LinkedAccountRepository`, Testcontainers test configuration, 9 new tests.
-  - Pending: `.\mvnw.cmd clean verify` with Docker running (Testcontainers) and the manual Compose startup check. Only an auxiliary harness run against a local PostgreSQL 16 has passed (31 tests); see the report.
+None.
 
 ### Not started (planned only)
-Tasks 004-021. Nothing beyond `/ping` and `/help` exists yet: no Deadlock API client, no `/link`, `/analyze`, AI client, web server, premium or Patreon check. The MVP has not been built, launched or deployed.
+Tasks 004-021. Nothing beyond `/ping`, `/help` and the database baseline exists yet: no Deadlock API client, no `/link`, `/analyze`, AI client, web server, premium or Patreon check. The MVP has not been built, launched or deployed.
 
 ### Next
-Finish Task 003 verification on Windows, review and merge. Task 004 (`DeadlockApiClient`, depends on 001) is eligible in parallel; Task 005 needs 003 and 004.
+Review and merge `feature/003-postgres-flyway-linked-account` into `main`. Task 004 (`DeadlockApiClient`) is eligible next; Task 005 (`/link`, `/unlink`) depends on both 003 and 004.
 
 ## Constraints
 - User-facing behavior is English-only (ADR-0008); all user-facing text lives in `messages.properties` and is accessed via `Messages`.
 - Discord credentials come from environment variables (`.env`, see `.env.example`) and must never be committed. Manual Discord checks need `DISCORD_TOKEN` and `DEV_GUILD_ID`.
-- After Task 003 merges: the app needs a reachable PostgreSQL at startup (`POSTGRES_*` variables, no default password), Flyway is the only schema authority (`ddl-auto: validate`), and `verify` needs Docker running for Testcontainers.
+- After Task 003: the app needs a reachable PostgreSQL at startup (`POSTGRES_*` variables, no default password), Flyway is the only schema authority (`ddl-auto: validate`), and `verify` needs Docker running for Testcontainers.
 
 ## Known limitations and risks
 - On this Windows machine the Maven wrapper may need `MAVEN_USER_HOME` pointed at a temporary junction to the existing Maven home (null-target issue in PowerShell).
