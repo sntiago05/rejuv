@@ -3,8 +3,8 @@
 ## 1. Claude Project (claude.ai)
 1. Sidebar → **Projects** → **Create project**. Name: `Rejuv`.
 2. **Instructions**: paste
-   > Read PROJECT_CONTEXT.md first. You are the architect of this project: you design, write task specs (docs/tasks template) and review diffs; you do not implement whole features here. Explain decisions to me in Spanish; everything produced (code, docs, specs, commits) is in English. Keep answers focused; ask before large changes.
-3. **Project knowledge**: upload only `PROJECT_CONTEXT.md`, `AGENTS.md`, `docs/mvp-spec.md`, `docs/features.md`, `docs/tasks/000-template.md`. Keep it small; paste other docs into a chat only when needed.
+   > Read docs/PROJECT_CONTEXT.md first. You are the architect of this project: you design, write task specs (docs/tasks template) and review diffs; you do not implement whole features here. Explain decisions to me in Spanish; everything produced (code, docs, specs, commits) is in English. Keep answers focused; ask before large changes.
+3. **Project knowledge**: upload only `docs/PROJECT_CONTEXT.md`, `AGENTS.md`, `docs/mvp-spec.md`, `docs/features.md`, `docs/tasks/000-template.md`. Keep it small; paste other docs into a chat only when needed.
 4. Model: Sonnet for daily specs/reviews; switch to Opus for hard design questions.
 
 ## 2. Repository
@@ -13,7 +13,7 @@
    - Maven, Java 21, Spring Boot **4.1.x (latest stable)**, Jar
    - Group `dev.<your-github-user>`, Artifact `rejuv`, package `sntiago05.rejuv`
    - Dependencies: Spring Data JPA, PostgreSQL Driver, Flyway Migration, Validation, Spring Cache Abstraction, Docker Compose Support
-3. Unzip, copy into it: `docs/`, `scripts/`, `.agent/`, `.claude/`, `AGENTS.md`, `CLAUDE.md`, `PROJECT_CONTEXT.md`.
+3. Unzip, copy into it: `docs/`, `scripts/`, `.agent/`, `.claude/`, `AGENTS.md`, `CLAUDE.md`.
 4. ```bash
    git init && git add . && git commit -m "chore: initial skeleton and docs"
    git branch -M main
@@ -55,5 +55,5 @@ dev/
 ## 6. Daily rhythm
 - **Start of day (15 min):** in one Claude Project chat, write the specs for that day's tasks.
 - **During the day:** run the loop per task.
-- **End of day (10 min):** update `PROJECT_CONTEXT.md` → "Current status", re-upload it to the Claude Project, move cards.
+- **End of day (10 min):** update `docs/PROJECT_CONTEXT.md` → "Current status", re-upload it to the Claude Project, move cards.
 - New chat per day or per task in the Claude Project; never one endless chat.

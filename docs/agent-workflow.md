@@ -3,7 +3,7 @@
 ## Roles
 | Tool | Role |
 |---|---|
-| Claude Project (claude.ai) | Architect: design, decisions, ADRs, writes task specs in `docs/tasks/`, reviews diffs. Holds `PROJECT_CONTEXT.md`. |
+| Claude Project (claude.ai) | Architect: design, decisions, ADRs, writes task specs in `docs/tasks/`, reviews diffs. Holds `docs/PROJECT_CONTEXT.md`. |
 | Antigravity | Main implementer: executes task specs in its own worktree. |
 | Claude Code | Reserved for hard tasks: complex bugs, the AI analysis service, risky refactors. |
 | Human (me) | Reviews every change, merges to `main`, owns decisions. |
