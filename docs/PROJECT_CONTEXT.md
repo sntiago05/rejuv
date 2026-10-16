@@ -34,7 +34,7 @@ Rule from `AGENTS.md`: update this file after each task with verified facts only
 23 tasks in `docs/implementation-plan.md` (022-023 added for match metadata), ADRs 0001-0015 in `docs/adr/`. Fast track in `docs/roadmap.md`: week 1 = tasks 001-010 plus 022 before 007 (MVP, tester gate before public launch on day 5), week 2 = tasks 011-021 (hero utilities, social, web reports, premium behind a feature flag until ~30 weekly active users). `roadmap.md` has not been updated for 022 yet. Task 023 (raw protobuf fallback) is scheduled only if the JSON metadata endpoint fails often during testing.
 
 ## Current status
-Last updated while planning Task 004, after Task 003 was merged into `main` (confirmed by the owner).
+Last updated at the closeout of Task 004 on branch `feature/004-deadlock-api-client` (verified, not merged yet).
 
 ### Done (verified)
 - Setup: `AGENTS.md`, Antigravity rule, Claude Code settings and the `new-discord-command` skill. All planning docs and ADRs 0001-0015 written.
@@ -53,15 +53,21 @@ Last updated while planning Task 004, after Task 003 was merged into `main` (con
   - Flyway migration `V1__create_linked_account.sql`, `LinkedAccount` entity, `LinkedAccountRepository`.
   - Testcontainers configuration with `postgres:17` and `@ServiceConnection`.
   - Verified: `./mvnw clean verify` (31 tests, 0 failures); manual check with `docker compose up -d postgres`, `spring-boot:run` (initial migration + idempotent second run), and `psql` schema check confirming table `linked_account`.
+- **Task 004** (`DeadlockApiClient`), report in `docs/task-reports/004-deadlock-api-client.md`. Verified on its branch, **not merged yet**:
+  - `clients/DeadlockApiClient` on Spring `RestClient` (`spring-boot-starter-restclient`, Jackson 3 with `com.fasterxml.jackson.annotation` annotations): `getMatchHistory` (max 200 entries, newest first; empty list = no data, the account check for Task 005), `getPlayerRank`, `getBenchmarks(heroId, rankTier)` (`player-stats/metrics`, p25/p50/p75), `getItemStats(heroId, rankTier)` (average buy times), `getRanks`, `getHeroes`, `getItems`. No match metadata (Task 022).
+  - Failures: `DeadlockApiException` (unexpected status, bad body) and `DeadlockApiUnavailableException` (503, 429, I/O, timeout; optional `retryAfter()`). One 503 retry when `Retry-After` <= 10 s (default 2 s); history 429 with an array body is a success.
+  - `config/CacheConfig`: static Caffeine caches `deadlockAssets` 24 h/10, `deadlockBenchmarks` 6 h/500, `deadlockItemStats` 6 h/500, `deadlockMatchHistory` 2 min/1000, `deadlockPlayerRank` 10 min/1000. `config/DeadlockApiConfig.restClientBuilder` and `clients/Sleeper` are reused by Task 022.
+  - Confirmed in OpenAPI: `item-stats` filters by `hero_ids` (`hero_id` is deprecated) and `min/max_average_badge`; metric keys are `percentile25/50/75`.
+  - Verified: `driver.sh verify` (62 tests, 0 failures) and a live check of assets, benchmarks and item stats.
 
 ### In progress (not verified, not merged)
-Planning only: a draft spec for Task 004 exists at `docs/tasks/004-deadlock-api-client.md` and is being revised against real API responses (see below). No code for 004 exists.
+Task 004 waits for human review and merge (see above).
 
 ### Not started (planned only)
-Tasks 004-023. Nothing beyond `/ping`, `/help` and the database baseline exists yet: no Deadlock API client, no `/link`, `/analyze`, AI client, web server, premium or Patreon check. The MVP has not been built, launched or deployed.
+Tasks 005-023. Nothing beyond `/ping`, `/help`, the database baseline and the Deadlock API client exists yet: no `/link`, `/analyze`, match metadata, AI client, web server, premium or Patreon check. The MVP has not been built, launched or deployed.
 
 ### Next
-Finalize the Task 004 spec (`DeadlockApiClient`: history, benchmarks, assets, player rank; no metadata), then write the Task 022 spec (match metadata port + JSON adapter). Task 005 (`/link`, `/unlink`) depends on 003 and 004; Task 007 depends on 004 and 022.
+After Task 004 is merged: Task 005 (`/link`, `/unlink`, depends on 003 and 004) and Tasks 011-013 (depend on 004) become eligible; Task 008 (depends on 001) already is. Write the Task 022 spec (match metadata port + JSON adapter); Task 007 depends on 004 and 022.
 
 ### Deadlock API facts observed in real responses (2026-10-16, evidence collected by the owner)
 - Host `https://api.deadlock-api.com`. `GET /v1/players/{account_id}/match-history` returns an array, newest first. An account without data returns 200 `[]` (not 404). The payload is large (about 5 MB for 6,842 matches), so a client must cap what it keeps.
@@ -80,7 +86,7 @@ Finalize the Task 004 spec (`DeadlockApiClient`: history, benchmarks, assets, pl
 - On this Windows machine the Maven wrapper may need `MAVEN_USER_HOME` pointed at a temporary junction to the existing Maven home (null-target issue in PowerShell).
 - deadlock-api data coverage gaps; many competing tracker sites.
 - Match metadata can be unavailable (503 while Steam is busy, strict Steam fallback quota). `/analyze` needs a degraded mode based on history data only (Task 009); a raw protobuf fallback is planned as Task 023.
-- Open decision: the source of an item-timing benchmark (the MVP spec compares item purchase times, but `player-stats/metrics` has none). Net worth at 10 min has no exact snapshot (540 s and 720 s exist), so it must be interpolated; 20 min is exact (1200 s).
+- The item-timing benchmark is the `item-stats` average buy time (`avg_buy_time_s`, no percentiles), per the Task 004 spec; `docs/mvp-spec.md` still describes a p50 and needs an owner update. Net worth at 10 min has no exact snapshot (540 s and 720 s exist), so it must be interpolated; 20 min is exact (1200 s).
 - Claude Pro usage limits on heavy days: keep implementation in Antigravity.
 
 ## References
@@ -89,5 +95,5 @@ Finalize the Task 004 spec (`DeadlockApiClient`: history, benchmarks, assets, pl
 - Task 001: `docs/tasks/001-project-skeleton.md`, `docs/task-reports/001-project-skeleton.md`
 - Task 002: `docs/tasks/002-i18n-and-help.md`, `docs/task-reports/002-i18n-and-help.md`
 - Task 003: `docs/tasks/003-postgres-flyway-linked-account.md`, `docs/task-reports/003-postgres-flyway-linked-account.md`
-- Task 004 (draft, being revised): `docs/tasks/004-deadlock-api-client.md`
+- Task 004: `docs/tasks/004-deadlock-api-client.md`, `docs/task-reports/004-deadlock-api-client.md`
 - ADRs most relevant so far: `0001-java21-spring-boot-jda.md`, `0002-postgresql-and-caffeine.md`, `0005-oracle-cloud-docker-compose.md`, `0008-english-only-i18n-ready.md`, `0009-claude-plans-antigravity-implements.md`
