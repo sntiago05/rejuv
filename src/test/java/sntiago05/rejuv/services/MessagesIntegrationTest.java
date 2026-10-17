@@ -40,7 +40,17 @@ class MessagesIntegrationTest {
                 "ping.description",
                 "ping.reply",
                 "error.unknown_command",
-                "error.generic"
+                "error.generic",
+                "error.data_source_busy",
+                "link.description",
+                "link.option.account",
+                "link.success",
+                "link.invalid_input",
+                "link.vanity_unsupported",
+                "link.no_matches",
+                "unlink.description",
+                "unlink.success",
+                "unlink.not_linked"
         );
 
         for (String key : requiredKeys) {
@@ -75,6 +85,6 @@ class MessagesIntegrationTest {
     @Test
     void registersHelpAndPingAsSlashCommands() {
         List<String> commandNames = commands.stream().map(SlashCommand::name).toList();
-        assertThat(commandNames).contains("help", "ping");
+        assertThat(commandNames).contains("help", "ping", "link", "unlink");
     }
 }
