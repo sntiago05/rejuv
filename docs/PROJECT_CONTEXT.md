@@ -34,7 +34,7 @@ Rule from `AGENTS.md`: update this file after each task with verified facts only
 23 tasks in `docs/implementation-plan.md` (022-023 added for match metadata), ADRs 0001-0015 in `docs/adr/`. Fast track in `docs/roadmap.md`: week 1 = tasks 001-010 plus 022 before 007 (MVP, tester gate before public launch on day 5), week 2 = tasks 011-021 (hero utilities, social, web reports, premium behind a feature flag until ~30 weekly active users). `roadmap.md` has not been updated for 022 yet. Task 023 (raw protobuf fallback) is scheduled only if the JSON metadata endpoint fails often during testing.
 
 ## Current status
-Last updated 2026-10-17 after Task 009 (PR #41), Task 014 (PR #42) and Task 016 (PR #43) were merged into `main` (on top of the refactor PR #39). Tasks 001-009, 011-014, 016 and 022 are merged or verified.
+Last updated 2026-10-17 after Task 009 (PR #41), Task 014 (PR #42), Task 016 (PR #43) and Task 024 (PR #40) were merged into `main` (on top of the refactor PR #39). Tasks 001-009, 011-014, 016, 022 and 024 are merged or verified.
 
 ### Done (verified)
 - Setup: `AGENTS.md`, Antigravity rule, Claude Code settings and the `new-discord-command` skill. All planning docs and ADRs 0001-0015 written.
@@ -119,16 +119,23 @@ Last updated 2026-10-17 after Task 009 (PR #41), Task 014 (PR #42) and Task 016 
   - Public embed ranking the linked members of the current server by rank (top 10; unranked or missing accounts are counted in the footer, not listed). `services/LeaderboardService` takes the 500 most recently linked accounts as candidates; `commands/LeaderboardCommand`; records `LeaderboardEntry`, `LinkedMember`, `ServerLeaderboard`, `AccountRank`.
   - `DeadlockApiClient.getPlayerRanks(List<Long>)` (`/v1/players/rank`, batch), cached in `deadlockPlayerRanks` (10 min/100, key is the sorted id list). `JdaConfig` enables `GatewayIntent.GUILD_MEMBERS`.
   - Verified: `./mvnw clean verify` on the branch after merging `main` with 009 and 014 (452 tests, 0 failures, 2 skipped). One conflict in `DeadlockApiClientCachingTest` (both sides added tests) was resolved keeping both. No manual Discord check.
-- The test count on `main` after merging Tasks 009, 014 and 016 is 452 (2 skipped benchmark tests).
 
-### In progress (not verified, not merged)
-Task 024 (rich presentation: JDA bump for application emojis, emoji sync, `AssetImages`, `IconCatalog`, `AssetImageClient`): spec in `docs/tasks/024-rich-presentation.md`; worktree `../rejuv-wt/024`, branch `feature/024-rich-presentation`, open as PR #40 (unmerged, not re-verified here). It changes `CounterCommand` and shared files; rebase on `main` before merging. Its `PROJECT_CONTEXT.md` update stays pending integration.
+- **Task 024** (rich presentation), report in `docs/task-reports/024-rich-presentation.md`. Merged (PR #40):
+  - JDA bumped from 5.0.0 to 5.6.1 (application emojis). Asset DTOs gained image fields (`HeroImages`, `ItemAsset.image`, `RankAsset.images`) with backward-compatible constructors.
+  - Emoji sync: `services/EmojiSyncService` uploads hero and shop-upgrade emojis as Discord application emojis in a background thread (`config/EmojiSyncStarter`, `config/JdaEmojiGateway` behind `services/EmojiGateway`), capped at 400 new emojis; failures are logged WARN and skipped. `services/IconCatalog` holds the emoji mentions; until it fills, embeds are text-only. The first sync uploads about 315 emojis (1-3 minutes).
+  - `clients/AssetImageClient` (uncached, HTTPS only, hosts `assets-bucket.deadlock-api.com` and `api.deadlock-api.com`, body <= 256 KB); `services/AssetImages` resolves hero card and rank badge URLs from cached assets.
+  - `commands/EmbedStyle` (brand color `0xE5A93C`, `withIcon`, `fitField` for the 1024-char field limit). Restyled: `/profile`, `/meta`, `/build`, `/counter`, `/help` (ephemeral embed, key `help.title`). `/analyze`, `/heroes` and `/leaderboard` do not use the icons or `EmbedStyle` yet.
+  - Verified: on its branch 388 tests; after merging `main` with 009, 014 and 016, `./mvnw verify` passed with 496 tests, 0 failures, 2 skipped. No manual Discord check.
+- The test count on `main` after merging Tasks 009, 014, 016 and 024 is 496 (2 skipped benchmark tests).
+
+### In progress
+Nothing.
 
 ### Not started (planned only)
 Tasks 010, 015, 017-021 and 023. Nothing beyond `/ping`, `/help`, `/link`, `/unlink`, `/profile`, `/analyze`, `/meta`, `/build`, `/counter`, `/heroes`, `/leaderboard server`, the database baseline, the Deadlock API client, the match metadata port, the AI client, and `MetricsService` exists yet: no web server, premium or Patreon check. The MVP code is merged but has not been run end to end in Discord, launched or deployed. `/help` does not list `/heroes` or `/leaderboard`.
 
 ### Next
-Task 010 (prompt tuning with testers, now unblocked by 009) and the manual Discord check of `/analyze`, `/heroes` and `/leaderboard server`. Also eligible: 015 (depends on 005 and 006), Task 023 (depends on 022, only if the JSON metadata endpoint fails often). Merging 024 (PR #40) needs a rebase first.
+Task 010 (prompt tuning with testers, now unblocked by 009) and the manual Discord check of `/analyze`, `/heroes` and `/leaderboard server`. Also eligible: 015 (depends on 005 and 006), Task 023 (depends on 022, only if the JSON metadata endpoint fails often). Follow-ups: list `/heroes` and `/leaderboard` in `/help`, and apply the Task 024 icons and `EmbedStyle` to `/analyze`, `/heroes` and `/leaderboard`. Check the first emoji sync in the dev guild.
 
 ### Deadlock API facts observed in real responses (2026-10-16, evidence collected by the owner)
 - Host `https://api.deadlock-api.com`. `GET /v1/players/{account_id}/match-history` returns an array, newest first. An account without data returns 200 `[]` (not 404). The payload is large (about 5 MB for 6,842 matches), so a client must cap what it keeps.
@@ -181,5 +188,5 @@ Task 010 (prompt tuning with testers, now unblocked by 009) and the manual Disco
 - Task 014: `docs/tasks/014-heroes.md`, `docs/task-reports/014-heroes.md`
 - Task 016: `docs/tasks/016-leaderboard-server.md`, `docs/task-reports/016-leaderboard-server.md`
 - Task 022: `docs/tasks/022-match-metadata.md`, `docs/task-reports/022-match-metadata.md`
-- Task 024: `docs/tasks/024-rich-presentation.md`
+- Task 024: `docs/tasks/024-rich-presentation.md`, `docs/task-reports/024-rich-presentation.md`
 - ADRs most relevant so far: `0001-java21-spring-boot-jda.md`, `0002-postgresql-and-caffeine.md`, `0005-oracle-cloud-docker-compose.md`, `0008-english-only-i18n-ready.md`, `0009-claude-plans-antigravity-implements.md`
