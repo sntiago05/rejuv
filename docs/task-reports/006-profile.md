@@ -2,7 +2,7 @@
 
 ## Status
 
-Implemented and verified locally. `./mvnw clean verify` passes with 166 tests (135 baseline + 31 new). Manual Discord check not run (see Verification). Not pushed, not merged.
+Implemented and verified locally. `./mvnw clean verify` passes with 166 tests (135 baseline + 31 new). Reviewed (OK to merge); owner ran the manual Discord check and it passed. Not pushed, not merged.
 
 ## Summary
 
@@ -41,7 +41,7 @@ Implemented and verified locally. `./mvnw clean verify` passes with 166 tests (1
 - Baseline before changes: `./mvnw -q clean verify` (Git Bash, Docker running): exit 0, 135 tests, 0 failures (matches the Task 022 report). No `MAVEN_USER_HOME` workaround was needed.
 - Narrow runs: `./mvnw -q test -Dtest='ProfileServiceTest,ProfileServiceCachingTest,ProfileCommandTest,DeadlockApiClientCachingTest'`. First run: 3 failures in `ProfileServiceCachingTest` (stubbing through the caching proxy, see Decisions); after the fix, `ProfileServiceCachingTest` 4/4 pass, others pass.
 - Final: `./mvnw -q clean verify`: exit 0, **166 tests**, 0 failures, 0 errors, 0 skipped. Difference: +31 new tests. `MessagesIntegrationTest` (Spring context with Testcontainers) proves `ProfileCommand`/`ProfileService` wire up and every new key resolves.
-- Manual Discord check: **not run**. It needs `DISCORD_TOKEN`/`DEV_GUILD_ID` (`.env` not read), and `driver.sh cmd` does not work on Windows (known issue). Owner should run `/profile` linked and not linked, and `/profile user:@other` linked and not linked, in the dev guild.
+- Manual Discord check: not run by the implementer (needs `DISCORD_TOKEN`/`DEV_GUILD_ID`; `driver.sh cmd` does not work on Windows). Run afterwards by the owner in the dev guild (`/profile` and `/profile user:@other`, linked and not linked): all OK, per the owner.
 - `git diff --check origin/main...HEAD`: clean. `git diff --name-only origin/main...HEAD`: only table files plus the approved test edit. No token, key or real id in the diff (fake ids `1000001`, `1000002`, `222`, `333`). `.env` was never read.
 
 ## Acceptance criteria
@@ -61,7 +61,11 @@ Implemented and verified locally. `./mvnw clean verify` passes with 166 tests (1
 
 ## Deviations
 
-- **`DeadlockApiClientCachingTest` modified** (not in the spec table), approved by the owner during implementation. Its `cacheTtlsAndSizesMatchTheDesign` asserts the cache manager holds exactly the known caches, so registering `profileSummary` broke it. Added `PROFILE_SUMMARY` → 10 min / 1000 to its two maps (4 lines). No other change.
+- **`DeadlockApiClientCachingTest` modified** (not in the spec table), approved by the owner during implementation (confirmed again at review). Its `cacheTtlsAndSizesMatchTheDesign` asserts the cache manager holds exactly the known caches, so registering `profileSummary` broke it. Added `PROFILE_SUMMARY` → 10 min / 1000 to its two maps (4 lines). No other change.
+
+## Review follow-up
+
+- The review found that `ProfileCommandTest` checked the arguments of `editOriginal`/`editOriginalEmbeds` but never checked that the edit action was queued. The helpers now keep the `WebhookMessageEditAction` mock and verify `queue()`, so a missing `.queue()` in any branch of `ProfileCommand` fails the tests. Test count unchanged (166).
 
 ## Known Issues
 
