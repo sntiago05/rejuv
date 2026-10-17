@@ -68,6 +68,7 @@ class HelpCommandTest {
                 "/unlink",
                 "/profile",
                 "/analyze",
+                "/matches",
                 "/meta",
                 "/build",
                 "/counter",

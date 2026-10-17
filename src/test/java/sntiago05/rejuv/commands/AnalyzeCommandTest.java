@@ -4,10 +4,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -20,20 +23,35 @@ import java.util.OptionalLong;
 import net.dv8tion.jda.api.entities.Message;
 import net.dv8tion.jda.api.entities.MessageEmbed;
 import net.dv8tion.jda.api.entities.User;
+import net.dv8tion.jda.api.events.interaction.command.CommandAutoCompleteInteractionEvent;
 import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEvent;
+import net.dv8tion.jda.api.interactions.AutoCompleteQuery;
 import net.dv8tion.jda.api.interactions.InteractionHook;
+import net.dv8tion.jda.api.interactions.commands.Command;
+import net.dv8tion.jda.api.interactions.commands.OptionMapping;
+import net.dv8tion.jda.api.interactions.commands.OptionType;
+import net.dv8tion.jda.api.interactions.commands.build.OptionData;
 import net.dv8tion.jda.api.interactions.commands.build.SlashCommandData;
 import net.dv8tion.jda.api.requests.restaction.WebhookMessageEditAction;
+import net.dv8tion.jda.api.requests.restaction.interactions.AutoCompleteCallbackAction;
 import net.dv8tion.jda.api.requests.restaction.interactions.ReplyCallbackAction;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import sntiago05.rejuv.clients.DeadlockApiException;
 import sntiago05.rejuv.clients.DeadlockApiUnavailableException;
+import sntiago05.rejuv.clients.dto.HeroAsset;
 import sntiago05.rejuv.domain.AnalysisInput.MetricComparison;
 import sntiago05.rejuv.domain.AnalysisReport;
 import sntiago05.rejuv.domain.AnalysisResult;
+import sntiago05.rejuv.domain.MatchFilter;
+import sntiago05.rejuv.domain.MatchSummary;
 import sntiago05.rejuv.services.AnalyzeService;
 import sntiago05.rejuv.services.AssetImages;
+import sntiago05.rejuv.services.GameAssets;
+import sntiago05.rejuv.services.HeroResolver;
+import sntiago05.rejuv.services.MatchNotFoundException;
+import sntiago05.rejuv.services.MatchSearchService;
 import sntiago05.rejuv.services.Messages;
 import sntiago05.rejuv.services.MessagesFixture;
 import sntiago05.rejuv.services.NoMatchHistoryException;
@@ -48,6 +66,9 @@ class AnalyzeCommandTest {
     private AnalyzeService analyzeService;
     private ProfileService profileService;
     private AssetImages assetImages;
+    private MatchSearchService matchSearchService;
+    private GameAssets gameAssets;
+    private HeroResolver heroResolver;
     private AnalyzeCommand command;
     private User caller;
     private WebhookMessageEditAction<Message> edit;
@@ -57,18 +78,41 @@ class AnalyzeCommandTest {
         analyzeService = mock(AnalyzeService.class);
         profileService = mock(ProfileService.class);
         assetImages = mock(AssetImages.class);
-        command = new AnalyzeCommand(analyzeService, profileService, messages, assetImages);
+        matchSearchService = mock(MatchSearchService.class);
+        gameAssets = mock(GameAssets.class);
+        heroResolver = mock(HeroResolver.class);
+        command = new AnalyzeCommand(analyzeService, profileService, messages, assetImages,
+                matchSearchService, gameAssets, heroResolver);
         caller = user(CALLER_ID, "Caller");
     }
 
     @Test
-    void nameIsAnalyzeWithNoOptions() {
+    void nameAndOptionsMatchSpec() {
         SlashCommandData data = command.data();
 
         assertThat(command.name()).isEqualTo("analyze");
         assertThat(data.getName()).isEqualTo("analyze");
         assertThat(data.getDescription()).isEqualTo(messages.get("analyze.description"));
-        assertThat(data.getOptions()).isEmpty();
+        assertThat(data.getOptions()).hasSize(3);
+
+        OptionData matchOpt = data.getOptions().get(0);
+        assertThat(matchOpt.getName()).isEqualTo("match");
+        assertThat(matchOpt.getType()).isEqualTo(OptionType.INTEGER);
+        assertThat(matchOpt.isRequired()).isFalse();
+        assertThat(matchOpt.isAutoComplete()).isTrue();
+
+        OptionData heroOpt = data.getOptions().get(1);
+        assertThat(heroOpt.getName()).isEqualTo("hero");
+        assertThat(heroOpt.getType()).isEqualTo(OptionType.STRING);
+        assertThat(heroOpt.isRequired()).isFalse();
+        assertThat(heroOpt.isAutoComplete()).isTrue();
+
+        OptionData resultOpt = data.getOptions().get(2);
+        assertThat(resultOpt.getName()).isEqualTo("result");
+        assertThat(resultOpt.getType()).isEqualTo(OptionType.STRING);
+        assertThat(resultOpt.isRequired()).isFalse();
+        assertThat(resultOpt.getChoices()).hasSize(2);
+        assertThat(resultOpt.getChoices()).extracting(Command.Choice::getAsString).containsExactly("win", "loss");
     }
 
     @Test
@@ -89,7 +133,7 @@ class AnalyzeCommandTest {
         verify(reply).queue();
         verify(event, never()).deferReply();
         verify(event, never()).deferReply(anyBoolean());
-        verify(analyzeService, never()).analyze(anyLong());
+        verify(analyzeService, never()).analyze(anyLong(), any());
     }
 
     @Test
@@ -102,7 +146,7 @@ class AnalyzeCommandTest {
         AnalysisResult aiResult = new AnalysisResult(
                 "Great farming", "Too many deaths", "Ward more", List.of("10 kills", "20k souls"));
         AnalysisReport report = new AnalysisReport(1, "Infernus", "Archon 3", "win", 30.0, aiResult, Map.of(), false);
-        when(analyzeService.analyze(ACCOUNT_ID)).thenReturn(report);
+        when(analyzeService.analyze(eq(ACCOUNT_ID), any())).thenReturn(report);
         when(assetImages.heroCardUrl(1)).thenReturn(Optional.of("https://assets-bucket.deadlock-api.com/hero.png"));
 
         command.handle(event);
@@ -135,7 +179,7 @@ class AnalyzeCommandTest {
 
         AnalysisResult aiResult = new AnalysisResult("Strength", "Leak", "Action", List.of());
         AnalysisReport report = new AnalysisReport(1, "Infernus", "Archon 3", "win", 30.0, aiResult, Map.of(), true);
-        when(analyzeService.analyze(ACCOUNT_ID)).thenReturn(report);
+        when(analyzeService.analyze(eq(ACCOUNT_ID), any())).thenReturn(report);
 
         command.handle(event);
 
@@ -158,7 +202,7 @@ class AnalyzeCommandTest {
         metrics.put("player_damage_per_min", new MetricComparison(1200.0, null, null, null));
 
         AnalysisReport report = new AnalysisReport(1, "Infernus", "Archon 3", "loss", 25.4, null, metrics, false);
-        when(analyzeService.analyze(ACCOUNT_ID)).thenReturn(report);
+        when(analyzeService.analyze(eq(ACCOUNT_ID), any())).thenReturn(report);
 
         command.handle(event);
 
@@ -185,7 +229,7 @@ class AnalyzeCommandTest {
         Map<String, MetricComparison> metrics = Map.of(
                 "kills", new MetricComparison(10.0, null, null, null));
         AnalysisReport report = new AnalysisReport(1, "Infernus", "Archon 3", "win", 30.0, null, metrics, true);
-        when(analyzeService.analyze(ACCOUNT_ID)).thenReturn(report);
+        when(analyzeService.analyze(eq(ACCOUNT_ID), any())).thenReturn(report);
 
         command.handle(event);
 
@@ -204,7 +248,7 @@ class AnalyzeCommandTest {
 
         AnalysisResult aiResult = new AnalysisResult("Strength", "Leak", "Action", List.of("1"));
         AnalysisReport report = new AnalysisReport(1, "Infernus", null, "win", 30.0, aiResult, Map.of(), false);
-        when(analyzeService.analyze(ACCOUNT_ID)).thenReturn(report);
+        when(analyzeService.analyze(eq(ACCOUNT_ID), any())).thenReturn(report);
 
         command.handle(event);
 
@@ -223,7 +267,7 @@ class AnalyzeCommandTest {
         String longField = "word ".repeat(600); // 3000 chars
         AnalysisResult aiResult = new AnalysisResult(longField, "Leak", "Action", List.of());
         AnalysisReport report = new AnalysisReport(1, "Infernus", "Archon 3", "win", 30.0, aiResult, Map.of(), false);
-        when(analyzeService.analyze(ACCOUNT_ID)).thenReturn(report);
+        when(analyzeService.analyze(eq(ACCOUNT_ID), any())).thenReturn(report);
 
         command.handle(event);
 
@@ -239,7 +283,7 @@ class AnalyzeCommandTest {
         when(profileService.findLinkedAccountId(CALLER_ID)).thenReturn(OptionalLong.of(ACCOUNT_ID));
         deferFor(event);
         InteractionHook hook = hookFor(event);
-        when(analyzeService.analyze(ACCOUNT_ID)).thenThrow(new NoMatchHistoryException(ACCOUNT_ID));
+        when(analyzeService.analyze(eq(ACCOUNT_ID), any())).thenThrow(new NoMatchHistoryException(ACCOUNT_ID));
 
         command.handle(event);
 
@@ -254,7 +298,7 @@ class AnalyzeCommandTest {
         when(profileService.findLinkedAccountId(CALLER_ID)).thenReturn(OptionalLong.of(ACCOUNT_ID));
         deferFor(event);
         InteractionHook hook = hookFor(event);
-        when(analyzeService.analyze(ACCOUNT_ID)).thenThrow(new DeadlockApiUnavailableException("busy", null, null));
+        when(analyzeService.analyze(eq(ACCOUNT_ID), any())).thenThrow(new DeadlockApiUnavailableException("busy", null, null));
 
         command.handle(event);
 
@@ -269,13 +313,266 @@ class AnalyzeCommandTest {
         when(profileService.findLinkedAccountId(CALLER_ID)).thenReturn(OptionalLong.of(ACCOUNT_ID));
         deferFor(event);
         InteractionHook hook = hookFor(event);
-        when(analyzeService.analyze(ACCOUNT_ID)).thenThrow(new IllegalStateException("boom"));
+        when(analyzeService.analyze(eq(ACCOUNT_ID), any())).thenThrow(new IllegalStateException("boom"));
 
         assertThatCode(() -> command.handle(event)).doesNotThrowAnyException();
 
         ArgumentCaptor<String> captor = ArgumentCaptor.forClass(String.class);
         verify(hook).editOriginal(captor.capture());
         assertThat(captor.getValue()).contains("Something went wrong. Error id:");
+    }
+
+    @Test
+    void matchOptionWinsOverHeroAndResult() {
+        SlashCommandInteractionEvent event = mockEvent();
+        when(profileService.findLinkedAccountId(CALLER_ID)).thenReturn(OptionalLong.of(ACCOUNT_ID));
+        deferFor(event);
+        hookFor(event);
+
+        OptionMapping matchOpt = mock(OptionMapping.class);
+        when(matchOpt.getAsLong()).thenReturn(900000005L);
+        when(event.getOption("match")).thenReturn(matchOpt);
+
+        OptionMapping heroOpt = mock(OptionMapping.class);
+        when(heroOpt.getAsString()).thenReturn("Infernus");
+        when(event.getOption("hero")).thenReturn(heroOpt);
+
+        AnalysisResult aiResult = new AnalysisResult("Strength", "Leak", "Action", List.of());
+        AnalysisReport report = new AnalysisReport(1, "Infernus", "Archon 3", "win", 30.0, aiResult, Map.of(), false);
+        when(analyzeService.analyze(eq(ACCOUNT_ID), any())).thenReturn(report);
+
+        command.handle(event);
+
+        ArgumentCaptor<MatchFilter> filterCaptor = ArgumentCaptor.forClass(MatchFilter.class);
+        verify(analyzeService).analyze(eq(ACCOUNT_ID), filterCaptor.capture());
+        MatchFilter usedFilter = filterCaptor.getValue();
+        assertThat(usedFilter.matchId()).isEqualTo(900000005L);
+        assertThat(usedFilter.heroId()).isNull();
+        assertThat(usedFilter.win()).isNull();
+    }
+
+    @Test
+    void heroAndResultFilterCombinedWhenMatchAbsent() {
+        SlashCommandInteractionEvent event = mockEvent();
+        when(profileService.findLinkedAccountId(CALLER_ID)).thenReturn(OptionalLong.of(ACCOUNT_ID));
+        deferFor(event);
+        hookFor(event);
+
+        OptionMapping heroOpt = mock(OptionMapping.class);
+        when(heroOpt.getAsString()).thenReturn("Infernus");
+        when(event.getOption("hero")).thenReturn(heroOpt);
+        when(heroResolver.resolve("Infernus")).thenReturn(Optional.of(new HeroAsset(1, "hero_infernus", "Infernus")));
+
+        OptionMapping resultOpt = mock(OptionMapping.class);
+        when(resultOpt.getAsString()).thenReturn("win");
+        when(event.getOption("result")).thenReturn(resultOpt);
+
+        AnalysisResult aiResult = new AnalysisResult("Strength", "Leak", "Action", List.of());
+        AnalysisReport report = new AnalysisReport(1, "Infernus", "Archon 3", "win", 30.0, aiResult, Map.of(), false);
+        when(analyzeService.analyze(eq(ACCOUNT_ID), any())).thenReturn(report);
+
+        command.handle(event);
+
+        ArgumentCaptor<MatchFilter> filterCaptor = ArgumentCaptor.forClass(MatchFilter.class);
+        verify(analyzeService).analyze(eq(ACCOUNT_ID), filterCaptor.capture());
+        MatchFilter usedFilter = filterCaptor.getValue();
+        assertThat(usedFilter.matchId()).isNull();
+        assertThat(usedFilter.heroId()).isEqualTo(1);
+        assertThat(usedFilter.win()).isTrue();
+    }
+
+    @Test
+    void unknownHeroRepliesEphemeralBeforeDeferring() {
+        SlashCommandInteractionEvent event = mockEvent();
+        OptionMapping heroOpt = mock(OptionMapping.class);
+        when(heroOpt.getAsString()).thenReturn("UnknownHero");
+        when(event.getOption("hero")).thenReturn(heroOpt);
+        when(heroResolver.resolve("UnknownHero")).thenReturn(Optional.empty());
+
+        ReplyCallbackAction reply = mock(ReplyCallbackAction.class);
+        when(event.reply(anyString())).thenReturn(reply);
+        when(reply.setEphemeral(true)).thenReturn(reply);
+
+        command.handle(event);
+
+        ArgumentCaptor<String> captor = ArgumentCaptor.forClass(String.class);
+        verify(event).reply(captor.capture());
+        assertThat(captor.getValue()).isEqualTo(messages.get("analyze.hero_not_found"));
+        verify(reply).setEphemeral(true);
+        verify(reply).queue();
+        verify(event, never()).deferReply();
+        verify(analyzeService, never()).analyze(anyLong(), any());
+    }
+
+    @Test
+    void matchNotFoundExceptionEditsOriginalWithMatchNotFound() {
+        SlashCommandInteractionEvent event = mockEvent();
+        when(profileService.findLinkedAccountId(CALLER_ID)).thenReturn(OptionalLong.of(ACCOUNT_ID));
+        deferFor(event);
+        InteractionHook hook = hookFor(event);
+        when(analyzeService.analyze(eq(ACCOUNT_ID), any())).thenThrow(new MatchNotFoundException("Not found"));
+
+        command.handle(event);
+
+        ArgumentCaptor<String> captor = ArgumentCaptor.forClass(String.class);
+        verify(hook).editOriginal(captor.capture());
+        assertThat(captor.getValue()).isEqualTo(messages.get("analyze.match_not_found"));
+    }
+
+    @Test
+    void autocompleteMatchChoicesFormatsNamesLimitsAndValues() {
+        CommandAutoCompleteInteractionEvent event = mock(CommandAutoCompleteInteractionEvent.class);
+        when(event.getUser()).thenReturn(caller);
+        when(profileService.findLinkedAccountId(CALLER_ID)).thenReturn(OptionalLong.of(ACCOUNT_ID));
+
+        AutoCompleteQuery focused = mock(AutoCompleteQuery.class);
+        when(focused.getName()).thenReturn("match");
+        when(event.getFocusedOption()).thenReturn(focused);
+
+        List<MatchSummary> summaries = List.of(
+                new MatchSummary(900000001L, 1, "Infernus", 1700000000L, 1800, true, 5, 3, 7),
+                new MatchSummary(900000002L, 2, "Seven", 1699900000L, 1200, false, 2, 8, 1)
+        );
+        when(matchSearchService.find(eq(ACCOUNT_ID), any(), eq(10))).thenReturn(summaries);
+
+        AutoCompleteCallbackAction action = mock(AutoCompleteCallbackAction.class);
+        when(event.replyChoices(anyList())).thenReturn(action);
+
+        command.autocomplete(event);
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<Command.Choice>> choicesCaptor = ArgumentCaptor.forClass(List.class);
+        verify(event).replyChoices(choicesCaptor.capture());
+        verify(action).queue();
+
+        List<Command.Choice> choices = choicesCaptor.getValue();
+        assertThat(choices).hasSize(2);
+        assertThat(choices.get(0).getName()).isEqualTo("Infernus Win (2023-11-14) - 5/3/7");
+        assertThat(choices.get(0).getAsLong()).isEqualTo(900000001L);
+        assertThat(choices.get(0).getName().length()).isLessThanOrEqualTo(100);
+
+        assertThat(choices.get(1).getName()).isEqualTo("Seven Loss (2023-11-13) - 2/8/1");
+        assertThat(choices.get(1).getAsLong()).isEqualTo(900000002L);
+        assertThat(choices.get(1).getName().length()).isLessThanOrEqualTo(100);
+    }
+
+    @Test
+    void autocompleteMatchTruncatesHeroNameWhenTooLong() {
+        CommandAutoCompleteInteractionEvent event = mock(CommandAutoCompleteInteractionEvent.class);
+        when(event.getUser()).thenReturn(caller);
+        when(profileService.findLinkedAccountId(CALLER_ID)).thenReturn(OptionalLong.of(ACCOUNT_ID));
+
+        AutoCompleteQuery focused = mock(AutoCompleteQuery.class);
+        when(focused.getName()).thenReturn("match");
+        when(event.getFocusedOption()).thenReturn(focused);
+
+        String veryLongHeroName = "SuperExtraLongHeroNameThatExceedsTheLimitByFarAndNeedsToBeTruncatedToFitUnderOneHundredCharactersWithoutCrashing";
+        List<MatchSummary> summaries = List.of(
+                new MatchSummary(900000001L, 1, veryLongHeroName, 1700000000L, 1800, true, 5, 3, 7)
+        );
+        when(matchSearchService.find(eq(ACCOUNT_ID), any(), eq(10))).thenReturn(summaries);
+
+        AutoCompleteCallbackAction action = mock(AutoCompleteCallbackAction.class);
+        when(event.replyChoices(anyList())).thenReturn(action);
+
+        command.autocomplete(event);
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<Command.Choice>> choicesCaptor = ArgumentCaptor.forClass(List.class);
+        verify(event).replyChoices(choicesCaptor.capture());
+
+        List<Command.Choice> choices = choicesCaptor.getValue();
+        assertThat(choices).hasSize(1);
+        assertThat(choices.getFirst().getName().length()).isLessThanOrEqualTo(100);
+    }
+
+    @Test
+    void autocompleteHeroChoicesLimitsTo25() {
+        CommandAutoCompleteInteractionEvent event = mock(CommandAutoCompleteInteractionEvent.class);
+        AutoCompleteQuery focused = mock(AutoCompleteQuery.class);
+        when(focused.getName()).thenReturn("hero");
+        when(focused.getValue()).thenReturn("hero");
+        when(event.getFocusedOption()).thenReturn(focused);
+
+        Map<Integer, String> heroMap = new LinkedHashMap<>();
+        for (int i = 1; i <= 30; i++) {
+            heroMap.put(i, "Hero " + i);
+        }
+        when(gameAssets.heroNames()).thenReturn(heroMap);
+
+        AutoCompleteCallbackAction action = mock(AutoCompleteCallbackAction.class);
+        when(event.replyChoices(anyList())).thenReturn(action);
+
+        command.autocomplete(event);
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<Command.Choice>> choicesCaptor = ArgumentCaptor.forClass(List.class);
+        verify(event).replyChoices(choicesCaptor.capture());
+        verify(action).queue();
+
+        List<Command.Choice> choices = choicesCaptor.getValue();
+        assertThat(choices).hasSize(25);
+    }
+
+    @Test
+    void autocompleteNotLinkedRepliesEmptyChoices() {
+        CommandAutoCompleteInteractionEvent event = mock(CommandAutoCompleteInteractionEvent.class);
+        when(event.getUser()).thenReturn(caller);
+        when(profileService.findLinkedAccountId(CALLER_ID)).thenReturn(OptionalLong.empty());
+
+        AutoCompleteQuery focused = mock(AutoCompleteQuery.class);
+        when(focused.getName()).thenReturn("match");
+        when(event.getFocusedOption()).thenReturn(focused);
+
+        AutoCompleteCallbackAction action = mock(AutoCompleteCallbackAction.class);
+        when(event.replyChoices(List.of())).thenReturn(action);
+
+        command.autocomplete(event);
+
+        verify(event).replyChoices(List.of());
+        verify(action).queue();
+    }
+
+    @Test
+    void autocompleteServiceFailureRepliesEmptyChoices() {
+        CommandAutoCompleteInteractionEvent event = mock(CommandAutoCompleteInteractionEvent.class);
+        when(event.getUser()).thenReturn(caller);
+        when(profileService.findLinkedAccountId(CALLER_ID)).thenReturn(OptionalLong.of(ACCOUNT_ID));
+
+        AutoCompleteQuery focused = mock(AutoCompleteQuery.class);
+        when(focused.getName()).thenReturn("match");
+        when(event.getFocusedOption()).thenReturn(focused);
+
+        when(matchSearchService.find(eq(ACCOUNT_ID), any(), eq(10)))
+                .thenThrow(new DeadlockApiException("API down"));
+
+        AutoCompleteCallbackAction action = mock(AutoCompleteCallbackAction.class);
+        when(event.replyChoices(List.of())).thenReturn(action);
+
+        command.autocomplete(event);
+
+        verify(event).replyChoices(List.of());
+        verify(action).queue();
+    }
+
+    @Test
+    void autocompleteNeverCallsAi() {
+        CommandAutoCompleteInteractionEvent event = mock(CommandAutoCompleteInteractionEvent.class);
+        when(event.getUser()).thenReturn(caller);
+        when(profileService.findLinkedAccountId(CALLER_ID)).thenReturn(OptionalLong.of(ACCOUNT_ID));
+
+        AutoCompleteQuery focused = mock(AutoCompleteQuery.class);
+        when(focused.getName()).thenReturn("match");
+        when(event.getFocusedOption()).thenReturn(focused);
+
+        when(matchSearchService.find(eq(ACCOUNT_ID), any(), eq(10))).thenReturn(List.of());
+
+        AutoCompleteCallbackAction action = mock(AutoCompleteCallbackAction.class);
+        when(event.replyChoices(anyList())).thenReturn(action);
+
+        command.autocomplete(event);
+
+        verify(analyzeService, never()).analyze(anyLong(), any());
     }
 
     @Test
@@ -308,7 +605,15 @@ class AnalyzeCommandTest {
                 "analyze.metric.net_worth_at_10_min",
                 "analyze.metric.net_worth_at_20_min",
                 "analyze.metric.permanent_buffs",
-                "analyze.metric.first_permanent_buff_min"
+                "analyze.metric.first_permanent_buff_min",
+                "analyze.option.match",
+                "analyze.option.hero",
+                "analyze.option.result",
+                "analyze.result.choice.win",
+                "analyze.result.choice.loss",
+                "analyze.hero_not_found",
+                "analyze.match_not_found",
+                "analyze.autocomplete.match"
         );
 
         for (String key : requiredKeys) {

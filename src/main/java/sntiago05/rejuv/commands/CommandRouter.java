@@ -7,6 +7,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import net.dv8tion.jda.api.entities.Guild;
+import net.dv8tion.jda.api.events.interaction.command.CommandAutoCompleteInteractionEvent;
 import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEvent;
 import net.dv8tion.jda.api.events.session.ReadyEvent;
 import net.dv8tion.jda.api.hooks.ListenerAdapter;
@@ -48,6 +49,23 @@ public class CommandRouter extends ListenerAdapter {
                 .toList();
         guild.updateCommands().addCommands(commandData).queue();
         log.info("Registered {} slash commands in dev guild {}", commandData.size(), botProperties.devGuildId());
+    }
+
+    @Override
+    public void onCommandAutoCompleteInteraction(CommandAutoCompleteInteractionEvent event) {
+        String commandName = event.getName();
+        SlashCommand command = commandsByName.get(commandName);
+        if (command == null) {
+            event.replyChoices(List.of()).queue();
+            return;
+        }
+
+        try {
+            command.autocomplete(event);
+        } catch (RuntimeException ex) {
+            log.warn("Autocomplete failed for command={}: {}", commandName, ex.getMessage(), ex);
+            event.replyChoices(List.of()).queue();
+        }
     }
 
     @Override

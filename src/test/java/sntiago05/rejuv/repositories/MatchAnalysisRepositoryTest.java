@@ -131,4 +131,17 @@ class MatchAnalysisRepositoryTest {
         assertThat(matchAnalysisRepository.findByAccountIdAndMatchId(ACCOUNT_ID, MATCH_ID)).isEmpty();
         assertThat(matchAnalysisRepository.findByAccountIdAndMatchId(otherAccount, MATCH_ID + 1)).isPresent();
     }
+
+    @Test
+    void findAnalyzedMatchIdsReturnsOnlyAccountsOwnAnalyzedIdsAmongGiven() {
+        Instant now = Instant.now().truncatedTo(ChronoUnit.MICROS);
+        matchAnalysisRepository.save(new MatchAnalysis(ACCOUNT_ID, 101L, 1, RESULT_JSON, MODEL, 100, 50, now));
+        matchAnalysisRepository.save(new MatchAnalysis(ACCOUNT_ID, 102L, 1, RESULT_JSON, MODEL, 100, 50, now));
+        matchAnalysisRepository.save(new MatchAnalysis(999999L, 103L, 1, RESULT_JSON, MODEL, 100, 50, now));
+
+        java.util.List<Long> analyzed = matchAnalysisRepository.findAnalyzedMatchIds(
+                ACCOUNT_ID, java.util.List.of(101L, 103L, 104L));
+
+        assertThat(analyzed).containsExactly(101L);
+    }
 }
