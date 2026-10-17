@@ -11,6 +11,8 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 
 import net.dv8tion.jda.api.entities.Message;
 import net.dv8tion.jda.api.entities.MessageEmbed;
@@ -31,8 +33,10 @@ import sntiago05.rejuv.clients.DeadlockApiUnavailableException;
 import sntiago05.rejuv.domain.BuildItem;
 import sntiago05.rejuv.domain.BuildPhase;
 import sntiago05.rejuv.domain.HeroBuild;
+import sntiago05.rejuv.services.AssetImages;
 import sntiago05.rejuv.services.BuildService;
 import sntiago05.rejuv.services.HeroNotFoundException;
+import sntiago05.rejuv.services.IconCatalog;
 import sntiago05.rejuv.services.Messages;
 import sntiago05.rejuv.services.MessagesFixture;
 
@@ -42,6 +46,8 @@ class BuildCommandTest {
 
     private final Messages messages = MessagesFixture.english();
     private BuildService buildService;
+    private AssetImages assetImages;
+    private IconCatalog iconCatalog;
     private BuildCommand command;
     private User caller;
     private WebhookMessageEditAction<Message> edit;
@@ -49,7 +55,9 @@ class BuildCommandTest {
     @BeforeEach
     void setUp() {
         buildService = mock(BuildService.class);
-        command = new BuildCommand(buildService, messages);
+        assetImages = mock(AssetImages.class);
+        iconCatalog = new IconCatalog();
+        command = new BuildCommand(buildService, messages, assetImages, iconCatalog);
         caller = mock(User.class);
         when(caller.getIdLong()).thenReturn(CALLER_ID);
     }
@@ -91,10 +99,16 @@ class BuildCommandTest {
     }
 
     @Test
-    void defersPubliclyAndEditsWithEmbed() {
+    void defersPubliclyAndEditsWithEmbedWithThumbnailAndIcons() {
         SlashCommandInteractionEvent event = event("Infernus", 7);
         ReplyCallbackAction defer = deferFor(event);
         InteractionHook hook = hookFor(event);
+
+        when(assetImages.heroCardUrl(1)).thenReturn(Optional.of("https://assets-bucket.deadlock-api.com/inferno_card.png"));
+        iconCatalog.replace(Map.of(
+                "i_1001", "<:i_1001:1111>",
+                "i_2001", "<:i_2001:2222>"
+        ));
 
         HeroBuild build = new HeroBuild(1, "Infernus", 7, List.of(
                 new BuildPhase(0, List.of(
@@ -113,6 +127,8 @@ class BuildCommandTest {
         verify(defer).queue();
 
         MessageEmbed embed = capturedEmbed(hook);
+        assertThat(embed.getColorRaw()).isEqualTo(EmbedStyle.COLOR);
+        assertThat(embed.getThumbnail().getUrl()).isEqualTo("https://assets-bucket.deadlock-api.com/inferno_card.png");
         assertThat(embed.getTitle()).isEqualTo(messages.get("build.title", "Infernus", messages.get("meta.rank.7")));
 
         List<MessageEmbed.Field> fields = embed.getFields();
@@ -120,17 +136,36 @@ class BuildCommandTest {
         assertThat(fields).noneMatch(MessageEmbed.Field::isInline);
 
         assertThat(fields.get(0).getName()).isEqualTo(messages.get("build.phase", "1"));
-        assertThat(fields.get(0).getValue()).isEqualTo(messages.get("build.item_entry", "Close Range", "50.0", "55.4"));
+        assertThat(fields.get(0).getValue()).isEqualTo("<:i_1001:1111> " + messages.get("build.item_entry", "Close Range", "50.0", "55.4"));
 
         assertThat(fields.get(1).getName()).isEqualTo(messages.get("build.phase", "2"));
-        assertThat(fields.get(1).getValue()).isEqualTo(messages.get("build.item_entry", "Endurance", "30.0", "52.0"));
+        assertThat(fields.get(1).getValue()).isEqualTo("<:i_2001:2222> " + messages.get("build.item_entry", "Endurance", "30.0", "52.0"));
 
         String separator = messages.get("build.ability_separator");
         assertThat(fields.get(2).getName()).isEqualTo(messages.get("build.abilities"));
-        assertThat(fields.get(2).getValue()).isEqualTo("Flame Dash" + separator + "Afterburn\n"
+        assertThat(fields.get(2).getValue()).isEqualTo("1️⃣ Flame Dash" + separator + "2️⃣ Afterburn\n"
                 + messages.get("build.ability_matches", "1200"));
 
         assertThat(embed.getFooter().getText()).isEqualTo(messages.get("build.footer", String.valueOf(BuildService.MIN_ITEM_MATCHES)));
+    }
+
+    @Test
+    void defersPubliclyAndEditsWithEmbedWithoutThumbnailOrIcons() {
+        SlashCommandInteractionEvent event = event("Infernus", 7);
+        deferFor(event);
+        InteractionHook hook = hookFor(event);
+
+        HeroBuild build = new HeroBuild(1, "Infernus", 7, List.of(
+                new BuildPhase(0, List.of(new BuildItem(1001, "Close Range", 500, 50.0, 55.4)))
+        ), List.of(), 0);
+        when(buildService.getBuild("Infernus", 7)).thenReturn(build);
+
+        command.handle(event);
+
+        MessageEmbed embed = capturedEmbed(hook);
+        assertThat(embed.getThumbnail()).isNull();
+        assertThat(embed.getColorRaw()).isEqualTo(EmbedStyle.COLOR);
+        assertThat(embed.getFields().get(0).getValue()).isEqualTo(messages.get("build.item_entry", "Close Range", "50.0", "55.4"));
     }
 
     @Test
@@ -182,6 +217,31 @@ class BuildCommandTest {
         MessageEmbed embed = capturedEmbed(hook);
         assertThat(embed.getFields()).hasSize(1);
         assertThat(embed.getFields().get(0).getName()).isEqualTo(messages.get("build.phase", "1"));
+    }
+
+    @Test
+    void formatsAbilityOrderWithNumberedBadgesAndBracketsBeyondTen() {
+        SlashCommandInteractionEvent event = event("Infernus", null);
+        deferFor(event);
+        InteractionHook hook = hookFor(event);
+
+        List<String> order = List.of(
+                "S1", "S2", "S3", "S4", "S5", "S6", "S7", "S8", "S9", "S10", "S11"
+        );
+        HeroBuild build = new HeroBuild(1, "Infernus", null, List.of(
+                new BuildPhase(0, List.of(new BuildItem(1001, "Close Range", 500, 50.0, 55.4)))
+        ), order, 500);
+        when(buildService.getBuild("Infernus", null)).thenReturn(build);
+
+        command.handle(event);
+
+        MessageEmbed embed = capturedEmbed(hook);
+        String separator = messages.get("build.ability_separator");
+        MessageEmbed.Field field = embed.getFields().get(1);
+        assertThat(field.getName()).isEqualTo(messages.get("build.abilities"));
+        assertThat(field.getValue()).contains("1️⃣ S1" + separator + "2️⃣ S2");
+        assertThat(field.getValue()).contains("🔟 S10" + separator + "[11] S11");
+        assertThat(field.getValue()).endsWith(messages.get("build.ability_matches", "500"));
     }
 
     @Test

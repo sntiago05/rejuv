@@ -6,10 +6,12 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import net.dv8tion.jda.api.entities.MessageEmbed;
 import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEvent;
 import net.dv8tion.jda.api.interactions.commands.build.SlashCommandData;
 import net.dv8tion.jda.api.requests.restaction.interactions.ReplyCallbackAction;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import sntiago05.rejuv.services.Messages;
 import sntiago05.rejuv.services.MessagesFixture;
 
@@ -34,20 +36,26 @@ class HelpCommandTest {
     }
 
     @Test
-    void handleRepliesEphemerallyWithHelpBody() {
+    void handleRepliesEphemerallyWithHelpEmbed() {
         Messages messages = MessagesFixture.english();
         HelpCommand command = new HelpCommand(messages);
         SlashCommandInteractionEvent event = mock(SlashCommandInteractionEvent.class);
         ReplyCallbackAction reply = mock(ReplyCallbackAction.class);
-        when(event.reply(messages.get("help.body"))).thenReturn(reply);
+        ArgumentCaptor<MessageEmbed> embedCaptor = ArgumentCaptor.forClass(MessageEmbed.class);
+        when(event.replyEmbeds(embedCaptor.capture())).thenReturn(reply);
         when(reply.setEphemeral(true)).thenReturn(reply);
 
         command.handle(event);
 
-        verify(event).reply(messages.get("help.body"));
         verify(reply).setEphemeral(true);
         verify(reply).queue();
         verify(event, never()).deferReply();
+
+        MessageEmbed embed = embedCaptor.getValue();
+        assertThat(embed.getTitle()).isEqualTo(messages.get("help.title"));
+        assertThat(embed.getDescription()).isEqualTo(messages.get("help.body"));
+        assertThat(embed.getColorRaw()).isEqualTo(EmbedStyle.COLOR);
+        assertThat(embed.getDescription()).contains("/counter");
     }
 
     @Test

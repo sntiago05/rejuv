@@ -36,6 +36,7 @@ class MessagesIntegrationTest {
     void resolvesEveryRequiredKey() {
         List<String> requiredKeys = List.of(
                 "help.description",
+                "help.title",
                 "help.body",
                 "ping.description",
                 "ping.reply",
