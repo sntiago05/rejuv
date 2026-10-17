@@ -9,6 +9,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import org.jspecify.annotations.NonNull;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import sntiago05.rejuv.clients.DeadlockApiClient;
@@ -106,9 +107,9 @@ public class CounterService {
             int heroId = stat.heroId();
             int enemyHeroId = stat.enemyHeroId();
 
+            double winRate = stat.wins() * 100.0 / stat.matchesPlayed();
             if (enemyHeroId == targetHeroId && heroId != targetHeroId) {
                 if (seenCounterOpponents.add(heroId)) {
-                    double winRate = stat.wins() * 100.0 / stat.matchesPlayed();
                     counterCandidates.add(new CounterMatchup(
                             heroId,
                             heroNames.get(heroId),
@@ -117,7 +118,6 @@ public class CounterService {
                 }
             } else if (heroId == targetHeroId && enemyHeroId != targetHeroId) {
                 if (seenFavorableOpponents.add(enemyHeroId)) {
-                    double winRate = stat.wins() * 100.0 / stat.matchesPlayed();
                     favorableCandidates.add(new CounterMatchup(
                             enemyHeroId,
                             heroNames.get(enemyHeroId),
@@ -133,6 +133,14 @@ public class CounterService {
         favorableCandidates.sort(MATCHUP_COMPARATOR);
         List<CounterMatchup> favorable = List.copyOf(favorableCandidates.subList(0, Math.min(favorableCandidates.size(), MAX_MATCHUPS)));
 
+        List<CounterItem> itemCandidates = getItemCandidates(itemsAsset, itemStats);
+        itemCandidates.sort(ITEM_COMPARATOR);
+        List<CounterItem> items = List.copyOf(itemCandidates.subList(0, Math.min(itemCandidates.size(), MAX_ITEMS)));
+
+        return new CounterGuide(targetHero.id(), targetHero.name(), rankTier, counters, favorable, items);
+    }
+
+    private static @NonNull List<CounterItem> getItemCandidates(List<ItemAsset> itemsAsset, List<ItemStat> itemStats) {
         Map<Long, ItemAsset> itemAssets = new HashMap<>(Math.max((int) (itemsAsset.size() / 0.75f) + 1, 16));
         for (ItemAsset item : itemsAsset) {
             itemAssets.putIfAbsent(item.id(), item);
@@ -156,9 +164,6 @@ public class CounterService {
                 itemCandidates.add(new CounterItem(stat.itemId(), asset.name(), stat.matches(), winRate));
             }
         }
-        itemCandidates.sort(ITEM_COMPARATOR);
-        List<CounterItem> items = List.copyOf(itemCandidates.subList(0, Math.min(itemCandidates.size(), MAX_ITEMS)));
-
-        return new CounterGuide(targetHero.id(), targetHero.name(), rankTier, counters, favorable, items);
+        return itemCandidates;
     }
 }
