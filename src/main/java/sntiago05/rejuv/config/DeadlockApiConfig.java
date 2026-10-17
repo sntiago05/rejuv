@@ -42,6 +42,6 @@ public class DeadlockApiConfig {
 
     @Bean
     Sleeper sleeper() {
-        return duration -> Thread.sleep(duration);
+        return Thread::sleep;
     }
 }
