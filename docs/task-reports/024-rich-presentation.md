@@ -2,7 +2,7 @@
 
 ## Status
 
-Implemented and verified locally. `.\mvnw.cmd clean verify` passes with 387 tests (344 baseline + 43 new, 2 skipped benchmark tests). Not pushed, not merged.
+Implemented and verified locally. `.\mvnw.cmd clean verify` passes with 388 tests (344 baseline + 44 new, 2 skipped benchmark tests). Not pushed, not merged.
 
 ## Step 0 Findings
 
@@ -111,7 +111,7 @@ Implemented and verified locally. `.\mvnw.cmd clean verify` passes with 387 test
   - `.\mvnw.cmd test -Dtest=EmbedStyleTest`: 6 tests, 0 failures.
   - `.\mvnw.cmd test -Dtest="ProfileCommandTest,MetaCommandTest,BuildCommandTest,CounterCommandTest,HelpCommandTest"`: 49 tests, 0 failures.
   - `.\mvnw.cmd test -Dtest=MessagesIntegrationTest`: 5 tests, 0 failures.
-- **Full build**: `.\mvnw.cmd clean verify` exited 0 with **387 tests**, 0 failures, 0 errors, 2 skipped (+43 new tests).
+- **Full build**: `.\mvnw.cmd clean verify` exited 0 with **388 tests**, 0 failures, 0 errors, 2 skipped (+44 new tests).
 - **Diff check**: `git diff --check` clean; `git status --short` contains only files from the specification table; no secrets, tokens or real user data committed.
 - **Manual Discord check**: Not executed in dev guild (requires live bot token and Discord server).
 
@@ -130,7 +130,7 @@ Implemented and verified locally. `.\mvnw.cmd clean verify` passes with 387 test
 | Emoji sync runs once in background, never blocks startup, creates only missing emojis (cap 400) | Verified in `EmojiSyncServiceTest` and `EmojiSyncStarter` |
 | `AssetImageClient` only accepts allowed https hosts and images <= 256 KB | Verified in `AssetImageClientTest` (12 test cases) |
 | All user-facing text is in `messages.properties`; no custom-emoji in titles, field names or footers | Verified in `messages.properties` and command implementations |
-| `./mvnw clean verify` passes; test count and baseline difference in report | 387 tests (baseline 344 + 43 new, 2 skipped benchmark tests), exit code 0 |
+| `./mvnw clean verify` passes; test count and baseline difference in report | 388 tests (baseline 344 + 44 new, 2 skipped benchmark tests), exit code 0 |
 | ADR-0016 and task report created; PROJECT_CONTEXT update marked pending integration | `docs/adr/0016-application-emoji-icons.md` and `docs/task-reports/024-rich-presentation.md` created |
 
 ## Deviations
