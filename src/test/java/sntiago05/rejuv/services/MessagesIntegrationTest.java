@@ -50,7 +50,24 @@ class MessagesIntegrationTest {
                 "link.no_matches",
                 "unlink.description",
                 "unlink.success",
-                "unlink.not_linked"
+                "unlink.not_linked",
+                "profile.description",
+                "profile.option.user",
+                "profile.not_linked_self",
+                "profile.not_linked_other",
+                "profile.no_matches",
+                "profile.title",
+                "profile.field.rank",
+                "profile.rank_value",
+                "profile.rank_unranked",
+                "profile.rank_unknown_tier",
+                "profile.field.recent",
+                "profile.recent_value",
+                "profile.field.top_heroes",
+                "profile.hero_line",
+                "profile.hero_unknown",
+                "profile.no_recent_heroes",
+                "profile.footer"
         );
 
         for (String key : requiredKeys) {
@@ -85,6 +102,6 @@ class MessagesIntegrationTest {
     @Test
     void registersHelpAndPingAsSlashCommands() {
         List<String> commandNames = commands.stream().map(SlashCommand::name).toList();
-        assertThat(commandNames).contains("help", "ping", "link", "unlink");
+        assertThat(commandNames).contains("help", "ping", "link", "unlink", "profile");
     }
 }
