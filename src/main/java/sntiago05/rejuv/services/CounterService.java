@@ -8,7 +8,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -89,55 +88,55 @@ public class CounterService {
         List<HeroAsset> heroesAsset = deadlockApiClient.getHeroes();
         List<ItemAsset> itemsAsset = deadlockApiClient.getItems();
 
-        Map<Integer, String> heroNames = new HashMap<>();
+        Map<Integer, String> heroNames = new HashMap<>(Math.max((int) (heroesAsset.size() / 0.75f) + 1, 16));
         for (HeroAsset hero : heroesAsset) {
             heroNames.putIfAbsent(hero.id(), hero.name());
         }
 
         Set<Integer> seenCounterOpponents = new HashSet<>();
         List<CounterMatchup> counterCandidates = new ArrayList<>();
-        for (HeroCounterStat stat : counterStats) {
-            if (stat.enemyHeroId() == targetHero.id()
-                    && stat.heroId() != targetHero.id()
-                    && stat.matchesPlayed() >= MIN_MATCHUP_MATCHES) {
-                if (seenCounterOpponents.add(stat.heroId())) {
-                    double winRate = stat.wins() * 100.0 / stat.matchesPlayed();
-                    counterCandidates.add(new CounterMatchup(
-                            stat.heroId(),
-                            heroNames.get(stat.heroId()),
-                            stat.matchesPlayed(),
-                            winRate));
-                }
-            }
-        }
-        counterCandidates.sort(MATCHUP_COMPARATOR);
-        List<CounterMatchup> counters = counterCandidates.stream()
-                .limit(MAX_MATCHUPS)
-                .toList();
-
         Set<Integer> seenFavorableOpponents = new HashSet<>();
         List<CounterMatchup> favorableCandidates = new ArrayList<>();
+
+        int targetHeroId = targetHero.id();
         for (HeroCounterStat stat : counterStats) {
-            if (stat.heroId() == targetHero.id()
-                    && stat.enemyHeroId() != targetHero.id()
-                    && stat.matchesPlayed() >= MIN_MATCHUP_MATCHES) {
-                if (seenFavorableOpponents.add(stat.enemyHeroId())) {
+            if (stat.matchesPlayed() < MIN_MATCHUP_MATCHES) {
+                continue;
+            }
+            int heroId = stat.heroId();
+            int enemyHeroId = stat.enemyHeroId();
+
+            if (enemyHeroId == targetHeroId && heroId != targetHeroId) {
+                if (seenCounterOpponents.add(heroId)) {
+                    double winRate = stat.wins() * 100.0 / stat.matchesPlayed();
+                    counterCandidates.add(new CounterMatchup(
+                            heroId,
+                            heroNames.get(heroId),
+                            stat.matchesPlayed(),
+                            winRate));
+                }
+            } else if (heroId == targetHeroId && enemyHeroId != targetHeroId) {
+                if (seenFavorableOpponents.add(enemyHeroId)) {
                     double winRate = stat.wins() * 100.0 / stat.matchesPlayed();
                     favorableCandidates.add(new CounterMatchup(
-                            stat.enemyHeroId(),
-                            heroNames.get(stat.enemyHeroId()),
+                            enemyHeroId,
+                            heroNames.get(enemyHeroId),
                             stat.matchesPlayed(),
                             winRate));
                 }
             }
         }
-        favorableCandidates.sort(MATCHUP_COMPARATOR);
-        List<CounterMatchup> favorable = favorableCandidates.stream()
-                .limit(MAX_MATCHUPS)
-                .toList();
 
-        Map<Long, ItemAsset> itemAssets = itemsAsset.stream()
-                .collect(Collectors.toMap(ItemAsset::id, item -> item, (first, second) -> first));
+        counterCandidates.sort(MATCHUP_COMPARATOR);
+        List<CounterMatchup> counters = List.copyOf(counterCandidates.subList(0, Math.min(counterCandidates.size(), MAX_MATCHUPS)));
+
+        favorableCandidates.sort(MATCHUP_COMPARATOR);
+        List<CounterMatchup> favorable = List.copyOf(favorableCandidates.subList(0, Math.min(favorableCandidates.size(), MAX_MATCHUPS)));
+
+        Map<Long, ItemAsset> itemAssets = new HashMap<>(Math.max((int) (itemsAsset.size() / 0.75f) + 1, 16));
+        for (ItemAsset item : itemsAsset) {
+            itemAssets.putIfAbsent(item.id(), item);
+        }
 
         Set<Long> seenItemIds = new HashSet<>();
         List<CounterItem> itemCandidates = new ArrayList<>();
@@ -158,9 +157,7 @@ public class CounterService {
             }
         }
         itemCandidates.sort(ITEM_COMPARATOR);
-        List<CounterItem> items = itemCandidates.stream()
-                .limit(MAX_ITEMS)
-                .toList();
+        List<CounterItem> items = List.copyOf(itemCandidates.subList(0, Math.min(itemCandidates.size(), MAX_ITEMS)));
 
         return new CounterGuide(targetHero.id(), targetHero.name(), rankTier, counters, favorable, items);
     }
