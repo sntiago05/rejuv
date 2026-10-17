@@ -60,6 +60,7 @@ class HelpCommandTest {
                 "/unlink",
                 "/profile",
                 "/analyze",
+                "/meta",
                 "/help",
                 "7656119",
                 "https://steamcommunity.com/profiles/",

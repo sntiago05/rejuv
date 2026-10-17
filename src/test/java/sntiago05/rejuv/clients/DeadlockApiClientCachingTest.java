@@ -150,6 +150,36 @@ class DeadlockApiClientCachingTest {
     }
 
     @Test
+    void heroStatsAreCachedPerTierAndTimestamp() {
+        server.expect(once(), requestTo(startsWith(BASE_URL + "/v1/analytics/hero-stats?")))
+                .andExpect(queryParam("min_average_badge", "70"))
+                .andExpect(queryParam("max_average_badge", "79"))
+                .andExpect(queryParam("min_unix_timestamp", "1000"))
+                .andRespond(withSuccess(fixture("hero-stats.json"), MediaType.APPLICATION_JSON));
+        server.expect(once(), requestTo(startsWith(BASE_URL + "/v1/analytics/hero-stats?")))
+                .andExpect(queryParam("min_average_badge", "80"))
+                .andExpect(queryParam("max_average_badge", "89"))
+                .andExpect(queryParam("min_unix_timestamp", "1000"))
+                .andRespond(withSuccess(fixture("hero-stats.json"), MediaType.APPLICATION_JSON));
+        server.expect(once(), requestTo(startsWith(BASE_URL + "/v1/analytics/hero-stats?")))
+                .andExpect(queryParam("min_average_badge", "70"))
+                .andExpect(queryParam("max_average_badge", "79"))
+                .andExpect(queryParam("min_unix_timestamp", "2000"))
+                .andRespond(withSuccess(fixture("hero-stats.json"), MediaType.APPLICATION_JSON));
+        server.expect(once(), requestTo(startsWith(BASE_URL + "/v1/analytics/hero-stats?")))
+                .andExpect(DeadlockApiClientTest.noQueryParam("min_average_badge"))
+                .andExpect(queryParam("min_unix_timestamp", "1000"))
+                .andRespond(withSuccess(fixture("hero-stats.json"), MediaType.APPLICATION_JSON));
+
+        for (int round = 0; round < 2; round++) {
+            assertThat(client.getHeroStats(7, 1000L)).hasSize(5);
+            assertThat(client.getHeroStats(8, 1000L)).hasSize(5);
+            assertThat(client.getHeroStats(7, 2000L)).hasSize(5);
+            assertThat(client.getHeroStats(null, 1000L)).hasSize(5);
+        }
+    }
+
+    @Test
     void cacheTtlsAndSizesMatchTheDesign() {
         Map<String, Duration> ttls = Map.of(
                 CacheConfig.DEADLOCK_ASSETS, Duration.ofHours(24),
@@ -158,7 +188,8 @@ class DeadlockApiClientCachingTest {
                 CacheConfig.DEADLOCK_MATCH_HISTORY, Duration.ofMinutes(2),
                 CacheConfig.DEADLOCK_PLAYER_RANK, Duration.ofMinutes(10),
                 CacheConfig.DEADLOCK_MATCH_METADATA, Duration.ofHours(24),
-                CacheConfig.PROFILE_SUMMARY, Duration.ofMinutes(10));
+                CacheConfig.PROFILE_SUMMARY, Duration.ofMinutes(10),
+                CacheConfig.DEADLOCK_HERO_STATS, Duration.ofHours(6));
         Map<String, Long> sizes = Map.of(
                 CacheConfig.DEADLOCK_ASSETS, 10L,
                 CacheConfig.DEADLOCK_BENCHMARKS, 500L,
@@ -166,7 +197,8 @@ class DeadlockApiClientCachingTest {
                 CacheConfig.DEADLOCK_MATCH_HISTORY, 1000L,
                 CacheConfig.DEADLOCK_PLAYER_RANK, 1000L,
                 CacheConfig.DEADLOCK_MATCH_METADATA, 300L,
-                CacheConfig.PROFILE_SUMMARY, 1000L);
+                CacheConfig.PROFILE_SUMMARY, 1000L,
+                CacheConfig.DEADLOCK_HERO_STATS, 50L);
 
         assertThat(cacheManager.getCacheNames()).containsExactlyInAnyOrderElementsOf(ttls.keySet());
         for (String name : ttls.keySet()) {

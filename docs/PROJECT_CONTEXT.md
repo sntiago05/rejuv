@@ -34,7 +34,7 @@ Rule from `AGENTS.md`: update this file after each task with verified facts only
 23 tasks in `docs/implementation-plan.md` (022-023 added for match metadata), ADRs 0001-0015 in `docs/adr/`. Fast track in `docs/roadmap.md`: week 1 = tasks 001-010 plus 022 before 007 (MVP, tester gate before public launch on day 5), week 2 = tasks 011-021 (hero utilities, social, web reports, premium behind a feature flag until ~30 weekly active users). `roadmap.md` has not been updated for 022 yet. Task 023 (raw protobuf fallback) is scheduled only if the JSON metadata endpoint fails often during testing.
 
 ## Current status
-Last updated 2026-10-17 after Tasks 006 (PR #31) and 008 (PR #32) were merged in `main`. Tasks 001-006, 008 and 022 are merged.
+Last updated 2026-10-17 after Task 007 (PR #33) was merged into `main` and Task 013 (`/meta`) was implemented. Tasks 001-008, 013 and 022 are merged or verified.
 
 ### Done (verified)
 - Setup: `AGENTS.md`, Antigravity rule, Claude Code settings and the `new-discord-command` skill. All planning docs and ADRs 0001-0015 written.
@@ -79,18 +79,27 @@ Last updated 2026-10-17 after Tasks 006 (PR #31) and 008 (PR #32) were merged in
   - `clients/AnalysisClient` over `RestClient` (no Anthropic SDK): `claude-haiku-5-5`, effort low, `max_tokens` 1500, JSON-schema structured output, at most 2 attempts (retry on 429/529 with `retry-after` <= 10 s, 5xx, I/O, `max_tokens`, invalid output; no retry on other 4xx or refusal). Never throws: returns a fallback outcome. Blank API key → fallback without HTTP call; the app starts without a key.
   - Config `config/AnthropicProperties` (`anthropic.*` in `application.yaml`, key masked in `toString()`), `config/AnthropicConfig`; system prompt `prompts/analysis-system.txt`; `.env.example` has `ANTHROPIC_API_KEY=`.
   - Verified on its branch: `./mvnw clean verify` (152 tests, 0 failures). Live check (owner-approved, 2026-10-17): one call succeeded, 1 attempt, 872 input / 275 output tokens, 4.7 s.
-- The combined test count on `main` after both merges has not been recorded.
+- **Task 007** (`MetricsService`), report in `docs/task-reports/007-metrics-service.md`. Merged (PR #33):
+  - Pure `services/MetricsService` (`@Service`, stateless, no dependencies, no I/O): `latestMatch(history)` (newest by `startTime`), `benchmarkRank(match, currentRank)` (tier 0..11 or empty), `buildInput(request)` -> `domain/AnalysisInput` (12 metrics in table order, rounded to 1 decimal; net worth at 10/20 min with linear interpolation; item timings for first 3 upgrades plus first tier-3 upgrade; buff metrics only since 2026-09-29).
+  - Degraded mode without telemetry logs `WARN` (matchId, accountId) and computes history metrics without item benchmarks.
+  - Records `domain/MatchRank(tier, subrank)` and `services/MetricsRequest`.
+  - Verified on its branch: `./mvnw clean verify` (214 tests, 0 failures).
+- **Task 013** (`/meta [rank]`), report in `docs/task-reports/013-meta.md`:
+  - Public slash command `/meta [rank]` displaying hero tier list (S to D) by win rate over the last 30 days (start of current UTC day minus 30 days, min 100 matches). Tier thresholds: S >= 53%, A >= 51%, B >= 49%, C >= 47%, D below. Embed fields only for non-empty tiers in S..D order; heroes sorted by win rate desc, then hero id asc.
+  - `services/MetaService`: validates rank tier (null or 1..11), fetches hero stats then heroes sequentially, filters, maps tiers and sorts.
+  - `clients/DeadlockApiClient.getHeroStats(Integer rankTier, long minUnixTimestamp)`: cached in `deadlockHeroStats` (6 h, max 50); filters by `min_unix_timestamp` and `rankTier*10` .. `rankTier*10+9` badges.
+  - Records `domain/HeroTier`, `domain/MetaHero`, `domain/MetaTierList`, `clients/dto/HeroStat`.
+  - Verified: `./mvnw clean verify` (243 tests, 0 failures on merged branch).
+- The combined test count on `main` after merging Task 007 and Task 013 is 243 tests.
 
 ### In progress (not verified, not merged)
-Specs written, not implemented yet, planned to run in parallel (no shared files; each defers its context update as pending integration):
-- `docs/tasks/007-metrics-service.md`: pure `MetricsService` (`latestMatch`, `benchmarkRank`, `buildInput` → `AnalysisInput`), degraded mode without telemetry (Claude Code).
-- `docs/tasks/013-meta.md`: `/meta [rank]` hero tier list, new `DeadlockApiClient.getHeroStats` (`analytics/hero-stats`, endpoint to be verified in Step 0) and cache `deadlockHeroStats` (Antigravity).
+None currently active.
 
 ### Not started (planned only)
-Tasks 007, 009-021 and 023 (007 and 013 have specs). Nothing beyond `/ping`, `/help`, `/link`, `/unlink`, `/profile`, the database baseline, the Deadlock API client, the match metadata port and the AI client exists yet: no `/analyze`, metrics, web server, premium or Patreon check. The MVP has not been built, launched or deployed.
+Tasks 009-012, 014-021 and 023. Nothing beyond `/ping`, `/help`, `/link`, `/unlink`, `/profile`, `/meta`, the database baseline, the Deadlock API client, the match metadata port, the AI client, and `MetricsService` exists yet: no `/analyze`, web server, premium or Patreon check. The MVP has not been built, launched or deployed.
 
 ### Next
-In parallel now: Tasks 007 and 013 (specs ready). Also eligible: Tasks 011, 012 (depend on 004), 014, 016 (depend on 005), 015 (depends on 005 and 006), Task 023 (depends on 022, only if the JSON metadata endpoint fails often). Task 009 needs 007 (005 and 008 are merged); it must map `AnalysisOutcome.isFallback()` to the non-AI response, persist `model` and tokens in `match_analysis`, and extend `LinkService.unlink` to delete `match_analysis`.
+Task 009 (`/analyze`, depends on 005, 007, 008, all of which are merged in `main`). Also eligible: Tasks 011, 012 (depend on 004), 014, 016 (depend on 005), 015 (depends on 005 and 006), Task 023 (depends on 022, only if the JSON metadata endpoint fails often).
 
 ### Deadlock API facts observed in real responses (2026-10-16, evidence collected by the owner)
 - Host `https://api.deadlock-api.com`. `GET /v1/players/{account_id}/match-history` returns an array, newest first. An account without data returns 200 `[]` (not 404). The payload is large (about 5 MB for 6,842 matches), so a client must cap what it keeps.
@@ -99,12 +108,14 @@ In parallel now: Tasks 007 and 013 (specs ready). Also eligible: Tasks 011, 012 
 - `GET /v1/players/{account_id}/rank` returns `badge`, `rank`, `subrank`, `last_match`; an unranked player returns 200 with zeros (no 404 observed).
 - Assets: ranks have tiers 0-11; heroes expose `id`, `class_name`, `name`; `/v1/assets/items` has 764 entries (about 8 MB; types upgrade/ability/weapon; upgrades carry `item_tier` 1-5, `item_slot_type`, `cost`).
 - `GET /v1/matches/{match_id}/metadata` returns JSON wrapped in `match_info` with 12 players: items (`game_time_s`, `sold_time_s`), stat snapshots at 180, 360, 540, 720, 900, 1200, 1500, 1800, 2100 s plus a final one (net worth, damage, healing), `power_up_buffs` with pickup times, and `player_rank_data.initial_display_rank`. `average_badge_team0/1` can be 0. Item ids resolve in `/v1/assets/items`. It once returned 503 "Steam is busy" (`Retry-After` 1265 s) and worked later for the same match; the Steam fallback is limited to 3 requests per hour per IP. `GET /v1/matches/{match_id}/metadata/raw` (bz2 protobuf) worked while the JSON endpoint failed. A non-existent match returned 503 ("recently failed to fetch from upstream"), not 404, so callers cannot tell "never exists" from "try later". `item_id` is unsigned 32-bit and needs a `long`.
+- `GET /v1/analytics/hero-stats` filters by `min_average_badge`, `max_average_badge` (0..116) and `min_unix_timestamp` (default 30 days ago); returns array of per-hero stats (`hero_id`, `matches`, `wins`, `losses`, etc.).
 
 ## Constraints
 - User-facing behavior is English-only (ADR-0008); all user-facing text lives in `messages.properties` and is accessed via `Messages`.
 - Discord credentials come from environment variables (`.env`, see `.env.example`) and must never be committed. Manual Discord checks need `DISCORD_TOKEN` and `DEV_GUILD_ID`.
 - After Task 003: the app needs a reachable PostgreSQL at startup (`POSTGRES_*` variables, no default password), Flyway is the only schema authority (`ddl-auto: validate`), and `verify` needs Docker running for Testcontainers.
 - Adding a cache to `CacheConfig` requires updating `DeadlockApiClientCachingTest.cacheTtlsAndSizesMatchTheDesign`, which asserts the exact set of cache names, TTLs and sizes.
+- `KEY_PATTERN` in `MessagesIntegrationTest` permits numeric dot segments (`(\\.[a-z0-9_]+)+`) for catalog keys like `meta.rank.1`.
 - The Claude API key comes only from `ANTHROPIC_API_KEY`; it is never logged.
 
 ## Known limitations and risks
@@ -127,7 +138,8 @@ In parallel now: Tasks 007 and 013 (specs ready). Also eligible: Tasks 011, 012 
 - Task 004: `docs/tasks/004-deadlock-api-client.md`, `docs/task-reports/004-deadlock-api-client.md`
 - Task 005: `docs/tasks/005-link-unlink.md`, `docs/task-reports/005-link-unlink.md`
 - Task 006: `docs/tasks/006-profile.md`, `docs/task-reports/006-profile.md`
+- Task 007: `docs/tasks/007-metrics-service.md`, `docs/task-reports/007-metrics-service.md`
 - Task 008: `docs/tasks/008-analysis-client.md`, `docs/task-reports/008-analysis-client.md`
+- Task 013: `docs/tasks/013-meta.md`, `docs/task-reports/013-meta.md`
 - Task 022: `docs/tasks/022-match-metadata.md`, `docs/task-reports/022-match-metadata.md`
-- Specs ready (not implemented): `docs/tasks/007-metrics-service.md`, `docs/tasks/013-meta.md`
 - ADRs most relevant so far: `0001-java21-spring-boot-jda.md`, `0002-postgresql-and-caffeine.md`, `0005-oracle-cloud-docker-compose.md`, `0008-english-only-i18n-ready.md`, `0009-claude-plans-antigravity-implements.md`
