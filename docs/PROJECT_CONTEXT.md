@@ -34,7 +34,7 @@ Rule from `AGENTS.md`: update this file after each task with verified facts only
 23 tasks in `docs/implementation-plan.md` (022-023 added for match metadata), ADRs 0001-0015 in `docs/adr/`. Fast track in `docs/roadmap.md`: week 1 = tasks 001-010 plus 022 before 007 (MVP, tester gate before public launch on day 5), week 2 = tasks 011-021 (hero utilities, social, web reports, premium behind a feature flag until ~30 weekly active users). `roadmap.md` has not been updated for 022 yet. Task 023 (raw protobuf fallback) is scheduled only if the JSON metadata endpoint fails often during testing.
 
 ## Current status
-Last updated 2026-10-16 after Task 022 was merged in `main` (PR #28). Tasks 001-005 and 022 are merged.
+Last updated 2026-10-17 after Tasks 006 (PR #31) and 008 (PR #32) were merged in `main`. Tasks 001-006, 008 and 022 are merged.
 
 ### Done (verified)
 - Setup: `AGENTS.md`, Antigravity rule, Claude Code settings and the `new-discord-command` skill. All planning docs and ADRs 0001-0015 written.
@@ -70,17 +70,27 @@ Last updated 2026-10-16 after Task 022 was merged in `main` (PR #28). Tasks 001-
   - Adapter `clients/JsonMatchMetadataSource` (only bean of the port) calls `GET /v1/matches/{match_id}/metadata` with no query parameters, with its own copy of the Task 004 request rules (one 503 retry when `Retry-After` <= 10 s). Errors: 404 → `MatchMetadataNotFoundException`; 503/429/I/O/timeout → `DeadlockApiUnavailableException`; other statuses and invalid bodies (missing `match_info`, players or a required field, other match id, malformed JSON) → `DeadlockApiException`.
   - Cache `deadlockMatchMetadata` 24 h/300 holds the mapped model; failures are not cached.
   - Verified: `./mvnw clean verify` (135 tests, 0 failures) after merging `main` with Task 005.
+- **Task 006** (`/profile [user]`), report in `docs/task-reports/006-profile.md`. Merged (PR #31):
+  - `services/ProfileService`: `findLinkedAccountId` (database only) and `getProfile(accountId)` cached in `profileSummary` (10 min/1000, failures not cached). Sequential calls: history, rank, ranks, heroes; empty history → `NoMatchHistoryException`. Rank (badge 0 = unranked), last `min(10, n)` matches (wins, win rate, average K/D/A; win = `matchResult == playerTeam`), top 3 heroes by games in the last 30 days (ties by hero id). Records `domain/ProfileSummary`, `domain/HeroUsage`. Two-constructor `Clock` pattern, no `Clock` bean.
+  - `commands/ProfileCommand`: not-linked check before deferring (ephemeral `profile.not_linked_self` / `profile.not_linked_other`), then public `deferReply()` and an embed; distinct messages for no matches, busy source and unexpected errors (error id logged, no rethrow).
+  - Verified on its branch: `./mvnw clean verify` (166 tests, 0 failures). Manual Discord check by the owner in the dev guild: OK.
+- **Task 008** (`AnalysisClient` for Claude Haiku 5.5), report in `docs/task-reports/008-analysis-client.md`. Merged (PR #32):
+  - Records `domain/AnalysisInput` (snake_case JSON of the `docs/mvp-spec.md` contract, null benchmarks omitted; nested `MetricComparison`, `ItemTiming`), `domain/AnalysisResult`, `domain/AnalysisOutcome` (result or fallback via `isFallback()`, model, attempts, summed tokens).
+  - `clients/AnalysisClient` over `RestClient` (no Anthropic SDK): `claude-haiku-5-5`, effort low, `max_tokens` 1500, JSON-schema structured output, at most 2 attempts (retry on 429/529 with `retry-after` <= 10 s, 5xx, I/O, `max_tokens`, invalid output; no retry on other 4xx or refusal). Never throws: returns a fallback outcome. Blank API key → fallback without HTTP call; the app starts without a key.
+  - Config `config/AnthropicProperties` (`anthropic.*` in `application.yaml`, key masked in `toString()`), `config/AnthropicConfig`; system prompt `prompts/analysis-system.txt`; `.env.example` has `ANTHROPIC_API_KEY=`.
+  - Verified on its branch: `./mvnw clean verify` (152 tests, 0 failures). Live check (owner-approved, 2026-10-17): one call succeeded, 1 attempt, 872 input / 275 output tokens, 4.7 s.
+- The combined test count on `main` after both merges has not been recorded.
 
 ### In progress (not verified, not merged)
 Specs written, not implemented yet, planned to run in parallel (no shared files; each defers its context update as pending integration):
-- `docs/tasks/006-profile.md`: `/profile [user]` (Antigravity).
-- `docs/tasks/008-analysis-client.md`: `AnalysisClient` over `RestClient` (no Anthropic SDK), `claude-haiku-5-5`, effort low, `max_tokens` 1500, JSON-schema structured output, max 2 attempts, fallback outcome instead of exceptions (Claude Code).
+- `docs/tasks/007-metrics-service.md`: pure `MetricsService` (`latestMatch`, `benchmarkRank`, `buildInput` → `AnalysisInput`), degraded mode without telemetry (Claude Code).
+- `docs/tasks/013-meta.md`: `/meta [rank]` hero tier list, new `DeadlockApiClient.getHeroStats` (`analytics/hero-stats`, endpoint to be verified in Step 0) and cache `deadlockHeroStats` (Antigravity).
 
 ### Not started (planned only)
-Tasks 006-021 and 023. Nothing beyond `/ping`, `/help`, `/link`, `/unlink`, the database baseline, the Deadlock API client and the match metadata port exists yet: no `/profile`, `/analyze`, metrics, AI client, web server, premium or Patreon check. The MVP has not been built, launched or deployed.
+Tasks 007, 009-021 and 023 (007 and 013 have specs). Nothing beyond `/ping`, `/help`, `/link`, `/unlink`, `/profile`, the database baseline, the Deadlock API client, the match metadata port and the AI client exists yet: no `/analyze`, metrics, web server, premium or Patreon check. The MVP has not been built, launched or deployed.
 
 ### Next
-In parallel now: Tasks 006 and 008 (specs ready). Also eligible: Task 007 (004 and 022 merged; spec not written; must build `AnalysisInput` defined by Task 008, so write it after the 008 contract is accepted), Tasks 014 and 016 (depend on 005), Tasks 011-013 (depend on 004), Task 023 (depends on 022, only if the JSON metadata endpoint fails often). Task 015 needs 006. Task 009 needs 005, 007 and 008, and must extend `LinkService.unlink` to delete `match_analysis`.
+In parallel now: Tasks 007 and 013 (specs ready). Also eligible: Tasks 011, 012 (depend on 004), 014, 016 (depend on 005), 015 (depends on 005 and 006), Task 023 (depends on 022, only if the JSON metadata endpoint fails often). Task 009 needs 007 (005 and 008 are merged); it must map `AnalysisOutcome.isFallback()` to the non-AI response, persist `model` and tokens in `match_analysis`, and extend `LinkService.unlink` to delete `match_analysis`.
 
 ### Deadlock API facts observed in real responses (2026-10-16, evidence collected by the owner)
 - Host `https://api.deadlock-api.com`. `GET /v1/players/{account_id}/match-history` returns an array, newest first. An account without data returns 200 `[]` (not 404). The payload is large (about 5 MB for 6,842 matches), so a client must cap what it keeps.
@@ -94,10 +104,14 @@ In parallel now: Tasks 006 and 008 (specs ready). Also eligible: Task 007 (004 a
 - User-facing behavior is English-only (ADR-0008); all user-facing text lives in `messages.properties` and is accessed via `Messages`.
 - Discord credentials come from environment variables (`.env`, see `.env.example`) and must never be committed. Manual Discord checks need `DISCORD_TOKEN` and `DEV_GUILD_ID`.
 - After Task 003: the app needs a reachable PostgreSQL at startup (`POSTGRES_*` variables, no default password), Flyway is the only schema authority (`ddl-auto: validate`), and `verify` needs Docker running for Testcontainers.
+- Adding a cache to `CacheConfig` requires updating `DeadlockApiClientCachingTest.cacheTtlsAndSizesMatchTheDesign`, which asserts the exact set of cache names, TTLs and sizes.
+- The Claude API key comes only from `ANTHROPIC_API_KEY`; it is never logged.
 
 ## Known limitations and risks
-- `/link` blocks the JDA event thread during the history call (up to the client's 10 s retry wait); a risk for Task 009, which makes more calls.
-- `.claude/skills/run-rejuv/driver.sh` `list`/`cmd`/`eval` fail on Windows (`Driver.java` compile error, likely the classpath separator); `build` and `db-down` work.
+- `/link` and `/profile` block the JDA event thread during their API calls (up to the client's 10 s retry wait; `/profile` makes up to four sequential calls); a risk for Task 009, which makes more calls.
+- `/profile`: no cache eviction on `/link` or `/unlink` (old profile visible up to 10 min); top heroes count only the 200 history entries the client keeps.
+- `AnalysisClient` live check: the model ended `next_game_action` with a stray `}` (passed validation); input for Task 010 prompt tuning. `max_tokens` 1500 is configurable in `application.yaml`.
+- `.claude/skills/run-rejuv/driver.sh` `list`/`cmd`/`eval` fail on Windows (`Driver.java` compile error, `:` classpath separator); `build` and `db-down` work. Workaround used in Task 008: launch `java` with the driver directly using a `;` classpath.
 - On this Windows machine the Maven wrapper may need `MAVEN_USER_HOME` pointed at a temporary junction to the existing Maven home (null-target issue in PowerShell).
 - deadlock-api data coverage gaps; many competing tracker sites.
 - Match metadata can be unavailable (503 while Steam is busy, strict Steam fallback quota). `/analyze` needs a degraded mode based on history data only (Task 009); a raw protobuf fallback is planned as Task 023.
@@ -112,6 +126,8 @@ In parallel now: Tasks 006 and 008 (specs ready). Also eligible: Task 007 (004 a
 - Task 003: `docs/tasks/003-postgres-flyway-linked-account.md`, `docs/task-reports/003-postgres-flyway-linked-account.md`
 - Task 004: `docs/tasks/004-deadlock-api-client.md`, `docs/task-reports/004-deadlock-api-client.md`
 - Task 005: `docs/tasks/005-link-unlink.md`, `docs/task-reports/005-link-unlink.md`
+- Task 006: `docs/tasks/006-profile.md`, `docs/task-reports/006-profile.md`
+- Task 008: `docs/tasks/008-analysis-client.md`, `docs/task-reports/008-analysis-client.md`
 - Task 022: `docs/tasks/022-match-metadata.md`, `docs/task-reports/022-match-metadata.md`
-- Specs ready (not implemented): `docs/tasks/006-profile.md`, `docs/tasks/008-analysis-client.md`
+- Specs ready (not implemented): `docs/tasks/007-metrics-service.md`, `docs/tasks/013-meta.md`
 - ADRs most relevant so far: `0001-java21-spring-boot-jda.md`, `0002-postgresql-and-caffeine.md`, `0005-oracle-cloud-docker-compose.md`, `0008-english-only-i18n-ready.md`, `0009-claude-plans-antigravity-implements.md`
