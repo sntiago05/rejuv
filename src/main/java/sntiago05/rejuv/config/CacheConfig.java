@@ -27,6 +27,7 @@ public class CacheConfig {
     public static final String DEADLOCK_ABILITY_ORDER = "deadlockAbilityOrder";   // 6 h, max 200
     public static final String DEADLOCK_HERO_COUNTERS = "deadlockHeroCounters";   // 6 h, max 50
     public static final String DEADLOCK_COUNTER_ITEMS = "deadlockCounterItems";   // 6 h, max 200
+    public static final String DEADLOCK_PLAYER_HERO_STATS = "deadlockPlayerHeroStats"; // 10 min, max 200
 
     @Bean
     CacheManager cacheManager() {
@@ -46,6 +47,7 @@ public class CacheConfig {
         register(cacheManager, DEADLOCK_ABILITY_ORDER, Duration.ofHours(6), 200);
         register(cacheManager, DEADLOCK_HERO_COUNTERS, Duration.ofHours(6), 50);
         register(cacheManager, DEADLOCK_COUNTER_ITEMS, Duration.ofHours(6), 200);
+        register(cacheManager, DEADLOCK_PLAYER_HERO_STATS, Duration.ofMinutes(10), 200);
         return cacheManager;
     }
 

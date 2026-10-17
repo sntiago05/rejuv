@@ -216,4 +216,29 @@ class MetaServiceTest {
         assertThatThrownBy(() -> metaService.getTierList(1))
                 .isInstanceOf(DeadlockApiUnavailableException.class);
     }
+
+    @Test
+    void metaIgnoresTotals() {
+        List<HeroStat> rowsWithoutTotals = List.of(
+                new HeroStat(1, 1000, 550, 450),
+                new HeroStat(2, 1000, 520, 480)
+        );
+        List<HeroStat> rowsWithTotals = List.of(
+                new HeroStat(1, 1000, 550, 450, 10000, 5000, 8000),
+                new HeroStat(2, 1000, 520, 480, 2000, 10000, 3000)
+        );
+        List<HeroAsset> heroes = List.of(
+                new HeroAsset(1, "hero_inferno", "Infernus"),
+                new HeroAsset(2, "hero_gigawatt", "Seven")
+        );
+        when(deadlockApiClient.getHeroes()).thenReturn(heroes);
+
+        when(deadlockApiClient.getHeroStats(eq(1), anyLong())).thenReturn(rowsWithoutTotals);
+        MetaTierList listWithoutTotals = metaService.getTierList(1);
+
+        when(deadlockApiClient.getHeroStats(eq(1), anyLong())).thenReturn(rowsWithTotals);
+        MetaTierList listWithTotals = metaService.getTierList(1);
+
+        assertThat(listWithTotals.heroes()).isEqualTo(listWithoutTotals.heroes());
+    }
 }
