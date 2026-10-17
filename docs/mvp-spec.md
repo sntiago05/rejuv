@@ -65,10 +65,10 @@ Per player, latest match:
 - Player damage per minute
 - Last hits and denies (if available)
 - Net worth at 10 and 20 min (if the match is long enough)
-- First 3 item purchase times and the time of the first tier-3 item
+- First 3 item purchase times and the time of the first tier-3 item, compared with the average buy time of that item (`item-stats` `avg_buy_time_s`; no percentiles exist for item timings)
 - First permanent power-up (buff) pickup time and buffs per minute (matches since build 6712)
 
-Benchmarks: p25, p50, p75 of the same metrics for same hero + rank tier.
+Benchmarks: p25, p50, p75 of the same metrics for same hero + rank tier (`player-stats/metrics`). Item timings use the average buy time for same hero + rank tier (`item-stats`).
 Rule for findings: only flag a metric as a leak if it is below p25 or clearly worse than p50 with a meaningful gap. Never invent metrics not present in the input.
 
 ## AI contract
@@ -80,7 +80,7 @@ Input (JSON, target under 1,500 tokens):
   "result": "loss",
   "duration_min": 34.5,
   "metrics": { "souls_per_min": {"value": 812, "p25": 790, "p50": 905, "p75": 1010}, "...": {} },
-  "items": [{"name": "...", "bought_at_min": 6.2, "p50_bought_at_min": 5.1}],
+  "items": [{"name": "...", "bought_at_min": 6.2, "avg_bought_at_min": 5.1}],
   "language": "en"
 }
 ```
@@ -88,7 +88,7 @@ Output: strict JSON only:
 ```json
 { "strength": "...", "biggest_leak": "...", "next_game_action": "...", "key_numbers": ["..."] }
 ```
-Model settings: `claude-haiku-5-5`, effort low, `max_tokens` 600. If JSON parsing fails → retry once, then fall back to a non-AI summary of the key numbers.
+Model settings: `claude-haiku-5-5`, effort low, `max_tokens` 1500 (thinking tokens count toward it). If JSON parsing fails → retry once, then fall back to a non-AI summary of the key numbers.
 
 ## Error handling (user-facing, English, from `messages.properties`)
 | Situation | Message intent |

@@ -34,7 +34,7 @@ Rule from `AGENTS.md`: update this file after each task with verified facts only
 23 tasks in `docs/implementation-plan.md` (022-023 added for match metadata), ADRs 0001-0015 in `docs/adr/`. Fast track in `docs/roadmap.md`: week 1 = tasks 001-010 plus 022 before 007 (MVP, tester gate before public launch on day 5), week 2 = tasks 011-021 (hero utilities, social, web reports, premium behind a feature flag until ~30 weekly active users). `roadmap.md` has not been updated for 022 yet. Task 023 (raw protobuf fallback) is scheduled only if the JSON metadata endpoint fails often during testing.
 
 ## Current status
-Last updated at the closeout of Task 022 on branch `feature/022-match-metadata` (verified on its branch, not merged yet). Task 005 is merged in `main` (PR #27).
+Last updated 2026-10-16 after Task 022 was merged in `main` (PR #28). Tasks 001-005 and 022 are merged.
 
 ### Done (verified)
 - Setup: `AGENTS.md`, Antigravity rule, Claude Code settings and the `new-discord-command` skill. All planning docs and ADRs 0001-0015 written.
@@ -65,20 +65,22 @@ Last updated at the closeout of Task 022 on branch `feature/022-match-metadata` 
   - `LinkCommand` parses before deferring, then `deferReply(true)` and handles its own errors (the router cannot reply after a deferral). `UnlinkCommand` replies directly. All replies ephemeral.
   - Shared catalog key `error.data_source_busy` for `DeadlockApiUnavailableException`; later commands reuse it.
   - Verified: `./mvnw clean verify` (102 tests, 0 failures). Manual Discord check by the owner in the dev guild (2026-10-16): `/link` with a real account id, `/link` again with the same id (one row, upsert), `/unlink` (`unlink.success`), `/unlink` again (`unlink.not_linked`), invalid input and vanity URL; all replies ephemeral.
-- **Task 022** (match metadata port and JSON adapter), report in `docs/task-reports/022-match-metadata.md`. Verified on its branch, **not merged yet**:
+- **Task 022** (match metadata port and JSON adapter), report in `docs/task-reports/022-match-metadata.md`. Merged (PR #28):
   - Port `clients/MatchMetadataSource.getMatch(long matchId)` returns the own model `domain/MatchTelemetry` (`PlayerTelemetry`, `ItemPurchase`, `StatSnapshot`, `PowerUpBuff`; immutable lists). All players of the match are kept; items, snapshots and pickup times are sorted ascending; `sold_time_s` 0 becomes `null`; item ids are `long`. Only item purchases, three snapshot values (net worth, player damage, player healing) and power-up buffs are mapped.
   - Adapter `clients/JsonMatchMetadataSource` (only bean of the port) calls `GET /v1/matches/{match_id}/metadata` with no query parameters, with its own copy of the Task 004 request rules (one 503 retry when `Retry-After` <= 10 s). Errors: 404 → `MatchMetadataNotFoundException`; 503/429/I/O/timeout → `DeadlockApiUnavailableException`; other statuses and invalid bodies (missing `match_info`, players or a required field, other match id, malformed JSON) → `DeadlockApiException`.
   - Cache `deadlockMatchMetadata` 24 h/300 holds the mapped model; failures are not cached.
   - Verified: `./mvnw clean verify` (135 tests, 0 failures) after merging `main` with Task 005.
 
 ### In progress (not verified, not merged)
-Task 022 waits for human review and merge (see above).
+Specs written, not implemented yet, planned to run in parallel (no shared files; each defers its context update as pending integration):
+- `docs/tasks/006-profile.md`: `/profile [user]` (Antigravity).
+- `docs/tasks/008-analysis-client.md`: `AnalysisClient` over `RestClient` (no Anthropic SDK), `claude-haiku-5-5`, effort low, `max_tokens` 1500, JSON-schema structured output, max 2 attempts, fallback outcome instead of exceptions (Claude Code).
 
 ### Not started (planned only)
 Tasks 006-021 and 023. Nothing beyond `/ping`, `/help`, `/link`, `/unlink`, the database baseline, the Deadlock API client and the match metadata port exists yet: no `/profile`, `/analyze`, metrics, AI client, web server, premium or Patreon check. The MVP has not been built, launched or deployed.
 
 ### Next
-Eligible now: Tasks 006, 014 and 016 (depend on 005), Tasks 011-013 (depend on 004), Task 008 (depends on 001); Task 015 also needs 006. Task 007 needs 022 merged; Task 023 depends on 022. Task 009 needs 005, 007 and 008, and must extend `LinkService.unlink` to delete `match_analysis`.
+In parallel now: Tasks 006 and 008 (specs ready). Also eligible: Task 007 (004 and 022 merged; spec not written; must build `AnalysisInput` defined by Task 008, so write it after the 008 contract is accepted), Tasks 014 and 016 (depend on 005), Tasks 011-013 (depend on 004), Task 023 (depends on 022, only if the JSON metadata endpoint fails often). Task 015 needs 006. Task 009 needs 005, 007 and 008, and must extend `LinkService.unlink` to delete `match_analysis`.
 
 ### Deadlock API facts observed in real responses (2026-10-16, evidence collected by the owner)
 - Host `https://api.deadlock-api.com`. `GET /v1/players/{account_id}/match-history` returns an array, newest first. An account without data returns 200 `[]` (not 404). The payload is large (about 5 MB for 6,842 matches), so a client must cap what it keeps.
@@ -99,7 +101,7 @@ Eligible now: Tasks 006, 014 and 016 (depend on 005), Tasks 011-013 (depend on 0
 - On this Windows machine the Maven wrapper may need `MAVEN_USER_HOME` pointed at a temporary junction to the existing Maven home (null-target issue in PowerShell).
 - deadlock-api data coverage gaps; many competing tracker sites.
 - Match metadata can be unavailable (503 while Steam is busy, strict Steam fallback quota). `/analyze` needs a degraded mode based on history data only (Task 009); a raw protobuf fallback is planned as Task 023.
-- The item-timing benchmark is the `item-stats` average buy time (`avg_buy_time_s`, no percentiles), per the Task 004 spec; `docs/mvp-spec.md` still describes a p50 and needs an owner update. Net worth at 10 min has no exact snapshot (540 s and 720 s exist), so it must be interpolated; 20 min is exact (1200 s).
+- The item-timing benchmark is the `item-stats` average buy time (`avg_buy_time_s`, no percentiles, verified live in Task 004). Owner decision 2026-10-16: the AI input field is `avg_bought_at_min`; `docs/mvp-spec.md` and `docs/implementation-plan.md` were updated. Net worth at 10 min has no exact snapshot (540 s and 720 s exist), so it must be interpolated; 20 min is exact (1200 s).
 - Claude Pro usage limits on heavy days: keep implementation in Antigravity.
 
 ## References
@@ -111,4 +113,5 @@ Eligible now: Tasks 006, 014 and 016 (depend on 005), Tasks 011-013 (depend on 0
 - Task 004: `docs/tasks/004-deadlock-api-client.md`, `docs/task-reports/004-deadlock-api-client.md`
 - Task 005: `docs/tasks/005-link-unlink.md`, `docs/task-reports/005-link-unlink.md`
 - Task 022: `docs/tasks/022-match-metadata.md`, `docs/task-reports/022-match-metadata.md`
+- Specs ready (not implemented): `docs/tasks/006-profile.md`, `docs/tasks/008-analysis-client.md`
 - ADRs most relevant so far: `0001-java21-spring-boot-jda.md`, `0002-postgresql-and-caffeine.md`, `0005-oracle-cloud-docker-compose.md`, `0008-english-only-i18n-ready.md`, `0009-claude-plans-antigravity-implements.md`

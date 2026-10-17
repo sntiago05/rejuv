@@ -35,7 +35,7 @@ Fast track: week 1 = 001-010 plus 022 (before 007), week 2 = 011-021 (day by day
 ## Notes on the plan
 - Task numbers 022-023 were appended to avoid renumbering existing references; execution order follows the "Depends on" column.
 - Tasks 011-013 use other analytics endpoints (builds, counters, hero stats): each of their specs must authorize extending `DeadlockApiClient` with the endpoints it needs.
-- Open decision: the MVP spec wants item purchase times compared against a benchmark. `player-stats/metrics` has no such benchmark; the source (another analytics endpoint) is not yet confirmed with real responses. Until then, item timings can be listed without comparison. Resolve before the 007 spec.
+- Resolved (2026-10-16): item purchase times are compared with the `item-stats` average buy time (`avg_buy_time_s`, confirmed in a live call in Task 004; no percentiles). The AI input field is `avg_bought_at_min` (`docs/mvp-spec.md`).
 
 ## Engineering conventions
 - Java 21, Spring Boot 4.1, JDA 5, Maven.
