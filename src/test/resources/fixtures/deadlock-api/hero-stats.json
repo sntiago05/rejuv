@@ -5,7 +5,9 @@
     "wins": 810,
     "losses": 690,
     "matches_per_bucket": 1500,
-    "total_kills": 12000
+    "total_kills": 12000,
+    "total_deaths": 9000,
+    "total_assists": 15000
   },
   {
     "hero_id": 2,
@@ -13,7 +15,9 @@
     "wins": 624,
     "losses": 576,
     "matches_per_bucket": 1200,
-    "total_kills": 9500
+    "total_kills": 9500,
+    "total_deaths": 7200,
+    "total_assists": 12000
   },
   {
     "hero_id": 3,
@@ -21,7 +25,9 @@
     "wins": 475,
     "losses": 475,
     "matches_per_bucket": 950,
-    "total_kills": 7000
+    "total_kills": 7000,
+    "total_deaths": 5700,
+    "total_assists": 9500
   },
   {
     "hero_id": 4,
@@ -29,7 +35,9 @@
     "wins": 384,
     "losses": 416,
     "matches_per_bucket": 800,
-    "total_kills": 6000
+    "total_kills": 6000,
+    "total_deaths": 4800,
+    "total_assists": 8000
   },
   {
     "hero_id": 5,
@@ -37,6 +45,8 @@
     "wins": 225,
     "losses": 275,
     "matches_per_bucket": 500,
-    "total_kills": 3500
+    "total_kills": 3500,
+    "total_deaths": 3000,
+    "total_assists": 5000
   }
 ]

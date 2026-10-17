@@ -22,6 +22,7 @@ import sntiago05.rejuv.clients.dto.ItemFlowStats;
 import sntiago05.rejuv.clients.dto.ItemStat;
 import sntiago05.rejuv.clients.dto.MatchHistoryEntry;
 import sntiago05.rejuv.clients.dto.MetricPercentiles;
+import sntiago05.rejuv.clients.dto.PlayerHeroStat;
 import sntiago05.rejuv.clients.dto.PlayerRank;
 import sntiago05.rejuv.clients.dto.RankAsset;
 import sntiago05.rejuv.config.CacheConfig;
@@ -44,6 +45,7 @@ public class DeadlockApiClient {
     private static final String METRICS_PATH = "/v1/analytics/player-stats/metrics";
     private static final String ITEM_STATS_PATH = "/v1/analytics/item-stats";
     private static final String HERO_STATS_PATH = "/v1/analytics/hero-stats";
+    private static final String PLAYER_HERO_STATS_PATH = "/v1/players/hero-stats";
     private static final String HERO_COUNTERS_PATH = "/v1/analytics/hero-counter-stats";
     private static final String ITEM_FLOW_PATH = "/v1/analytics/item-flow-stats";
     private static final String ABILITY_ORDER_PATH = "/v1/analytics/ability-order-stats";
@@ -58,6 +60,7 @@ public class DeadlockApiClient {
     private static final BodyReader<Map<String, MetricPercentiles>> METRICS_READER = DeadlockApiRequests.json(new ParameterizedTypeReference<>() { });
     private static final BodyReader<List<ItemStat>> ITEM_STATS_READER = DeadlockApiRequests.json(new ParameterizedTypeReference<>() { });
     private static final BodyReader<List<HeroStat>> HERO_STATS_READER = DeadlockApiRequests.json(new ParameterizedTypeReference<>() { });
+    private static final BodyReader<List<PlayerHeroStat>> PLAYER_HERO_STATS_READER = DeadlockApiRequests.json(new ParameterizedTypeReference<>() { });
     private static final BodyReader<List<HeroCounterStat>> HERO_COUNTERS_READER = DeadlockApiRequests.json(new ParameterizedTypeReference<>() { });
     private static final BodyReader<ItemFlowStats> ITEM_FLOW_READER = DeadlockApiRequests.json(new ParameterizedTypeReference<>() { });
     private static final BodyReader<List<AbilityOrderStat>> ABILITY_ORDER_READER = DeadlockApiRequests.json(new ParameterizedTypeReference<>() { });
@@ -146,6 +149,22 @@ public class DeadlockApiClient {
         List<HeroStat> stats = requests.get(HERO_STATS_PATH,
                 uri -> badgeRange(uri.path(HERO_STATS_PATH).queryParam("min_unix_timestamp", minUnixTimestamp), rankTier),
                 HERO_STATS_READER);
+        return List.copyOf(stats);
+    }
+
+    /**
+     * Per-hero totals of one player for matches that started at or after minUnixTimestamp (game mode normal,
+     * API defaults otherwise). An empty list means no matches in the window.
+     * Callers must not call the analytics-style methods in parallel for different uncached keys.
+     */
+    @Cacheable(cacheNames = CacheConfig.DEADLOCK_PLAYER_HERO_STATS, sync = true, key = "#accountId + ':' + #minUnixTimestamp")
+    public List<PlayerHeroStat> getPlayerHeroStats(long accountId, long minUnixTimestamp) {
+        List<PlayerHeroStat> stats = requests.get(PLAYER_HERO_STATS_PATH,
+                uri -> uri.path(PLAYER_HERO_STATS_PATH)
+                        .queryParam("account_ids", accountId)
+                        .queryParam("min_unix_timestamp", minUnixTimestamp)
+                        .build(),
+                PLAYER_HERO_STATS_READER);
         return List.copyOf(stats);
     }
 
