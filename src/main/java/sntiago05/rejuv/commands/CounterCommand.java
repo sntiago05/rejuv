@@ -1,17 +1,12 @@
 package sntiago05.rejuv.commands;
 
-import java.util.Locale;
-import java.util.UUID;
 import java.util.stream.Collectors;
 
 import net.dv8tion.jda.api.EmbedBuilder;
 import net.dv8tion.jda.api.entities.MessageEmbed;
 import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEvent;
 import net.dv8tion.jda.api.interactions.InteractionHook;
-import net.dv8tion.jda.api.interactions.commands.OptionMapping;
-import net.dv8tion.jda.api.interactions.commands.OptionType;
 import net.dv8tion.jda.api.interactions.commands.build.Commands;
-import net.dv8tion.jda.api.interactions.commands.build.OptionData;
 import net.dv8tion.jda.api.interactions.commands.build.SlashCommandData;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -28,8 +23,6 @@ import sntiago05.rejuv.services.Messages;
 public class CounterCommand implements SlashCommand {
 
     private static final Logger log = LoggerFactory.getLogger(CounterCommand.class);
-    private static final String HERO_OPTION = "hero";
-    private static final String RANK_OPTION = "rank";
     private static final String MIN_MATCHUP_MATCHES = "50";
     private static final String MIN_ITEM_MATCHES = "100";
 
@@ -48,26 +41,14 @@ public class CounterCommand implements SlashCommand {
 
     @Override
     public SlashCommandData data() {
-        OptionData heroOption = new OptionData(OptionType.STRING, HERO_OPTION, messages.get("counter.option.hero"), true)
-                .setMaxLength(50);
-        OptionData rankOption = new OptionData(OptionType.INTEGER, RANK_OPTION, messages.get("meta.option.rank"), false);
-        for (int tier = 1; tier <= 11; tier++) {
-            rankOption.addChoice(messages.get("meta.rank." + tier), tier);
-        }
         return Commands.slash(name(), messages.get("counter.description"))
-                .addOptions(heroOption, rankOption);
+                .addOptions(CommandSupport.heroOption(messages.get("counter.option.hero")), CommandSupport.rankOption(messages));
     }
 
     @Override
     public void handle(SlashCommandInteractionEvent event) {
         event.deferReply().queue();
-
-        OptionMapping heroOpt = event.getOption(HERO_OPTION);
-        String heroInput = heroOpt != null ? heroOpt.getAsString() : "";
-        OptionMapping rankOpt = event.getOption(RANK_OPTION);
-        Integer rankTier = rankOpt != null ? rankOpt.getAsInt() : null;
-
-        answer(event.getHook(), event.getUser().getIdLong(), heroInput, rankTier);
+        answer(event.getHook(), event.getUser().getIdLong(), CommandSupport.getHeroInput(event), CommandSupport.getRankTier(event));
     }
 
     private void answer(InteractionHook hook, long callerId, String heroInput, Integer rankTier) {
@@ -83,17 +64,12 @@ public class CounterCommand implements SlashCommand {
         } catch (DeadlockApiUnavailableException ex) {
             hook.editOriginal(messages.get("error.data_source_busy")).queue();
         } catch (RuntimeException ex) {
-            String errorId = UUID.randomUUID().toString();
-            log.error("Counter failed errorId={} userId={} heroInput={} rankTier={}",
-                    errorId, callerId, heroInput, rankTier, ex);
-            hook.editOriginal(messages.get("error.generic", errorId)).queue();
+            CommandSupport.handleUnexpectedError(hook, messages, log, "Counter", callerId, heroInput, rankTier, ex);
         }
     }
 
     private MessageEmbed buildEmbed(CounterGuide guide) {
-        String rankLabel = guide.rankTier() != null
-                ? messages.get("meta.rank." + guide.rankTier())
-                : messages.get("meta.all_ranks");
+        String rankLabel = CommandSupport.rankLabel(messages, guide.rankTier());
 
         EmbedBuilder builder = new EmbedBuilder()
                 .setTitle(messages.get("counter.title", guide.heroName(), rankLabel));
@@ -128,12 +104,12 @@ public class CounterCommand implements SlashCommand {
         String heroName = matchup.heroName() != null
                 ? matchup.heroName()
                 : messages.get("counter.hero_unknown", String.valueOf(matchup.heroId()));
-        String winRate = String.format(Locale.ROOT, "%.1f", matchup.winRatePercent());
+        String winRate = CommandSupport.formatPercent(matchup.winRatePercent());
         return messages.get("counter.matchup_entry", heroName, winRate);
     }
 
     private String itemLine(CounterItem item) {
-        String winRate = String.format(Locale.ROOT, "%.1f", item.winRatePercent());
+        String winRate = CommandSupport.formatPercent(item.winRatePercent());
         return messages.get("counter.item_entry", item.itemName(), winRate);
     }
 }
