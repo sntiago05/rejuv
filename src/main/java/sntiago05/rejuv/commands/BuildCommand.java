@@ -62,7 +62,8 @@ public class BuildCommand implements SlashCommand {
         } catch (DeadlockApiUnavailableException ex) {
             hook.editOriginal(messages.get("error.data_source_busy")).queue();
         } catch (RuntimeException ex) {
-            CommandSupport.handleUnexpectedError(hook, messages, log, "Build", callerId, heroInput, rankTier, ex);
+            CommandSupport.handleUnexpectedError(hook, messages, log, "Build", callerId,
+                    "heroInput=" + heroInput + " rankTier=" + rankTier, ex);
         }
     }
 
@@ -100,8 +101,8 @@ public class BuildCommand implements SlashCommand {
         String itemName = item.itemName() != null
                 ? item.itemName()
                 : messages.get("build.item_unknown", String.valueOf(item.itemId()));
-        String pickRate = CommandSupport.formatPercent(item.pickRatePercent());
-        String winRate = CommandSupport.formatPercent(item.winRatePercent());
+        String pickRate = CommandSupport.oneDecimal(item.pickRatePercent());
+        String winRate = CommandSupport.oneDecimal(item.winRatePercent());
         return messages.get("build.item_entry", itemName, pickRate, winRate);
     }
 }

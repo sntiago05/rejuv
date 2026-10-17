@@ -1,5 +1,6 @@
 package sntiago05.rejuv.commands;
 
+import java.util.Locale;
 import java.util.UUID;
 
 import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEvent;
@@ -24,8 +25,9 @@ public final class CommandSupport {
     private CommandSupport() {
     }
 
-    public static String formatPercent(double percent) {
-        return String.format(java.util.Locale.ROOT, "%.1f", percent);
+    /** One decimal, root locale (percentages and averages). */
+    public static String oneDecimal(double value) {
+        return String.format(Locale.ROOT, "%.1f", value);
     }
 
     public static OptionData heroOption(String description) {
@@ -55,12 +57,16 @@ public final class CommandSupport {
         return rankTier != null ? messages.get("meta.rank." + rankTier) : messages.get("meta.all_ranks");
     }
 
+    /**
+     * Logs an unexpected failure with a new error id and edits the deferred reply with the generic error message.
+     *
+     * @param context command-specific key=value pairs appended to the log line, for example {@code "rankTier=3"}
+     */
     public static void handleUnexpectedError(InteractionHook hook, Messages messages, Logger log,
-                                             String commandTitle, long callerId, String heroInput,
-                                             Integer rankTier, RuntimeException ex) {
+                                             String commandTitle, long callerId, String context,
+                                             RuntimeException ex) {
         String errorId = UUID.randomUUID().toString();
-        log.error("{} failed errorId={} userId={} heroInput={} rankTier={}",
-                commandTitle, errorId, callerId, heroInput, rankTier, ex);
+        log.error("{} failed errorId={} userId={} {}", commandTitle, errorId, callerId, context, ex);
         hook.editOriginal(messages.get("error.generic", errorId)).queue();
     }
 }
