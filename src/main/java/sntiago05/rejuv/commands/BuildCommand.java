@@ -1,5 +1,6 @@
 package sntiago05.rejuv.commands;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import net.dv8tion.jda.api.EmbedBuilder;
@@ -92,8 +93,12 @@ public class BuildCommand implements SlashCommand {
         }
 
         if (!build.abilityOrder().isEmpty()) {
+            List<String> steps = new ArrayList<>(build.abilityOrder().size());
+            for (int i = 0; i < build.abilityOrder().size(); i++) {
+                steps.add(stepLabel(i, build.abilityOrder().get(i)));
+            }
             String separator = messages.get("build.ability_separator");
-            String joined = String.join(separator, build.abilityOrder());
+            String joined = String.join(separator, steps);
             String matchesLine = "\n" + messages.get("build.ability_matches", String.valueOf(build.abilityOrderMatches()));
             int maxJoinedLength = 1024 - matchesLine.length();
             if (joined.length() > maxJoinedLength) {
@@ -105,6 +110,15 @@ public class BuildCommand implements SlashCommand {
 
         builder.setFooter(messages.get("build.footer", String.valueOf(BuildService.MIN_ITEM_MATCHES)));
         return builder.build();
+    }
+
+    private static final String[] STEP_BADGES = {
+            "1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣", "6️⃣", "7️⃣", "8️⃣", "9️⃣", "🔟"
+    };
+
+    private static String stepLabel(int index, String abilityName) {
+        String badge = index < STEP_BADGES.length ? STEP_BADGES[index] : "[" + (index + 1) + "]";
+        return badge + " " + abilityName;
     }
 
     private String itemLine(BuildItem item) {

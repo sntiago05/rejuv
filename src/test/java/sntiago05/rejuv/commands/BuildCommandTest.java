@@ -143,7 +143,7 @@ class BuildCommandTest {
 
         String separator = messages.get("build.ability_separator");
         assertThat(fields.get(2).getName()).isEqualTo(messages.get("build.abilities"));
-        assertThat(fields.get(2).getValue()).isEqualTo("Flame Dash" + separator + "Afterburn\n"
+        assertThat(fields.get(2).getValue()).isEqualTo("1️⃣ Flame Dash" + separator + "2️⃣ Afterburn\n"
                 + messages.get("build.ability_matches", "1200"));
 
         assertThat(embed.getFooter().getText()).isEqualTo(messages.get("build.footer", String.valueOf(BuildService.MIN_ITEM_MATCHES)));
@@ -217,6 +217,31 @@ class BuildCommandTest {
         MessageEmbed embed = capturedEmbed(hook);
         assertThat(embed.getFields()).hasSize(1);
         assertThat(embed.getFields().get(0).getName()).isEqualTo(messages.get("build.phase", "1"));
+    }
+
+    @Test
+    void formatsAbilityOrderWithNumberedBadgesAndBracketsBeyondTen() {
+        SlashCommandInteractionEvent event = event("Infernus", null);
+        deferFor(event);
+        InteractionHook hook = hookFor(event);
+
+        List<String> order = List.of(
+                "S1", "S2", "S3", "S4", "S5", "S6", "S7", "S8", "S9", "S10", "S11"
+        );
+        HeroBuild build = new HeroBuild(1, "Infernus", null, List.of(
+                new BuildPhase(0, List.of(new BuildItem(1001, "Close Range", 500, 50.0, 55.4)))
+        ), order, 500);
+        when(buildService.getBuild("Infernus", null)).thenReturn(build);
+
+        command.handle(event);
+
+        MessageEmbed embed = capturedEmbed(hook);
+        String separator = messages.get("build.ability_separator");
+        MessageEmbed.Field field = embed.getFields().get(1);
+        assertThat(field.getName()).isEqualTo(messages.get("build.abilities"));
+        assertThat(field.getValue()).contains("1️⃣ S1" + separator + "2️⃣ S2");
+        assertThat(field.getValue()).contains("🔟 S10" + separator + "[11] S11");
+        assertThat(field.getValue()).endsWith(messages.get("build.ability_matches", "500"));
     }
 
     @Test
