@@ -14,6 +14,7 @@ import org.springframework.web.client.RestClient;
 import org.springframework.web.util.UriBuilder;
 import sntiago05.rejuv.clients.DeadlockApiRequests.BodyReader;
 import sntiago05.rejuv.clients.dto.AbilityOrderStat;
+import sntiago05.rejuv.clients.dto.AccountRank;
 import sntiago05.rejuv.clients.dto.HeroAsset;
 import sntiago05.rejuv.clients.dto.HeroCounterStat;
 import sntiago05.rejuv.clients.dto.HeroStat;
@@ -41,6 +42,7 @@ public class DeadlockApiClient {
 
     private static final String MATCH_HISTORY_PATH = "/v1/players/{account_id}/match-history";
     private static final String PLAYER_RANK_PATH = "/v1/players/{account_id}/rank";
+    private static final String PLAYER_RANKS_PATH = "/v1/players/rank";
     private static final String METRICS_PATH = "/v1/analytics/player-stats/metrics";
     private static final String ITEM_STATS_PATH = "/v1/analytics/item-stats";
     private static final String HERO_STATS_PATH = "/v1/analytics/hero-stats";
@@ -55,6 +57,7 @@ public class DeadlockApiClient {
     private static final BodyReader<List<MatchHistoryEntry>> HISTORY_READER = DeadlockApiRequests.jsonArrayPrefix(
             new JacksonJsonHttpMessageConverter().getMapper().readerFor(MatchHistoryEntry.class), MAX_HISTORY_ENTRIES);
     private static final BodyReader<PlayerRank> RANK_READER = DeadlockApiRequests.json(new ParameterizedTypeReference<>() { });
+    private static final BodyReader<List<AccountRank>> PLAYER_RANKS_READER = DeadlockApiRequests.json(new ParameterizedTypeReference<>() { });
     private static final BodyReader<Map<String, MetricPercentiles>> METRICS_READER = DeadlockApiRequests.json(new ParameterizedTypeReference<>() { });
     private static final BodyReader<List<ItemStat>> ITEM_STATS_READER = DeadlockApiRequests.json(new ParameterizedTypeReference<>() { });
     private static final BodyReader<List<HeroStat>> HERO_STATS_READER = DeadlockApiRequests.json(new ParameterizedTypeReference<>() { });
@@ -88,6 +91,34 @@ public class DeadlockApiClient {
     @Cacheable(cacheNames = CacheConfig.DEADLOCK_PLAYER_RANK, sync = true)
     public PlayerRank getPlayerRank(long accountId) {
         return requests.get(PLAYER_RANK_PATH, uri -> uri.path(PLAYER_RANK_PATH).build(accountId), RANK_READER);
+    }
+
+    /**
+     * Current rank of many accounts in one request, keyed by account id. Accounts the API does not return are absent
+     * from the map; an account without ranked data has badge 0. Callers pass a sorted, distinct, immutable list so the
+     * cache key is stable. Callers must not call the analytics-style methods in parallel for different uncached keys.
+     *
+     * @throws IllegalArgumentException if the list is empty, has more than 1000 ids, or contains a negative id (before any HTTP call)
+     */
+    @Cacheable(cacheNames = CacheConfig.DEADLOCK_PLAYER_RANKS, sync = true, key = "#accountIds")
+    public Map<Long, AccountRank> getPlayerRanks(List<Long> accountIds) {
+        if (accountIds == null || accountIds.isEmpty()) {
+            throw new IllegalArgumentException("accountIds must not be empty");
+        }
+        if (accountIds.size() > 1000) {
+            throw new IllegalArgumentException("accountIds must not contain more than 1000 entries");
+        }
+        for (Long accountId : accountIds) {
+            if (accountId == null || accountId < 0) {
+                throw new IllegalArgumentException("accountId must not be negative");
+            }
+        }
+        String joined = accountIds.stream().map(String::valueOf).collect(Collectors.joining(","));
+        List<AccountRank> ranks = requests.get(PLAYER_RANKS_PATH,
+                uri -> uri.path(PLAYER_RANKS_PATH).queryParam("account_ids", joined).build(),
+                PLAYER_RANKS_READER);
+        return ranks.stream()
+                .collect(Collectors.toUnmodifiableMap(AccountRank::accountId, Function.identity(), (first, second) -> first));
     }
 
     /**
