@@ -1,0 +1,41 @@
+[
+  {
+    "account_id": 1000001,
+    "badge": 74,
+    "rank": 7,
+    "subrank": 4,
+    "last_match": null
+  },
+  {
+    "account_id": 1000002,
+    "badge": 116,
+    "rank": 11,
+    "subrank": 6,
+    "last_match": null
+  },
+  {
+    "account_id": 1000003,
+    "badge": 0,
+    "rank": 0,
+    "subrank": 0,
+    "last_match": null
+  },
+  {
+    "account_id": 1000004,
+    "badge": 82,
+    "rank": 8,
+    "subrank": 2,
+    "last_match": {
+      "match_id": 9990001,
+      "start_time": 1789000000,
+      "player_rank_initial_display_rank": 81,
+      "player_rank_initial_flat_progress": 55100,
+      "player_rank_final_flat_progress": 55400,
+      "player_rank_desired_progress_change": 300,
+      "player_rank_initial_calibration_games": 0,
+      "player_rank_initial_demotion_protection_games": 5,
+      "player_rank_consumed_demotion_protection": false,
+      "player_rank_initial_win_streak": 0
+    }
+  }
+]

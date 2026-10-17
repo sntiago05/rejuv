@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -12,16 +13,19 @@ import static org.mockito.Mockito.when;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import sntiago05.rejuv.clients.DeadlockApiClient;
 import sntiago05.rejuv.clients.DeadlockApiException;
 import sntiago05.rejuv.clients.DeadlockApiUnavailableException;
 import sntiago05.rejuv.clients.dto.MatchHistoryEntry;
 import sntiago05.rejuv.domain.LinkedAccount;
 import sntiago05.rejuv.repositories.LinkedAccountRepository;
+import sntiago05.rejuv.repositories.MatchAnalysisRepository;
 
 class LinkServiceTest {
 
@@ -32,13 +36,15 @@ class LinkServiceTest {
 
     private DeadlockApiClient client;
     private LinkedAccountRepository repository;
+    private MatchAnalysisRepository matchAnalysisRepository;
     private LinkService service;
 
     @BeforeEach
     void setUp() {
         client = mock(DeadlockApiClient.class);
         repository = mock(LinkedAccountRepository.class);
-        service = new LinkService(client, repository);
+        matchAnalysisRepository = mock(MatchAnalysisRepository.class);
+        service = new LinkService(client, repository, matchAnalysisRepository);
     }
 
     @Test
@@ -97,18 +103,23 @@ class LinkServiceTest {
     }
 
     @Test
-    void unlinkDeletesExistingLink() {
-        when(repository.existsById(DISCORD_USER_ID)).thenReturn(true);
+    void unlinkDeletesExistingLinkAndRemovesAnalysesIfNotLinked() {
+        LinkedAccount link = new LinkedAccount(DISCORD_USER_ID, ACCOUNT_ID, Instant.now());
+        when(repository.findById(DISCORD_USER_ID)).thenReturn(Optional.of(link));
 
         assertThat(service.unlink(DISCORD_USER_ID)).isTrue();
-        verify(repository, times(1)).deleteById(DISCORD_USER_ID);
+
+        InOrder inOrder = inOrder(repository, matchAnalysisRepository);
+        inOrder.verify(repository, times(1)).deleteById(DISCORD_USER_ID);
+        inOrder.verify(matchAnalysisRepository, times(1)).deleteByAccountIdIfNotLinked(ACCOUNT_ID);
     }
 
     @Test
     void unlinkWithoutLinkReturnsFalse() {
-        when(repository.existsById(DISCORD_USER_ID)).thenReturn(false);
+        when(repository.findById(DISCORD_USER_ID)).thenReturn(Optional.empty());
 
         assertThat(service.unlink(DISCORD_USER_ID)).isFalse();
         verify(repository, never()).deleteById(anyLong());
+        verify(matchAnalysisRepository, never()).deleteByAccountIdIfNotLinked(anyLong());
     }
 }

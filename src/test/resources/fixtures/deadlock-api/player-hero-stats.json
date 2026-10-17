@@ -1,0 +1,54 @@
+[
+  {
+    "account_id": 1000001,
+    "hero_id": 1,
+    "matches_played": 50,
+    "wins": 30,
+    "kills": 400,
+    "deaths": 250,
+    "assists": 600,
+    "last_played": 1789000000,
+    "time_played": 90000,
+    "accuracy": 0.42,
+    "matches": [101, 102, 103]
+  },
+  {
+    "account_id": 1000001,
+    "hero_id": 2,
+    "matches_played": 30,
+    "wins": 18,
+    "kills": 210,
+    "deaths": 150,
+    "assists": 360,
+    "last_played": 1789100000,
+    "time_played": 54000,
+    "accuracy": 0.38,
+    "matches": [201, 202]
+  },
+  {
+    "account_id": 1000001,
+    "hero_id": 3,
+    "matches_played": 20,
+    "wins": 8,
+    "kills": 100,
+    "deaths": 120,
+    "assists": 180,
+    "last_played": 1789200000,
+    "time_played": 36000,
+    "accuracy": 0.51,
+    "matches": [301]
+  },
+  {
+    "account_id": 1000001,
+    "hero_id": 4,
+    "matches_played": 10,
+    "wins": 4,
+    "kills": 45,
+    "deaths": 55,
+    "assists": 70,
+    "last_played": 1789300000,
+    "time_played": 18000,
+    "accuracy": 0.29,
+    "matches": [401]
+  }
+]

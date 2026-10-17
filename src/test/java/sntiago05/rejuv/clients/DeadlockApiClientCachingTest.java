@@ -12,6 +12,7 @@ import static sntiago05.rejuv.clients.DeadlockApiClientTest.BASE_URL;
 import static sntiago05.rejuv.clients.DeadlockApiClientTest.fixture;
 
 import java.time.Duration;
+import java.util.List;
 import java.util.Map;
 
 import com.github.benmanes.caffeine.cache.Policy;
@@ -340,6 +341,61 @@ class DeadlockApiClientCachingTest {
     }
 
     @Test
+    void playerRanksAreCachedBySortedIdListAndFailuresAreNotCached() {
+        server.expect(once(), requestTo(BASE_URL + "/v1/players/rank?account_ids=1,2"))
+                .andRespond(withSuccess(fixture("player-ranks.json"), MediaType.APPLICATION_JSON));
+        server.expect(once(), requestTo(BASE_URL + "/v1/players/rank?account_ids=1,3"))
+                .andRespond(withSuccess(fixture("player-ranks.json"), MediaType.APPLICATION_JSON));
+        server.expect(once(), requestTo(BASE_URL + "/v1/players/rank?account_ids=4"))
+                .andRespond(withServerError());
+        server.expect(once(), requestTo(BASE_URL + "/v1/players/rank?account_ids=4"))
+                .andRespond(withSuccess(fixture("player-ranks.json"), MediaType.APPLICATION_JSON));
+
+        for (int round = 0; round < 2; round++) {
+            assertThat(client.getPlayerRanks(List.of(1L, 2L))).hasSize(4);
+            assertThat(client.getPlayerRanks(List.of(1L, 3L))).hasSize(4);
+        }
+
+        assertThatThrownBy(() -> client.getPlayerRanks(List.of(4L))).isInstanceOf(DeadlockApiException.class);
+        assertThat(client.getPlayerRanks(List.of(4L))).hasSize(4);
+    }
+
+    @Test
+    void playerHeroStatsAreCachedPerAccountAndTimestamp() {
+        server.expect(once(), requestTo(startsWith(BASE_URL + "/v1/players/hero-stats?")))
+                .andExpect(queryParam("account_ids", "1"))
+                .andExpect(queryParam("min_unix_timestamp", "1000"))
+                .andRespond(withSuccess(fixture("player-hero-stats.json"), MediaType.APPLICATION_JSON));
+        server.expect(once(), requestTo(startsWith(BASE_URL + "/v1/players/hero-stats?")))
+                .andExpect(queryParam("account_ids", "2"))
+                .andExpect(queryParam("min_unix_timestamp", "1000"))
+                .andRespond(withSuccess(fixture("player-hero-stats.json"), MediaType.APPLICATION_JSON));
+        server.expect(once(), requestTo(startsWith(BASE_URL + "/v1/players/hero-stats?")))
+                .andExpect(queryParam("account_ids", "1"))
+                .andExpect(queryParam("min_unix_timestamp", "2000"))
+                .andRespond(withSuccess(fixture("player-hero-stats.json"), MediaType.APPLICATION_JSON));
+
+        for (int round = 0; round < 2; round++) {
+            assertThat(client.getPlayerHeroStats(1, 1000L)).hasSize(4);
+            assertThat(client.getPlayerHeroStats(2, 1000L)).hasSize(4);
+            assertThat(client.getPlayerHeroStats(1, 2000L)).hasSize(4);
+        }
+    }
+
+    @Test
+    void playerHeroStatsFailureIsNotCached() {
+        server.expect(once(), requestTo(startsWith(BASE_URL + "/v1/players/hero-stats?")))
+                .andRespond(withServerError());
+        server.expect(once(), requestTo(startsWith(BASE_URL + "/v1/players/hero-stats?")))
+                .andRespond(withSuccess(fixture("player-hero-stats.json"), MediaType.APPLICATION_JSON));
+
+        assertThatThrownBy(() -> client.getPlayerHeroStats(1, 1000L))
+                .isInstanceOf(DeadlockApiException.class);
+
+        assertThat(client.getPlayerHeroStats(1, 1000L)).hasSize(4);
+    }
+
+    @Test
     void cacheTtlsAndSizesMatchTheDesign() {
         Map<String, Duration> ttls = Map.ofEntries(
                 Map.entry(CacheConfig.DEADLOCK_ASSETS, Duration.ofHours(24)),
@@ -347,26 +403,30 @@ class DeadlockApiClientCachingTest {
                 Map.entry(CacheConfig.DEADLOCK_ITEM_STATS, Duration.ofHours(6)),
                 Map.entry(CacheConfig.DEADLOCK_MATCH_HISTORY, Duration.ofMinutes(2)),
                 Map.entry(CacheConfig.DEADLOCK_PLAYER_RANK, Duration.ofMinutes(10)),
+                Map.entry(CacheConfig.DEADLOCK_PLAYER_RANKS, Duration.ofMinutes(10)),
                 Map.entry(CacheConfig.DEADLOCK_MATCH_METADATA, Duration.ofHours(24)),
                 Map.entry(CacheConfig.PROFILE_SUMMARY, Duration.ofMinutes(10)),
                 Map.entry(CacheConfig.DEADLOCK_HERO_STATS, Duration.ofHours(6)),
                 Map.entry(CacheConfig.DEADLOCK_ITEM_FLOW, Duration.ofHours(6)),
                 Map.entry(CacheConfig.DEADLOCK_ABILITY_ORDER, Duration.ofHours(6)),
                 Map.entry(CacheConfig.DEADLOCK_HERO_COUNTERS, Duration.ofHours(6)),
-                Map.entry(CacheConfig.DEADLOCK_COUNTER_ITEMS, Duration.ofHours(6)));
+                Map.entry(CacheConfig.DEADLOCK_COUNTER_ITEMS, Duration.ofHours(6)),
+                Map.entry(CacheConfig.DEADLOCK_PLAYER_HERO_STATS, Duration.ofMinutes(10)));
         Map<String, Long> sizes = Map.ofEntries(
                 Map.entry(CacheConfig.DEADLOCK_ASSETS, 10L),
                 Map.entry(CacheConfig.DEADLOCK_BENCHMARKS, 500L),
                 Map.entry(CacheConfig.DEADLOCK_ITEM_STATS, 500L),
                 Map.entry(CacheConfig.DEADLOCK_MATCH_HISTORY, 1000L),
                 Map.entry(CacheConfig.DEADLOCK_PLAYER_RANK, 1000L),
+                Map.entry(CacheConfig.DEADLOCK_PLAYER_RANKS, 100L),
                 Map.entry(CacheConfig.DEADLOCK_MATCH_METADATA, 300L),
                 Map.entry(CacheConfig.PROFILE_SUMMARY, 1000L),
                 Map.entry(CacheConfig.DEADLOCK_HERO_STATS, 50L),
                 Map.entry(CacheConfig.DEADLOCK_ITEM_FLOW, 200L),
                 Map.entry(CacheConfig.DEADLOCK_ABILITY_ORDER, 200L),
                 Map.entry(CacheConfig.DEADLOCK_HERO_COUNTERS, 50L),
-                Map.entry(CacheConfig.DEADLOCK_COUNTER_ITEMS, 200L));
+                Map.entry(CacheConfig.DEADLOCK_COUNTER_ITEMS, 200L),
+                Map.entry(CacheConfig.DEADLOCK_PLAYER_HERO_STATS, 200L));
 
         assertThat(cacheManager.getCacheNames()).containsExactlyInAnyOrderElementsOf(ttls.keySet());
         for (String name : ttls.keySet()) {

@@ -251,8 +251,8 @@ class DeadlockApiClientTest {
         List<HeroStat> stats = client.getHeroStats(7, 1789000000L);
 
         assertThat(stats).hasSize(5);
-        assertThat(stats.get(0)).isEqualTo(new HeroStat(1, 1500, 810, 690));
-        assertThat(stats.get(1)).isEqualTo(new HeroStat(2, 1200, 624, 576));
+        assertThat(stats.get(0)).isEqualTo(new HeroStat(1, 1500, 810, 690, 12000, 9000, 15000));
+        assertThat(stats.get(1)).isEqualTo(new HeroStat(2, 1200, 624, 576, 9500, 7200, 12000));
     }
 
     @Test
@@ -277,6 +277,26 @@ class DeadlockApiClientTest {
                 .isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> client.getHeroStats(12, 1789000000L))
                 .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void heroStatsParsesWithoutTotals() {
+        String body = """
+                [
+                  {
+                    "hero_id": 1,
+                    "matches": 1500,
+                    "wins": 810,
+                    "losses": 690
+                  }
+                ]
+                """;
+        server.expect(once(), requestTo(startsWith(BASE_URL + "/v1/analytics/hero-stats?")))
+                .andRespond(withSuccess(body, MediaType.APPLICATION_JSON));
+
+        List<HeroStat> stats = client.getHeroStats(null, 1789000000L);
+
+        assertThat(stats).containsExactly(new HeroStat(1, 1500, 810, 690, 0, 0, 0));
     }
 
     @Test
