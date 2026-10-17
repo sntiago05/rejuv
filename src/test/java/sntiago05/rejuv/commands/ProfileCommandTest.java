@@ -47,6 +47,7 @@ class ProfileCommandTest {
     private ProfileCommand command;
     private User caller;
     private User other;
+    private WebhookMessageEditAction<Message> edit;
 
     @BeforeEach
     void setUp() {
@@ -222,6 +223,7 @@ class ProfileCommandTest {
         ArgumentCaptor<String> text = ArgumentCaptor.forClass(String.class);
         verify(hook).editOriginal(text.capture());
         verify(hook, never()).editOriginalEmbeds(any(MessageEmbed.class));
+        verify(edit).queue();
         return text.getValue();
     }
 
@@ -242,9 +244,10 @@ class ProfileCommandTest {
                 List.of(new HeroUsage(1, "Infernus", 5), new HeroUsage(2, "Seven", 3)));
     }
 
-    private static MessageEmbed capturedEmbed(InteractionHook hook) {
+    private MessageEmbed capturedEmbed(InteractionHook hook) {
         ArgumentCaptor<MessageEmbed> embed = ArgumentCaptor.forClass(MessageEmbed.class);
         verify(hook).editOriginalEmbeds(embed.capture());
+        verify(edit).queue();
         return embed.getValue();
     }
 
@@ -274,9 +277,9 @@ class ProfileCommandTest {
     }
 
     @SuppressWarnings("unchecked")
-    private static InteractionHook hookFor(SlashCommandInteractionEvent event) {
+    private InteractionHook hookFor(SlashCommandInteractionEvent event) {
         InteractionHook hook = mock(InteractionHook.class);
-        WebhookMessageEditAction<Message> edit = mock(WebhookMessageEditAction.class);
+        edit = mock(WebhookMessageEditAction.class);
         when(hook.editOriginal(anyString())).thenReturn(edit);
         when(hook.editOriginalEmbeds(any(MessageEmbed.class))).thenReturn(edit);
         when(event.getHook()).thenReturn(hook);
