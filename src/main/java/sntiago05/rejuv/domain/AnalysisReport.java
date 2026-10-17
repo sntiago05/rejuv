@@ -4,7 +4,8 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-public record AnalysisReport(String hero,
+public record AnalysisReport(int heroId,
+                             String hero,
                              String rank,
                              String result,
                              double durationMin,

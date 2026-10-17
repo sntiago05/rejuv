@@ -82,7 +82,7 @@ public class AnalyzeService {
                         accountId, match, null, rank.orElse(null), Map.of(), Map.of(), List.of(), heroes, ranks));
                 log.info("Analyze accountId={} matchId={} source=stored degraded=false inputTokens={} outputTokens={}",
                         accountId, match.matchId(), stored.getInputTokens(), stored.getOutputTokens());
-                return new AnalysisReport(headerInput.hero(), headerInput.rank(), headerInput.result(),
+                return new AnalysisReport(match.heroId(), headerInput.hero(), headerInput.rank(), headerInput.result(),
                         headerInput.durationMin(), analysis, Map.of(), false);
             } catch (Exception ex) {
                 log.warn("Corrupted match analysis JSON for accountId={} matchId={}", accountId, match.matchId());
@@ -128,7 +128,7 @@ public class AnalyzeService {
         if (outcome.isFallback()) {
             log.info("Analyze accountId={} matchId={} source=fallback degraded={} inputTokens={} outputTokens={}",
                     accountId, match.matchId(), degraded, outcome.inputTokens(), outcome.outputTokens());
-            return new AnalysisReport(input.hero(), input.rank(), input.result(), input.durationMin(),
+            return new AnalysisReport(match.heroId(), input.hero(), input.rank(), input.result(), input.durationMin(),
                     null, input.metrics(), degraded);
         }
 
@@ -145,7 +145,7 @@ public class AnalyzeService {
             repository.save(entity);
             log.info("Analyze accountId={} matchId={} source=ai degraded={} inputTokens={} outputTokens={}",
                     accountId, match.matchId(), degraded, outcome.inputTokens(), outcome.outputTokens());
-            return new AnalysisReport(input.hero(), input.rank(), input.result(), input.durationMin(),
+            return new AnalysisReport(match.heroId(), input.hero(), input.rank(), input.result(), input.durationMin(),
                     outcome.result(), Map.of(), degraded);
         } catch (DataIntegrityViolationException ex) {
             Optional<MatchAnalysis> concurrent = repository.findByAccountIdAndMatchId(accountId, match.matchId());
@@ -154,13 +154,13 @@ public class AnalyzeService {
                     AnalysisResult concurrentResult = JSON_MAPPER.readValue(concurrent.get().getResultJson(), AnalysisResult.class);
                     log.info("Analyze accountId={} matchId={} source=stored degraded=false inputTokens={} outputTokens={}",
                             accountId, match.matchId(), concurrent.get().getInputTokens(), concurrent.get().getOutputTokens());
-                    return new AnalysisReport(input.hero(), input.rank(), input.result(), input.durationMin(),
+                    return new AnalysisReport(match.heroId(), input.hero(), input.rank(), input.result(), input.durationMin(),
                             concurrentResult, Map.of(), false);
                 } catch (Exception parseEx) {
                     log.warn("Corrupted concurrent match analysis JSON for accountId={} matchId={}", accountId, match.matchId());
                 }
             }
-            return new AnalysisReport(input.hero(), input.rank(), input.result(), input.durationMin(),
+            return new AnalysisReport(match.heroId(), input.hero(), input.rank(), input.result(), input.durationMin(),
                     outcome.result(), Map.of(), degraded);
         }
     }

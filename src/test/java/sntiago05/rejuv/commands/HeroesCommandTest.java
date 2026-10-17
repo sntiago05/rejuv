@@ -14,6 +14,8 @@ import static org.mockito.Mockito.when;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import java.util.OptionalLong;
 
 import net.dv8tion.jda.api.entities.Message;
@@ -33,7 +35,9 @@ import org.mockito.ArgumentCaptor;
 import sntiago05.rejuv.clients.DeadlockApiUnavailableException;
 import sntiago05.rejuv.domain.HeroPerformance;
 import sntiago05.rejuv.domain.HeroPoolSummary;
+import sntiago05.rejuv.services.AssetImages;
 import sntiago05.rejuv.services.HeroPoolService;
+import sntiago05.rejuv.services.IconCatalog;
 import sntiago05.rejuv.services.Messages;
 import sntiago05.rejuv.services.MessagesFixture;
 import sntiago05.rejuv.services.ProfileService;
@@ -47,6 +51,8 @@ class HeroesCommandTest {
     private final Messages messages = MessagesFixture.english();
     private ProfileService profileService;
     private HeroPoolService heroPoolService;
+    private AssetImages assetImages;
+    private IconCatalog iconCatalog;
     private HeroesCommand command;
     private User caller;
     private User other;
@@ -56,7 +62,9 @@ class HeroesCommandTest {
     void setUp() {
         profileService = mock(ProfileService.class);
         heroPoolService = mock(HeroPoolService.class);
-        command = new HeroesCommand(profileService, heroPoolService, messages);
+        assetImages = mock(AssetImages.class);
+        iconCatalog = new IconCatalog();
+        command = new HeroesCommand(profileService, heroPoolService, messages, assetImages, iconCatalog);
         caller = user(CALLER_ID, "Caller");
         other = user(OTHER_ID, "Other");
     }
@@ -146,6 +154,29 @@ class HeroesCommandTest {
 
         assertThat(embed.getFooter().getText()).isEqualTo(
                 messages.get("heroes.footer", messages.get("meta.all_ranks"), "100"));
+    }
+
+    @Test
+    void embedUsesBrandColorTopHeroCardAndHeroIcons() {
+        when(assetImages.heroCardUrl(1)).thenReturn(Optional.of("https://assets-bucket.deadlock-api.com/hero1.png"));
+        iconCatalog.replace(Map.of(IconCatalog.heroEmojiName(1), "<:h_1:111>"));
+
+        MessageEmbed embed = embedFor(sampleSummary(null));
+
+        assertThat(embed.getColor().getRGB() & 0xFFFFFF).isEqualTo(EmbedStyle.COLOR);
+        assertThat(embed.getThumbnail()).isNotNull();
+        assertThat(embed.getThumbnail().getUrl()).isEqualTo("https://assets-bucket.deadlock-api.com/hero1.png");
+        String top = embed.getFields().get(0).getValue();
+        assertThat(top).startsWith("<:h_1:111> Infernus");
+        assertThat(top).contains("\nSeven");
+    }
+
+    @Test
+    void embedWithoutIconsOrCardStaysTextOnly() {
+        MessageEmbed embed = embedFor(sampleSummary(null));
+
+        assertThat(embed.getThumbnail()).isNull();
+        assertThat(embed.getFields().get(0).getValue()).startsWith("Infernus");
     }
 
     @Test

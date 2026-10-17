@@ -24,6 +24,7 @@ import sntiago05.rejuv.clients.DeadlockApiUnavailableException;
 import sntiago05.rejuv.domain.LeaderboardEntry;
 import sntiago05.rejuv.domain.LinkedMember;
 import sntiago05.rejuv.domain.ServerLeaderboard;
+import sntiago05.rejuv.services.AssetImages;
 import sntiago05.rejuv.services.LeaderboardService;
 import sntiago05.rejuv.services.Messages;
 
@@ -36,10 +37,12 @@ public class LeaderboardCommand implements SlashCommand {
 
     private final LeaderboardService leaderboardService;
     private final Messages messages;
+    private final AssetImages assetImages;
 
-    public LeaderboardCommand(LeaderboardService leaderboardService, Messages messages) {
+    public LeaderboardCommand(LeaderboardService leaderboardService, Messages messages, AssetImages assetImages) {
         this.leaderboardService = leaderboardService;
         this.messages = messages;
+        this.assetImages = assetImages;
     }
 
     @Override
@@ -170,13 +173,16 @@ public class LeaderboardCommand implements SlashCommand {
             description.append(line);
         }
 
-        return new EmbedBuilder()
+        EmbedBuilder builder = new EmbedBuilder()
+                .setColor(EmbedStyle.COLOR)
                 .setTitle(messages.get("leaderboard.title", guildName))
                 .setDescription(description.toString())
                 .setFooter(messages.get("leaderboard.footer",
                         String.valueOf(leaderboard.rankedCount()),
-                        String.valueOf(leaderboard.unrankedCount())))
-                .build();
+                        String.valueOf(leaderboard.unrankedCount())));
+        LeaderboardEntry first = leaderboard.entries().get(0);
+        assetImages.rankBadgeUrl(first.tier(), first.subrank()).ifPresent(builder::setThumbnail);
+        return builder.build();
     }
 
     private static <T> List<List<T>> partition(List<T> list, int size) {

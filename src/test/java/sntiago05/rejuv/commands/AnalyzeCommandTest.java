@@ -14,6 +14,7 @@ import static org.mockito.Mockito.when;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.OptionalLong;
 
 import net.dv8tion.jda.api.entities.Message;
@@ -32,6 +33,7 @@ import sntiago05.rejuv.domain.AnalysisInput.MetricComparison;
 import sntiago05.rejuv.domain.AnalysisReport;
 import sntiago05.rejuv.domain.AnalysisResult;
 import sntiago05.rejuv.services.AnalyzeService;
+import sntiago05.rejuv.services.AssetImages;
 import sntiago05.rejuv.services.Messages;
 import sntiago05.rejuv.services.MessagesFixture;
 import sntiago05.rejuv.services.NoMatchHistoryException;
@@ -45,6 +47,7 @@ class AnalyzeCommandTest {
     private final Messages messages = MessagesFixture.english();
     private AnalyzeService analyzeService;
     private ProfileService profileService;
+    private AssetImages assetImages;
     private AnalyzeCommand command;
     private User caller;
     private WebhookMessageEditAction<Message> edit;
@@ -53,7 +56,8 @@ class AnalyzeCommandTest {
     void setUp() {
         analyzeService = mock(AnalyzeService.class);
         profileService = mock(ProfileService.class);
-        command = new AnalyzeCommand(analyzeService, profileService, messages);
+        assetImages = mock(AssetImages.class);
+        command = new AnalyzeCommand(analyzeService, profileService, messages, assetImages);
         caller = user(CALLER_ID, "Caller");
     }
 
@@ -97,12 +101,16 @@ class AnalyzeCommandTest {
 
         AnalysisResult aiResult = new AnalysisResult(
                 "Great farming", "Too many deaths", "Ward more", List.of("10 kills", "20k souls"));
-        AnalysisReport report = new AnalysisReport("Infernus", "Archon 3", "win", 30.0, aiResult, Map.of(), false);
+        AnalysisReport report = new AnalysisReport(1, "Infernus", "Archon 3", "win", 30.0, aiResult, Map.of(), false);
         when(analyzeService.analyze(ACCOUNT_ID)).thenReturn(report);
+        when(assetImages.heroCardUrl(1)).thenReturn(Optional.of("https://assets-bucket.deadlock-api.com/hero.png"));
 
         command.handle(event);
 
         MessageEmbed embed = capturedEmbed(hook);
+        assertThat(embed.getColor().getRGB() & 0xFFFFFF).isEqualTo(EmbedStyle.COLOR);
+        assertThat(embed.getThumbnail()).isNotNull();
+        assertThat(embed.getThumbnail().getUrl()).isEqualTo("https://assets-bucket.deadlock-api.com/hero.png");
         assertThat(embed.getTitle()).isEqualTo("Infernus - Victory (30.0 min)");
         assertThat(embed.getDescription()).isNull();
         assertThat(embed.getFields()).hasSize(4);
@@ -126,7 +134,7 @@ class AnalyzeCommandTest {
         InteractionHook hook = hookFor(event);
 
         AnalysisResult aiResult = new AnalysisResult("Strength", "Leak", "Action", List.of());
-        AnalysisReport report = new AnalysisReport("Infernus", "Archon 3", "win", 30.0, aiResult, Map.of(), true);
+        AnalysisReport report = new AnalysisReport(1, "Infernus", "Archon 3", "win", 30.0, aiResult, Map.of(), true);
         when(analyzeService.analyze(ACCOUNT_ID)).thenReturn(report);
 
         command.handle(event);
@@ -149,7 +157,7 @@ class AnalyzeCommandTest {
         metrics.put("souls_per_min", new MetricComparison(750.5, 600.0, 700.0, 800.0));
         metrics.put("player_damage_per_min", new MetricComparison(1200.0, null, null, null));
 
-        AnalysisReport report = new AnalysisReport("Infernus", "Archon 3", "loss", 25.4, null, metrics, false);
+        AnalysisReport report = new AnalysisReport(1, "Infernus", "Archon 3", "loss", 25.4, null, metrics, false);
         when(analyzeService.analyze(ACCOUNT_ID)).thenReturn(report);
 
         command.handle(event);
@@ -176,7 +184,7 @@ class AnalyzeCommandTest {
 
         Map<String, MetricComparison> metrics = Map.of(
                 "kills", new MetricComparison(10.0, null, null, null));
-        AnalysisReport report = new AnalysisReport("Infernus", "Archon 3", "win", 30.0, null, metrics, true);
+        AnalysisReport report = new AnalysisReport(1, "Infernus", "Archon 3", "win", 30.0, null, metrics, true);
         when(analyzeService.analyze(ACCOUNT_ID)).thenReturn(report);
 
         command.handle(event);
@@ -195,7 +203,7 @@ class AnalyzeCommandTest {
         InteractionHook hook = hookFor(event);
 
         AnalysisResult aiResult = new AnalysisResult("Strength", "Leak", "Action", List.of("1"));
-        AnalysisReport report = new AnalysisReport("Infernus", null, "win", 30.0, aiResult, Map.of(), false);
+        AnalysisReport report = new AnalysisReport(1, "Infernus", null, "win", 30.0, aiResult, Map.of(), false);
         when(analyzeService.analyze(ACCOUNT_ID)).thenReturn(report);
 
         command.handle(event);
@@ -214,7 +222,7 @@ class AnalyzeCommandTest {
 
         String longField = "word ".repeat(600); // 3000 chars
         AnalysisResult aiResult = new AnalysisResult(longField, "Leak", "Action", List.of());
-        AnalysisReport report = new AnalysisReport("Infernus", "Archon 3", "win", 30.0, aiResult, Map.of(), false);
+        AnalysisReport report = new AnalysisReport(1, "Infernus", "Archon 3", "win", 30.0, aiResult, Map.of(), false);
         when(analyzeService.analyze(ACCOUNT_ID)).thenReturn(report);
 
         command.handle(event);

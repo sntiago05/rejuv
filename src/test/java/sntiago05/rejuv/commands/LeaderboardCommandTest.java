@@ -13,6 +13,7 @@ import static org.mockito.Mockito.when;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -33,6 +34,7 @@ import sntiago05.rejuv.clients.DeadlockApiUnavailableException;
 import sntiago05.rejuv.domain.LeaderboardEntry;
 import sntiago05.rejuv.domain.LinkedMember;
 import sntiago05.rejuv.domain.ServerLeaderboard;
+import sntiago05.rejuv.services.AssetImages;
 import sntiago05.rejuv.services.LeaderboardService;
 import sntiago05.rejuv.services.Messages;
 import sntiago05.rejuv.services.MessagesFixture;
@@ -44,6 +46,7 @@ class LeaderboardCommandTest {
 
     private final Messages messages = MessagesFixture.english();
     private LeaderboardService leaderboardService;
+    private AssetImages assetImages;
     private LeaderboardCommand command;
     private Guild guild;
     private User caller;
@@ -52,7 +55,8 @@ class LeaderboardCommandTest {
     @BeforeEach
     void setUp() {
         leaderboardService = mock(LeaderboardService.class);
-        command = new LeaderboardCommand(leaderboardService, messages);
+        assetImages = mock(AssetImages.class);
+        command = new LeaderboardCommand(leaderboardService, messages, assetImages);
 
         guild = mock(Guild.class);
         when(guild.getName()).thenReturn(GUILD_NAME);
@@ -171,6 +175,7 @@ class LeaderboardCommandTest {
                 1);
 
         when(leaderboardService.buildLeaderboard(any())).thenReturn(leaderboard);
+        when(assetImages.rankBadgeUrl(11, 6)).thenReturn(Optional.of("https://assets-bucket.deadlock-api.com/badge.png"));
 
         command.respond(hook, CALLER_ID, GUILD_NAME, namesByUserId, accountIdByUserId);
 
@@ -179,6 +184,9 @@ class LeaderboardCommandTest {
         verify(edit).queue();
 
         MessageEmbed embed = embedCaptor.getValue();
+        assertThat(embed.getColor().getRGB() & 0xFFFFFF).isEqualTo(EmbedStyle.COLOR);
+        assertThat(embed.getThumbnail()).isNotNull();
+        assertThat(embed.getThumbnail().getUrl()).isEqualTo("https://assets-bucket.deadlock-api.com/badge.png");
         assertThat(embed.getTitle()).isEqualTo("Deadlock leaderboard: Test Guild");
         assertThat(embed.getDescription()).isEqualTo(
                 "1. \\*\\*bold\\*\\* @everyone - Eternus 6\n"
