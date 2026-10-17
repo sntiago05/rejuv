@@ -1,9 +1,6 @@
 package sntiago05.rejuv.services;
 
 import java.time.Clock;
-import java.time.Duration;
-import java.time.LocalDate;
-import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -32,9 +29,6 @@ public class CounterService {
     static final int MAX_MATCHUPS = 5;
     static final int MAX_ITEMS = 5;
     static final String UPGRADE_TYPE = "upgrade";
-    static final Duration WINDOW = Duration.ofDays(30);
-    static final int MIN_RANK_TIER = 1;
-    static final int MAX_RANK_TIER = 11;
 
     private static final Comparator<CounterMatchup> MATCHUP_COMPARATOR = (a, b) -> {
         int cmp = Double.compare(b.winRatePercent(), a.winRatePercent());
@@ -83,16 +77,12 @@ public class CounterService {
      * Lets DeadlockApiUnavailableException / DeadlockApiException propagate.
      */
     public CounterGuide getCounterGuide(String heroInput, Integer rankTier) {
-        if (rankTier != null && (rankTier < MIN_RANK_TIER || rankTier > MAX_RANK_TIER)) {
-            throw new IllegalArgumentException("rankTier must be in " + MIN_RANK_TIER + ".." + MAX_RANK_TIER
-                    + ", was " + rankTier);
-        }
+        ServiceSupport.validateRankTier(rankTier);
 
         HeroAsset targetHero = heroResolver.resolve(heroInput)
                 .orElseThrow(() -> new HeroNotFoundException(heroInput));
 
-        LocalDate todayUtc = LocalDate.ofInstant(clock.instant(), ZoneOffset.UTC);
-        long minUnixTimestamp = todayUtc.atStartOfDay(ZoneOffset.UTC).minus(WINDOW).toEpochSecond();
+        long minUnixTimestamp = ServiceSupport.startOfUtcDayMinus(clock, ServiceSupport.WINDOW);
 
         List<HeroCounterStat> counterStats = deadlockApiClient.getHeroCounterStats(rankTier, minUnixTimestamp);
         List<ItemStat> itemStats = deadlockApiClient.getItemStatsAgainst(targetHero.id(), rankTier, minUnixTimestamp);

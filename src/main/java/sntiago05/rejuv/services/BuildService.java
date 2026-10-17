@@ -1,9 +1,6 @@
 package sntiago05.rejuv.services;
 
 import java.time.Clock;
-import java.time.Duration;
-import java.time.LocalDate;
-import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -31,9 +28,6 @@ public class BuildService {
     public static final int MIN_ITEM_MATCHES = 20;
     static final int MAX_ITEMS_PER_PHASE = 4;
     static final int MAX_PHASES = 6;
-    static final Duration WINDOW = Duration.ofDays(30);
-    static final int MIN_RANK_TIER = 1;
-    static final int MAX_RANK_TIER = 11;
 
     private static final Comparator<BuildItem> ITEM_COMPARATOR = Comparator
             .comparingLong(BuildItem::matches).reversed()
@@ -74,16 +68,12 @@ public class BuildService {
      * Lets DeadlockApiUnavailableException / DeadlockApiException propagate.
      */
     public HeroBuild getBuild(String heroInput, Integer rankTier) {
-        if (rankTier != null && (rankTier < MIN_RANK_TIER || rankTier > MAX_RANK_TIER)) {
-            throw new IllegalArgumentException("rankTier must be in " + MIN_RANK_TIER + ".." + MAX_RANK_TIER
-                    + ", was " + rankTier);
-        }
+        ServiceSupport.validateRankTier(rankTier);
 
         HeroAsset hero = heroResolver.resolve(heroInput)
                 .orElseThrow(() -> new HeroNotFoundException(heroInput));
 
-        LocalDate todayUtc = LocalDate.ofInstant(clock.instant(), ZoneOffset.UTC);
-        long minUnixTimestamp = todayUtc.atStartOfDay(ZoneOffset.UTC).minus(WINDOW).toEpochSecond();
+        long minUnixTimestamp = ServiceSupport.startOfUtcDayMinus(clock, ServiceSupport.WINDOW);
 
         ItemFlowStats flowStats = deadlockApiClient.getItemFlowStats(hero.id(), rankTier, minUnixTimestamp);
         List<AbilityOrderStat> abilityOrderStats = deadlockApiClient.getAbilityOrderStats(hero.id(), rankTier, minUnixTimestamp);
