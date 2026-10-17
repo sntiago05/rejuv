@@ -103,7 +103,19 @@ class MessagesIntegrationTest {
                 "build.ability_matches",
                 "build.footer",
                 "build.hero_not_found",
-                "build.no_data"
+                "build.no_data",
+                "counter.description",
+                "counter.option.hero",
+                "counter.title",
+                "counter.field.counters",
+                "counter.field.items",
+                "counter.field.favorable",
+                "counter.matchup_entry",
+                "counter.item_entry",
+                "counter.hero_unknown",
+                "counter.footer",
+                "counter.hero_not_found",
+                "counter.no_data"
         );
 
         for (String key : requiredKeys) {
@@ -138,6 +150,6 @@ class MessagesIntegrationTest {
     @Test
     void registersHelpAndPingAsSlashCommands() {
         List<String> commandNames = commands.stream().map(SlashCommand::name).toList();
-        assertThat(commandNames).contains("help", "ping", "link", "unlink", "profile", "meta", "build");
+        assertThat(commandNames).contains("help", "ping", "link", "unlink", "profile", "meta", "build", "counter");
     }
 }

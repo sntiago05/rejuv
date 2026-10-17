@@ -34,6 +34,7 @@ import org.springframework.test.web.client.RequestMatcher;
 import org.springframework.web.client.RestClient;
 import sntiago05.rejuv.clients.dto.AbilityOrderStat;
 import sntiago05.rejuv.clients.dto.HeroAsset;
+import sntiago05.rejuv.clients.dto.HeroCounterStat;
 import sntiago05.rejuv.clients.dto.HeroStat;
 import sntiago05.rejuv.clients.dto.ItemAsset;
 import sntiago05.rejuv.clients.dto.ItemFlowNode;
@@ -360,6 +361,126 @@ class DeadlockApiClientTest {
                 .andRespond(withStatus(HttpStatus.SERVICE_UNAVAILABLE).header("Retry-After", "60"));
 
         assertThatThrownBy(() -> client.getAbilityOrderStats(61, 7, 1789000000L))
+                .isInstanceOfSatisfying(DeadlockApiUnavailableException.class,
+                        e -> assertThat(e.retryAfter()).contains(Duration.ofSeconds(60)));
+        assertThat(sleeps).isEmpty();
+    }
+
+    @Test
+    void heroCountersSendBadgeRangeAndTimestamp() {
+        server.expect(once(), requestTo(startsWith(BASE_URL + "/v1/analytics/hero-counter-stats?")))
+                .andExpect(queryParam("min_average_badge", "70"))
+                .andExpect(queryParam("max_average_badge", "79"))
+                .andExpect(queryParam("min_unix_timestamp", "1789000000"))
+                .andExpect(noQueryParam("hero_id"))
+                .andExpect(noQueryParam("hero_ids"))
+                .andExpect(noQueryParam("bucket"))
+                .andRespond(withSuccess(fixture("hero-counter-stats.json"), MediaType.APPLICATION_JSON));
+
+        List<HeroCounterStat> stats = client.getHeroCounterStats(7, 1789000000L);
+
+        assertThat(stats).hasSize(9);
+        assertThat(stats.get(0)).isEqualTo(new HeroCounterStat(1, 2, 60, 100));
+        assertThat(stats.get(1)).isEqualTo(new HeroCounterStat(2, 1, 40, 100));
+    }
+
+    @Test
+    void heroCountersWithoutRankSendNoBadgeFilter() {
+        server.expect(once(), requestTo(startsWith(BASE_URL + "/v1/analytics/hero-counter-stats?")))
+                .andExpect(queryParam("min_unix_timestamp", "1789000000"))
+                .andExpect(noQueryParam("min_average_badge"))
+                .andExpect(noQueryParam("max_average_badge"))
+                .andExpect(noQueryParam("hero_id"))
+                .andExpect(noQueryParam("hero_ids"))
+                .andExpect(noQueryParam("bucket"))
+                .andRespond(withSuccess(fixture("hero-counter-stats.json"), MediaType.APPLICATION_JSON));
+
+        List<HeroCounterStat> stats = client.getHeroCounterStats(null, 1789000000L);
+
+        assertThat(stats).hasSize(9);
+    }
+
+    @Test
+    void heroCountersRejectTierOutOfRange() {
+        assertThatThrownBy(() -> client.getHeroCounterStats(-1, 1789000000L))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> client.getHeroCounterStats(12, 1789000000L))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void heroCountersServiceUnavailableIsMapped() {
+        server.expect(once(), requestTo(startsWith(BASE_URL + "/v1/analytics/hero-counter-stats?")))
+                .andRespond(withStatus(HttpStatus.SERVICE_UNAVAILABLE).header("Retry-After", "60"));
+
+        assertThatThrownBy(() -> client.getHeroCounterStats(7, 1789000000L))
+                .isInstanceOfSatisfying(DeadlockApiUnavailableException.class,
+                        e -> assertThat(e.retryAfter()).contains(Duration.ofSeconds(60)));
+        assertThat(sleeps).isEmpty();
+    }
+
+    @Test
+    void itemStatsAgainstSendsEnemyHeroBadgeRangeAndTimestamp() {
+        server.expect(once(), requestTo(startsWith(BASE_URL + "/v1/analytics/item-stats?")))
+                .andExpect(queryParam("enemy_hero_ids", "61"))
+                .andExpect(queryParam("min_average_badge", "70"))
+                .andExpect(queryParam("max_average_badge", "79"))
+                .andExpect(queryParam("min_unix_timestamp", "1789000000"))
+                .andExpect(noQueryParamNamed("hero_id"))
+                .andExpect(noQueryParamNamed("hero_ids"))
+                .andExpect(noQueryParam("bucket"))
+                .andRespond(withSuccess(fixture("item-stats.json"), MediaType.APPLICATION_JSON));
+
+        List<ItemStat> stats = client.getItemStatsAgainst(61, 7, 1789000000L);
+
+        assertThat(stats).isNotEmpty();
+        assertThat(stats.get(0)).isEqualTo(new ItemStat(7409189L, 20522, 9634, 10888,
+                388.6502290225124, 18.52731996580492));
+    }
+
+    @Test
+    void itemStatsAgainstWithoutRankSendsNoBadgeFilter() {
+        server.expect(once(), requestTo(startsWith(BASE_URL + "/v1/analytics/item-stats?")))
+                .andExpect(queryParam("enemy_hero_ids", "61"))
+                .andExpect(queryParam("min_unix_timestamp", "1789000000"))
+                .andExpect(noQueryParam("min_average_badge"))
+                .andExpect(noQueryParam("max_average_badge"))
+                .andExpect(noQueryParamNamed("hero_id"))
+                .andExpect(noQueryParamNamed("hero_ids"))
+                .andExpect(noQueryParam("bucket"))
+                .andRespond(withSuccess(fixture("item-stats.json"), MediaType.APPLICATION_JSON));
+
+        List<ItemStat> stats = client.getItemStatsAgainst(61, null, 1789000000L);
+
+        assertThat(stats).isNotEmpty();
+    }
+
+    private static RequestMatcher noQueryParamNamed(String name) {
+        return request -> {
+            String query = request.getURI().getQuery();
+            if (query != null) {
+                for (String pair : query.split("&")) {
+                    String key = pair.split("=")[0];
+                    assertThat(key).isNotEqualTo(name);
+                }
+            }
+        };
+    }
+
+    @Test
+    void itemStatsAgainstRejectsTierOutOfRange() {
+        assertThatThrownBy(() -> client.getItemStatsAgainst(61, -1, 1789000000L))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> client.getItemStatsAgainst(61, 12, 1789000000L))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void itemStatsAgainstServiceUnavailableIsMapped() {
+        server.expect(once(), requestTo(startsWith(BASE_URL + "/v1/analytics/item-stats?")))
+                .andRespond(withStatus(HttpStatus.SERVICE_UNAVAILABLE).header("Retry-After", "60"));
+
+        assertThatThrownBy(() -> client.getItemStatsAgainst(61, 7, 1789000000L))
                 .isInstanceOfSatisfying(DeadlockApiUnavailableException.class,
                         e -> assertThat(e.retryAfter()).contains(Duration.ofSeconds(60)));
         assertThat(sleeps).isEmpty();
