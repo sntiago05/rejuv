@@ -1,0 +1,102 @@
+{
+  "baseline": {
+    "fake": "baseline"
+  },
+  "summary": {
+    "fake": "summary"
+  },
+  "edges": [
+    {
+      "fake": "edge"
+    }
+  ],
+  "leave_one_out": [],
+  "reached_per_column": [
+    1000,
+    800
+  ],
+  "reached_wins_per_column": [
+    550,
+    440
+  ],
+  "nodes": [
+    {
+      "column": 0,
+      "item_id": 1001,
+      "matches": 500,
+      "wins": 275,
+      "losses": 225,
+      "players": 500,
+      "total_kills": 1200,
+      "total_deaths": 800,
+      "total_assists": 1500,
+      "adjusted_win_rate": 0.55,
+      "avg_net_worth_at_buy": 1500.0
+    },
+    {
+      "column": 0,
+      "item_id": 1002,
+      "matches": 300,
+      "wins": 150,
+      "losses": 150,
+      "players": 300,
+      "total_kills": 700,
+      "total_deaths": 600,
+      "total_assists": 900,
+      "adjusted_win_rate": 0.50,
+      "avg_net_worth_at_buy": 1200.0
+    },
+    {
+      "column": 0,
+      "item_id": 1003,
+      "matches": 200,
+      "wins": 120,
+      "losses": 80,
+      "players": 200,
+      "total_kills": 500,
+      "total_deaths": 400,
+      "total_assists": 600,
+      "adjusted_win_rate": 0.60,
+      "avg_net_worth_at_buy": 1400.0
+    },
+    {
+      "column": 1,
+      "item_id": 2001,
+      "matches": 400,
+      "wins": 220,
+      "losses": 180,
+      "players": 400,
+      "total_kills": 1000,
+      "total_deaths": 700,
+      "total_assists": 1200,
+      "adjusted_win_rate": 0.55,
+      "avg_net_worth_at_buy": 4500.0
+    },
+    {
+      "column": 1,
+      "item_id": 2002,
+      "matches": 250,
+      "wins": 130,
+      "losses": 120,
+      "players": 250,
+      "total_kills": 600,
+      "total_deaths": 500,
+      "total_assists": 700,
+      "adjusted_win_rate": 0.52,
+      "avg_net_worth_at_buy": 4200.0
+    },
+    {
+      "column": 1,
+      "item_id": 2003,
+      "matches": 150,
+      "wins": 90,
+      "losses": 60,
+      "players": 150,
+      "total_kills": 400,
+      "total_deaths": 300,
+      "total_assists": 500,
+      "adjusted_win_rate": 0.60,
+      "avg_net_worth_at_buy": 4800.0
+    }
+  ]
+}

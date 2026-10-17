@@ -22,9 +22,12 @@ import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClient.RequestHeadersSpec.ConvertibleClientHttpResponse;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.util.UriBuilder;
+import sntiago05.rejuv.clients.dto.AbilityOrderStat;
 import sntiago05.rejuv.clients.dto.HeroAsset;
 import sntiago05.rejuv.clients.dto.HeroStat;
 import sntiago05.rejuv.clients.dto.ItemAsset;
+import sntiago05.rejuv.clients.dto.ItemFlowNode;
+import sntiago05.rejuv.clients.dto.ItemFlowStats;
 import sntiago05.rejuv.clients.dto.ItemStat;
 import sntiago05.rejuv.clients.dto.MatchHistoryEntry;
 import sntiago05.rejuv.clients.dto.MetricPercentiles;
@@ -52,6 +55,8 @@ public class DeadlockApiClient {
     private static final String METRICS_PATH = "/v1/analytics/player-stats/metrics";
     private static final String ITEM_STATS_PATH = "/v1/analytics/item-stats";
     private static final String HERO_STATS_PATH = "/v1/analytics/hero-stats";
+    private static final String ITEM_FLOW_PATH = "/v1/analytics/item-flow-stats";
+    private static final String ABILITY_ORDER_PATH = "/v1/analytics/ability-order-stats";
     private static final String RANKS_PATH = "/v1/assets/ranks";
     private static final String HEROES_PATH = "/v1/assets/heroes";
     private static final String ITEMS_PATH = "/v1/assets/items";
@@ -61,6 +66,8 @@ public class DeadlockApiClient {
     private static final ParameterizedTypeReference<Map<String, MetricPercentiles>> METRICS_TYPE = new ParameterizedTypeReference<>() { };
     private static final ParameterizedTypeReference<List<ItemStat>> ITEM_STATS_TYPE = new ParameterizedTypeReference<>() { };
     private static final ParameterizedTypeReference<List<HeroStat>> HERO_STATS_TYPE = new ParameterizedTypeReference<>() { };
+    private static final ParameterizedTypeReference<ItemFlowStats> ITEM_FLOW_TYPE = new ParameterizedTypeReference<>() { };
+    private static final ParameterizedTypeReference<List<AbilityOrderStat>> ABILITY_ORDER_TYPE = new ParameterizedTypeReference<>() { };
     private static final ParameterizedTypeReference<List<RankAsset>> RANKS_TYPE = new ParameterizedTypeReference<>() { };
     private static final ParameterizedTypeReference<List<HeroAsset>> HEROES_TYPE = new ParameterizedTypeReference<>() { };
     private static final ParameterizedTypeReference<List<ItemAsset>> ITEMS_TYPE = new ParameterizedTypeReference<>() { };
@@ -155,6 +162,35 @@ public class DeadlockApiClient {
         return List.copyOf(stats);
     }
 
+    /**
+     * Item build flow of one hero since minUnixTimestamp. rankTier null = all ranks (no badge filter).
+     * Callers must not call the analytics methods in parallel for different uncached keys.
+     * @throws IllegalArgumentException if rankTier is non-null and not in 0..11 (before any HTTP call)
+     */
+    @Cacheable(cacheNames = CacheConfig.DEADLOCK_ITEM_FLOW, sync = true,
+            key = "#heroId + ':' + #rankTier + ':' + #minUnixTimestamp")
+    public ItemFlowStats getItemFlowStats(int heroId, Integer rankTier, long minUnixTimestamp) {
+        if (rankTier != null) {
+            requireRankTier(rankTier);
+        }
+        return get(ITEM_FLOW_PATH,
+                uri -> itemFlowFilter(uri.path(ITEM_FLOW_PATH), heroId, rankTier, minUnixTimestamp),
+                ITEM_FLOW_TYPE, false);
+    }
+
+    /** Ability orders of one hero (one entry per distinct order). Same rank, window and error rules. */
+    @Cacheable(cacheNames = CacheConfig.DEADLOCK_ABILITY_ORDER, sync = true,
+            key = "#heroId + ':' + #rankTier + ':' + #minUnixTimestamp")
+    public List<AbilityOrderStat> getAbilityOrderStats(int heroId, Integer rankTier, long minUnixTimestamp) {
+        if (rankTier != null) {
+            requireRankTier(rankTier);
+        }
+        List<AbilityOrderStat> stats = get(ABILITY_ORDER_PATH,
+                uri -> abilityOrderFilter(uri.path(ABILITY_ORDER_PATH), heroId, rankTier, minUnixTimestamp),
+                ABILITY_ORDER_TYPE, false);
+        return List.copyOf(stats);
+    }
+
     private static void requireRankTier(int rankTier) {
         if (rankTier < MIN_RANK_TIER || rankTier > MAX_RANK_TIER) {
             throw new IllegalArgumentException("rankTier must be in " + MIN_RANK_TIER + ".." + MAX_RANK_TIER
@@ -171,6 +207,26 @@ public class DeadlockApiClient {
 
     private static URI heroStatsFilter(UriBuilder uri, Integer rankTier, long minUnixTimestamp) {
         uri.queryParam("min_unix_timestamp", minUnixTimestamp);
+        if (rankTier != null) {
+            uri.queryParam("min_average_badge", rankTier * 10)
+                    .queryParam("max_average_badge", rankTier * 10 + 9);
+        }
+        return uri.build();
+    }
+
+    private static URI itemFlowFilter(UriBuilder uri, int heroId, Integer rankTier, long minUnixTimestamp) {
+        uri.queryParam("hero_ids", heroId)
+                .queryParam("min_unix_timestamp", minUnixTimestamp);
+        if (rankTier != null) {
+            uri.queryParam("min_average_badge", rankTier * 10)
+                    .queryParam("max_average_badge", rankTier * 10 + 9);
+        }
+        return uri.build();
+    }
+
+    private static URI abilityOrderFilter(UriBuilder uri, int heroId, Integer rankTier, long minUnixTimestamp) {
+        uri.queryParam("hero_id", heroId)
+                .queryParam("min_unix_timestamp", minUnixTimestamp);
         if (rankTier != null) {
             uri.queryParam("min_average_badge", rankTier * 10)
                     .queryParam("max_average_badge", rankTier * 10 + 9);

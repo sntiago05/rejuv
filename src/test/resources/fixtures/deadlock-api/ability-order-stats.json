@@ -1,0 +1,35 @@
+[
+  {
+    "abilities": [3001, 3002, 3001, 3003, 3004],
+    "matches": 1200,
+    "wins": 650,
+    "losses": 550,
+    "players": 800,
+    "avg_upgrade_times_s": [15.0, 60.0, 120.0, 200.0, 350.0],
+    "total_kills": 5000,
+    "total_deaths": 4500,
+    "total_assists": 8000
+  },
+  {
+    "abilities": [3002, 3001, 3002, 3004, 3003],
+    "matches": 800,
+    "wins": 420,
+    "losses": 380,
+    "players": 600,
+    "avg_upgrade_times_s": [14.0, 55.0, 110.0, 210.0, 340.0],
+    "total_kills": 3500,
+    "total_deaths": 3200,
+    "total_assists": 5500
+  },
+  {
+    "abilities": [3003, 3001, 3002, 3004],
+    "matches": 400,
+    "wins": 190,
+    "losses": 210,
+    "players": 300,
+    "avg_upgrade_times_s": [20.0, 70.0, 130.0, 220.0],
+    "total_kills": 1500,
+    "total_deaths": 1800,
+    "total_assists": 2500
+  }
+]
