@@ -110,6 +110,11 @@ Live verification against `https://api.deadlock-api.com` performed on 2026-10-17
 1. In `CounterCommand`, `MIN_MATCHUP_MATCHES = "50"` and `MIN_ITEM_MATCHES = "100"` are defined as private constants within the command class because `CounterService.MIN_MATCHUP_MATCHES` is package-private in `sntiago05.rejuv.services`.
 2. In `DeadlockApiClientTest`, helper `noQueryParamNamed(String name)` was introduced for `getItemStatsAgainst` tests so that the substring check does not trigger a false positive when `enemy_hero_ids` is present and contains `hero_id`/`hero_ids` as a substring.
 3. In `DeadlockApiClientCachingTest.cacheTtlsAndSizesMatchTheDesign`, `Map.ofEntries` is used instead of `Map.of` because Java's `Map.of` has an upper limit of 10 key-value pairs (now 12 caches).
+4. Code deduplication and performance optimizations were applied across `BuildCommand`, `CounterCommand`, `BuildService`, and `CounterService`:
+   - `CommandSupport`: centralized option building (`heroOption`, `rankOption`), option extraction (`getHeroInput`, `getRankTier`), rank label localization (`rankLabel`), percentage formatting (`formatPercent`), and unexpected error reporting (`handleUnexpectedError`).
+   - `ServiceSupport`: centralized rank tier boundary validation (`validateRankTier`) and rolling 30-day UTC window epoch calculation (`startOfUtcDayMinus`).
+   - `CounterService` optimization: unified counter and favorable matchup collection into a single pass over `counterStats` (~1,800 pairs), pre-sized hash maps for hero and item assets based on collection size, and eliminated stream limit overhead with direct immutable sublists.
+   - `BuildService` optimization: replaced string-key allocation (`node.column() + ":" + node.itemId()`) with a lightweight `ColumnItemKey` record, hoisted `reachedPerColumn` inspection outside the node loop, replaced stream pipelines with iterative column/phase extraction and iterative `bestOrder` ability search, eliminating intermediate stream wrappers and object allocations.
 
 ## Known Issues
 
