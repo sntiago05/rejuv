@@ -71,6 +71,8 @@ class HelpCommandTest {
                 "/meta",
                 "/build",
                 "/counter",
+                "/heroes",
+                "/leaderboard server",
                 "/help",
                 "7656119",
                 "https://steamcommunity.com/profiles/",
