@@ -23,8 +23,6 @@ import sntiago05.rejuv.services.Messages;
 public class CounterCommand implements SlashCommand {
 
     private static final Logger log = LoggerFactory.getLogger(CounterCommand.class);
-    private static final String MIN_MATCHUP_MATCHES = "50";
-    private static final String MIN_ITEM_MATCHES = "100";
 
     private final CounterService counterService;
     private final Messages messages;
@@ -64,7 +62,8 @@ public class CounterCommand implements SlashCommand {
         } catch (DeadlockApiUnavailableException ex) {
             hook.editOriginal(messages.get("error.data_source_busy")).queue();
         } catch (RuntimeException ex) {
-            CommandSupport.handleUnexpectedError(hook, messages, log, "Counter", callerId, heroInput, rankTier, ex);
+            CommandSupport.handleUnexpectedError(hook, messages, log, "Counter", callerId,
+                    "heroInput=" + heroInput + " rankTier=" + rankTier, ex);
         }
     }
 
@@ -95,7 +94,8 @@ public class CounterCommand implements SlashCommand {
             builder.addField(messages.get("counter.field.favorable"), value, false);
         }
 
-        builder.setFooter(messages.get("counter.footer", MIN_MATCHUP_MATCHES, MIN_ITEM_MATCHES));
+        builder.setFooter(messages.get("counter.footer", String.valueOf(CounterService.MIN_MATCHUP_MATCHES),
+                String.valueOf(CounterService.MIN_ITEM_MATCHES)));
 
         return builder.build();
     }
@@ -104,12 +104,12 @@ public class CounterCommand implements SlashCommand {
         String heroName = matchup.heroName() != null
                 ? matchup.heroName()
                 : messages.get("counter.hero_unknown", String.valueOf(matchup.heroId()));
-        String winRate = CommandSupport.formatPercent(matchup.winRatePercent());
+        String winRate = CommandSupport.oneDecimal(matchup.winRatePercent());
         return messages.get("counter.matchup_entry", heroName, winRate);
     }
 
     private String itemLine(CounterItem item) {
-        String winRate = CommandSupport.formatPercent(item.winRatePercent());
+        String winRate = CommandSupport.oneDecimal(item.winRatePercent());
         return messages.get("counter.item_entry", item.itemName(), winRate);
     }
 }

@@ -49,7 +49,7 @@ class CounterServiceTest {
         deadlockApiClient = mock(DeadlockApiClient.class);
         heroResolver = mock(HeroResolver.class);
         clock = Clock.fixed(FIXED_INSTANT, ZoneOffset.UTC);
-        counterService = new CounterService(deadlockApiClient, heroResolver, clock);
+        counterService = new CounterService(deadlockApiClient, heroResolver, new GameAssets(deadlockApiClient), clock);
 
         when(heroResolver.resolve("Infernus")).thenReturn(Optional.of(INFERNUS));
         when(deadlockApiClient.getHeroes()).thenReturn(List.of(

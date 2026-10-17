@@ -1,8 +1,6 @@
 package sntiago05.rejuv.commands;
 
-import java.util.Locale;
 import java.util.OptionalLong;
-import java.util.UUID;
 import java.util.stream.Collectors;
 
 import net.dv8tion.jda.api.EmbedBuilder;
@@ -78,9 +76,7 @@ public class ProfileCommand implements SlashCommand {
         } catch (DeadlockApiUnavailableException ex) {
             hook.editOriginal(messages.get("error.data_source_busy")).queue();
         } catch (RuntimeException ex) {
-            String errorId = UUID.randomUUID().toString();
-            log.error("Profile failed errorId={} userId={} accountId={}", errorId, callerId, accountId, ex);
-            hook.editOriginal(messages.get("error.generic", errorId)).queue();
+            CommandSupport.handleUnexpectedError(hook, messages, log, "Profile", callerId, "accountId=" + accountId, ex);
         }
     }
 
@@ -93,9 +89,9 @@ public class ProfileCommand implements SlashCommand {
                                 String.valueOf(summary.recentWins()),
                                 String.valueOf(summary.recentMatches()),
                                 String.valueOf(summary.winRatePercent()),
-                                oneDecimal(summary.avgKills()),
-                                oneDecimal(summary.avgDeaths()),
-                                oneDecimal(summary.avgAssists())),
+                                CommandSupport.oneDecimal(summary.avgKills()),
+                                CommandSupport.oneDecimal(summary.avgDeaths()),
+                                CommandSupport.oneDecimal(summary.avgAssists())),
                         false)
                 .addField(messages.get("profile.field.top_heroes"), topHeroesValue(summary), false)
                 .setFooter(messages.get("profile.footer", String.valueOf(summary.accountId())))
@@ -129,9 +125,5 @@ public class ProfileCommand implements SlashCommand {
                 ? hero.heroName()
                 : messages.get("profile.hero_unknown", String.valueOf(hero.heroId()));
         return messages.get("profile.hero_line", heroName, String.valueOf(hero.matches()));
-    }
-
-    private static String oneDecimal(double value) {
-        return String.format(Locale.ROOT, "%.1f", value);
     }
 }

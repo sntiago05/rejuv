@@ -48,7 +48,7 @@ class BuildServiceTest {
         deadlockApiClient = mock(DeadlockApiClient.class);
         heroResolver = mock(HeroResolver.class);
         clock = Clock.fixed(FIXED_INSTANT, ZoneOffset.UTC);
-        buildService = new BuildService(deadlockApiClient, heroResolver, clock);
+        buildService = new BuildService(deadlockApiClient, heroResolver, new GameAssets(deadlockApiClient), clock);
 
         when(heroResolver.resolve("Infernus")).thenReturn(Optional.of(HERO_INFERNUS));
         when(deadlockApiClient.getItemFlowStats(anyInt(), any(), anyLong()))

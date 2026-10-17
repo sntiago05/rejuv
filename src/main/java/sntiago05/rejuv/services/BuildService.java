@@ -2,20 +2,18 @@ package sntiago05.rejuv.services;
 
 import java.time.Clock;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.Comparator;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import sntiago05.rejuv.clients.DeadlockApiClient;
 import sntiago05.rejuv.clients.dto.AbilityOrderStat;
 import sntiago05.rejuv.clients.dto.HeroAsset;
-import sntiago05.rejuv.clients.dto.ItemAsset;
 import sntiago05.rejuv.clients.dto.ItemFlowNode;
 import sntiago05.rejuv.clients.dto.ItemFlowStats;
 import sntiago05.rejuv.domain.BuildItem;
@@ -47,16 +45,18 @@ public class BuildService {
 
     private final DeadlockApiClient deadlockApiClient;
     private final HeroResolver heroResolver;
+    private final GameAssets gameAssets;
     private final Clock clock;
 
     @Autowired
-    public BuildService(DeadlockApiClient deadlockApiClient, HeroResolver heroResolver) {
-        this(deadlockApiClient, heroResolver, Clock.systemUTC());
+    public BuildService(DeadlockApiClient deadlockApiClient, HeroResolver heroResolver, GameAssets gameAssets) {
+        this(deadlockApiClient, heroResolver, gameAssets, Clock.systemUTC());
     }
 
-    BuildService(DeadlockApiClient deadlockApiClient, HeroResolver heroResolver, Clock clock) {
+    BuildService(DeadlockApiClient deadlockApiClient, HeroResolver heroResolver, GameAssets gameAssets, Clock clock) {
         this.deadlockApiClient = deadlockApiClient;
         this.heroResolver = heroResolver;
+        this.gameAssets = gameAssets;
         this.clock = clock;
     }
 
@@ -77,16 +77,10 @@ public class BuildService {
 
         ItemFlowStats flowStats = deadlockApiClient.getItemFlowStats(hero.id(), rankTier, minUnixTimestamp);
         List<AbilityOrderStat> abilityOrderStats = deadlockApiClient.getAbilityOrderStats(hero.id(), rankTier, minUnixTimestamp);
-        List<ItemAsset> itemsAsset = deadlockApiClient.getItems();
+        Map<Long, String> itemNames = gameAssets.itemNames();
 
-        Map<Long, String> itemNames = new HashMap<>(Math.max((int) (itemsAsset.size() / 0.75f) + 1, 16));
-        for (ItemAsset item : itemsAsset) {
-            if (item.name() != null) {
-                itemNames.putIfAbsent(item.id(), item.name());
-            }
-        }
-
-        Map<Integer, List<BuildItem>> columnItems = new HashMap<>(MAX_PHASES * 2);
+        // TreeMap keeps the columns in ascending order, so no separate sort of the keys is needed.
+        Map<Integer, List<BuildItem>> columnItems = new TreeMap<>();
         Set<ColumnItemKey> seenColumnItem = new HashSet<>();
 
         List<Long> reachedPerColumn = flowStats.reachedPerColumn();
@@ -114,18 +108,12 @@ public class BuildService {
                     .add(new BuildItem(node.itemId(), itemName, matches, pickRatePercent, winRatePercent));
         }
 
-        List<Integer> sortedColumns = new ArrayList<>(columnItems.keySet());
-        Collections.sort(sortedColumns);
-        List<BuildPhase> phases = new ArrayList<>(Math.min(sortedColumns.size(), MAX_PHASES));
-        for (int col : sortedColumns) {
-            List<BuildItem> items = columnItems.get(col);
-            if (items != null && !items.isEmpty()) {
-                items.sort(ITEM_COMPARATOR);
-                List<BuildItem> capped = items.subList(0, Math.min(items.size(), MAX_ITEMS_PER_PHASE));
-                phases.add(new BuildPhase(col, List.copyOf(capped)));
-                if (phases.size() == MAX_PHASES) {
-                    break;
-                }
+        List<BuildPhase> phases = new ArrayList<>(Math.min(columnItems.size(), MAX_PHASES));
+        for (Map.Entry<Integer, List<BuildItem>> column : columnItems.entrySet()) {
+            phases.add(new BuildPhase(column.getKey(),
+                    ServiceSupport.top(column.getValue(), ITEM_COMPARATOR, MAX_ITEMS_PER_PHASE)));
+            if (phases.size() == MAX_PHASES) {
+                break;
             }
         }
 

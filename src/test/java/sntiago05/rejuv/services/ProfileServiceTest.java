@@ -46,7 +46,7 @@ class ProfileServiceTest {
     void setUp() {
         repository = mock(LinkedAccountRepository.class);
         client = mock(DeadlockApiClient.class);
-        service = new ProfileService(repository, client, Clock.fixed(NOW, ZoneOffset.UTC));
+        service = new ProfileService(repository, client, new GameAssets(client), Clock.fixed(NOW, ZoneOffset.UTC));
         when(client.getPlayerRank(ACCOUNT_ID)).thenReturn(new PlayerRank(73, 7, 3));
         when(client.getRanks()).thenReturn(List.of(new RankAsset(0, "Obscurus"), new RankAsset(7, "Archon")));
         when(client.getHeroes()).thenReturn(List.of(
