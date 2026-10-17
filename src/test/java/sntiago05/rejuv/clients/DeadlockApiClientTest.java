@@ -32,9 +32,12 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.test.web.client.RequestMatcher;
 import org.springframework.web.client.RestClient;
+import sntiago05.rejuv.clients.dto.AbilityOrderStat;
 import sntiago05.rejuv.clients.dto.HeroAsset;
 import sntiago05.rejuv.clients.dto.HeroStat;
 import sntiago05.rejuv.clients.dto.ItemAsset;
+import sntiago05.rejuv.clients.dto.ItemFlowNode;
+import sntiago05.rejuv.clients.dto.ItemFlowStats;
 import sntiago05.rejuv.clients.dto.ItemStat;
 import sntiago05.rejuv.clients.dto.MatchHistoryEntry;
 import sntiago05.rejuv.clients.dto.MetricPercentiles;
@@ -258,6 +261,119 @@ class DeadlockApiClientTest {
                 .isInstanceOfSatisfying(DeadlockApiUnavailableException.class,
                         e -> assertThat(e.retryAfter()).contains(Duration.ofSeconds(60)));
         assertThat(sleeps).isEmpty();
+    }
+
+    @Test
+    void itemFlowSendsHeroBadgeRangeAndTimestamp() {
+        server.expect(once(), requestTo(startsWith(BASE_URL + "/v1/analytics/item-flow-stats?")))
+                .andExpect(queryParam("hero_ids", "61"))
+                .andExpect(queryParam("min_average_badge", "70"))
+                .andExpect(queryParam("max_average_badge", "79"))
+                .andExpect(queryParam("min_unix_timestamp", "1789000000"))
+                .andExpect(noQueryParam("hero_id="))
+                .andRespond(withSuccess(fixture("item-flow-stats.json"), MediaType.APPLICATION_JSON));
+
+        ItemFlowStats flow = client.getItemFlowStats(61, 7, 1789000000L);
+
+        assertThat(flow.nodes()).hasSize(6);
+        assertThat(flow.reachedPerColumn()).containsExactly(1000L, 800L);
+        assertThat(flow.nodes().get(0)).isEqualTo(new ItemFlowNode(0, 1001L, 500L, 275L));
+    }
+
+    @Test
+    void itemFlowWithoutRankSendsNoBadgeFilter() {
+        server.expect(once(), requestTo(startsWith(BASE_URL + "/v1/analytics/item-flow-stats?")))
+                .andExpect(queryParam("hero_ids", "61"))
+                .andExpect(queryParam("min_unix_timestamp", "1789000000"))
+                .andExpect(noQueryParam("min_average_badge"))
+                .andExpect(noQueryParam("max_average_badge"))
+                .andExpect(noQueryParam("hero_id="))
+                .andRespond(withSuccess(fixture("item-flow-stats.json"), MediaType.APPLICATION_JSON));
+
+        ItemFlowStats flow = client.getItemFlowStats(61, null, 1789000000L);
+
+        assertThat(flow.nodes()).hasSize(6);
+    }
+
+    @Test
+    void itemFlowRejectsTierOutOfRange() {
+        assertThatThrownBy(() -> client.getItemFlowStats(61, -1, 1789000000L))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> client.getItemFlowStats(61, 12, 1789000000L))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void abilityOrderSendsHeroIdBadgeRangeAndTimestamp() {
+        server.expect(once(), requestTo(startsWith(BASE_URL + "/v1/analytics/ability-order-stats?")))
+                .andExpect(queryParam("hero_id", "61"))
+                .andExpect(queryParam("min_average_badge", "70"))
+                .andExpect(queryParam("max_average_badge", "79"))
+                .andExpect(queryParam("min_unix_timestamp", "1789000000"))
+                .andExpect(noQueryParam("hero_ids"))
+                .andRespond(withSuccess(fixture("ability-order-stats.json"), MediaType.APPLICATION_JSON));
+
+        List<AbilityOrderStat> orders = client.getAbilityOrderStats(61, 7, 1789000000L);
+
+        assertThat(orders).hasSize(3);
+        assertThat(orders.get(0)).isEqualTo(new AbilityOrderStat(
+                List.of(3001L, 3002L, 3001L, 3003L, 3004L), 1200L, 650L));
+    }
+
+    @Test
+    void abilityOrderWithoutRankSendsNoBadgeFilter() {
+        server.expect(once(), requestTo(startsWith(BASE_URL + "/v1/analytics/ability-order-stats?")))
+                .andExpect(queryParam("hero_id", "61"))
+                .andExpect(queryParam("min_unix_timestamp", "1789000000"))
+                .andExpect(noQueryParam("min_average_badge"))
+                .andExpect(noQueryParam("max_average_badge"))
+                .andExpect(noQueryParam("hero_ids"))
+                .andRespond(withSuccess(fixture("ability-order-stats.json"), MediaType.APPLICATION_JSON));
+
+        List<AbilityOrderStat> orders = client.getAbilityOrderStats(61, null, 1789000000L);
+
+        assertThat(orders).hasSize(3);
+    }
+
+    @Test
+    void abilityOrderRejectsTierOutOfRange() {
+        assertThatThrownBy(() -> client.getAbilityOrderStats(61, -1, 1789000000L))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> client.getAbilityOrderStats(61, 12, 1789000000L))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void itemFlowServiceUnavailableIsMapped() {
+        server.expect(once(), requestTo(startsWith(BASE_URL + "/v1/analytics/item-flow-stats?")))
+                .andRespond(withStatus(HttpStatus.SERVICE_UNAVAILABLE).header("Retry-After", "60"));
+
+        assertThatThrownBy(() -> client.getItemFlowStats(61, 7, 1789000000L))
+                .isInstanceOfSatisfying(DeadlockApiUnavailableException.class,
+                        e -> assertThat(e.retryAfter()).contains(Duration.ofSeconds(60)));
+        assertThat(sleeps).isEmpty();
+    }
+
+    @Test
+    void abilityOrderServiceUnavailableIsMapped() {
+        server.expect(once(), requestTo(startsWith(BASE_URL + "/v1/analytics/ability-order-stats?")))
+                .andRespond(withStatus(HttpStatus.SERVICE_UNAVAILABLE).header("Retry-After", "60"));
+
+        assertThatThrownBy(() -> client.getAbilityOrderStats(61, 7, 1789000000L))
+                .isInstanceOfSatisfying(DeadlockApiUnavailableException.class,
+                        e -> assertThat(e.retryAfter()).contains(Duration.ofSeconds(60)));
+        assertThat(sleeps).isEmpty();
+    }
+
+    @Test
+    void itemFlowWithMissingListsIsEmpty() {
+        server.expect(once(), requestTo(startsWith(BASE_URL + "/v1/analytics/item-flow-stats?")))
+                .andRespond(withSuccess("{}", MediaType.APPLICATION_JSON));
+
+        ItemFlowStats flow = client.getItemFlowStats(61, null, 1789000000L);
+
+        assertThat(flow.nodes()).isEmpty();
+        assertThat(flow.reachedPerColumn()).isEmpty();
     }
 
     @Test

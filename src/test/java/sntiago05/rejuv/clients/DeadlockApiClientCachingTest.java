@@ -180,6 +180,88 @@ class DeadlockApiClientCachingTest {
     }
 
     @Test
+    void itemFlowIsCachedPerHeroTierAndTimestamp() {
+        server.expect(once(), requestTo(startsWith(BASE_URL + "/v1/analytics/item-flow-stats?")))
+                .andExpect(queryParam("hero_ids", "61"))
+                .andExpect(queryParam("min_average_badge", "70"))
+                .andExpect(queryParam("max_average_badge", "79"))
+                .andExpect(queryParam("min_unix_timestamp", "1000"))
+                .andRespond(withSuccess(fixture("item-flow-stats.json"), MediaType.APPLICATION_JSON));
+        server.expect(once(), requestTo(startsWith(BASE_URL + "/v1/analytics/item-flow-stats?")))
+                .andExpect(queryParam("hero_ids", "62"))
+                .andExpect(queryParam("min_average_badge", "70"))
+                .andExpect(queryParam("max_average_badge", "79"))
+                .andExpect(queryParam("min_unix_timestamp", "1000"))
+                .andRespond(withSuccess(fixture("item-flow-stats.json"), MediaType.APPLICATION_JSON));
+        server.expect(once(), requestTo(startsWith(BASE_URL + "/v1/analytics/item-flow-stats?")))
+                .andExpect(queryParam("hero_ids", "61"))
+                .andExpect(queryParam("min_average_badge", "80"))
+                .andExpect(queryParam("max_average_badge", "89"))
+                .andExpect(queryParam("min_unix_timestamp", "1000"))
+                .andRespond(withSuccess(fixture("item-flow-stats.json"), MediaType.APPLICATION_JSON));
+        server.expect(once(), requestTo(startsWith(BASE_URL + "/v1/analytics/item-flow-stats?")))
+                .andExpect(queryParam("hero_ids", "61"))
+                .andExpect(queryParam("min_average_badge", "70"))
+                .andExpect(queryParam("max_average_badge", "79"))
+                .andExpect(queryParam("min_unix_timestamp", "2000"))
+                .andRespond(withSuccess(fixture("item-flow-stats.json"), MediaType.APPLICATION_JSON));
+        server.expect(once(), requestTo(startsWith(BASE_URL + "/v1/analytics/item-flow-stats?")))
+                .andExpect(queryParam("hero_ids", "61"))
+                .andExpect(DeadlockApiClientTest.noQueryParam("min_average_badge"))
+                .andExpect(queryParam("min_unix_timestamp", "1000"))
+                .andRespond(withSuccess(fixture("item-flow-stats.json"), MediaType.APPLICATION_JSON));
+
+        for (int round = 0; round < 2; round++) {
+            assertThat(client.getItemFlowStats(61, 7, 1000L).nodes()).hasSize(6);
+            assertThat(client.getItemFlowStats(62, 7, 1000L).nodes()).hasSize(6);
+            assertThat(client.getItemFlowStats(61, 8, 1000L).nodes()).hasSize(6);
+            assertThat(client.getItemFlowStats(61, 7, 2000L).nodes()).hasSize(6);
+            assertThat(client.getItemFlowStats(61, null, 1000L).nodes()).hasSize(6);
+        }
+    }
+
+    @Test
+    void abilityOrderIsCachedPerHeroTierAndTimestamp() {
+        server.expect(once(), requestTo(startsWith(BASE_URL + "/v1/analytics/ability-order-stats?")))
+                .andExpect(queryParam("hero_id", "61"))
+                .andExpect(queryParam("min_average_badge", "70"))
+                .andExpect(queryParam("max_average_badge", "79"))
+                .andExpect(queryParam("min_unix_timestamp", "1000"))
+                .andRespond(withSuccess(fixture("ability-order-stats.json"), MediaType.APPLICATION_JSON));
+        server.expect(once(), requestTo(startsWith(BASE_URL + "/v1/analytics/ability-order-stats?")))
+                .andExpect(queryParam("hero_id", "62"))
+                .andExpect(queryParam("min_average_badge", "70"))
+                .andExpect(queryParam("max_average_badge", "79"))
+                .andExpect(queryParam("min_unix_timestamp", "1000"))
+                .andRespond(withSuccess(fixture("ability-order-stats.json"), MediaType.APPLICATION_JSON));
+        server.expect(once(), requestTo(startsWith(BASE_URL + "/v1/analytics/ability-order-stats?")))
+                .andExpect(queryParam("hero_id", "61"))
+                .andExpect(queryParam("min_average_badge", "80"))
+                .andExpect(queryParam("max_average_badge", "89"))
+                .andExpect(queryParam("min_unix_timestamp", "1000"))
+                .andRespond(withSuccess(fixture("ability-order-stats.json"), MediaType.APPLICATION_JSON));
+        server.expect(once(), requestTo(startsWith(BASE_URL + "/v1/analytics/ability-order-stats?")))
+                .andExpect(queryParam("hero_id", "61"))
+                .andExpect(queryParam("min_average_badge", "70"))
+                .andExpect(queryParam("max_average_badge", "79"))
+                .andExpect(queryParam("min_unix_timestamp", "2000"))
+                .andRespond(withSuccess(fixture("ability-order-stats.json"), MediaType.APPLICATION_JSON));
+        server.expect(once(), requestTo(startsWith(BASE_URL + "/v1/analytics/ability-order-stats?")))
+                .andExpect(queryParam("hero_id", "61"))
+                .andExpect(DeadlockApiClientTest.noQueryParam("min_average_badge"))
+                .andExpect(queryParam("min_unix_timestamp", "1000"))
+                .andRespond(withSuccess(fixture("ability-order-stats.json"), MediaType.APPLICATION_JSON));
+
+        for (int round = 0; round < 2; round++) {
+            assertThat(client.getAbilityOrderStats(61, 7, 1000L)).hasSize(3);
+            assertThat(client.getAbilityOrderStats(62, 7, 1000L)).hasSize(3);
+            assertThat(client.getAbilityOrderStats(61, 8, 1000L)).hasSize(3);
+            assertThat(client.getAbilityOrderStats(61, 7, 2000L)).hasSize(3);
+            assertThat(client.getAbilityOrderStats(61, null, 1000L)).hasSize(3);
+        }
+    }
+
+    @Test
     void cacheTtlsAndSizesMatchTheDesign() {
         Map<String, Duration> ttls = Map.of(
                 CacheConfig.DEADLOCK_ASSETS, Duration.ofHours(24),
@@ -189,7 +271,9 @@ class DeadlockApiClientCachingTest {
                 CacheConfig.DEADLOCK_PLAYER_RANK, Duration.ofMinutes(10),
                 CacheConfig.DEADLOCK_MATCH_METADATA, Duration.ofHours(24),
                 CacheConfig.PROFILE_SUMMARY, Duration.ofMinutes(10),
-                CacheConfig.DEADLOCK_HERO_STATS, Duration.ofHours(6));
+                CacheConfig.DEADLOCK_HERO_STATS, Duration.ofHours(6),
+                CacheConfig.DEADLOCK_ITEM_FLOW, Duration.ofHours(6),
+                CacheConfig.DEADLOCK_ABILITY_ORDER, Duration.ofHours(6));
         Map<String, Long> sizes = Map.of(
                 CacheConfig.DEADLOCK_ASSETS, 10L,
                 CacheConfig.DEADLOCK_BENCHMARKS, 500L,
@@ -198,7 +282,9 @@ class DeadlockApiClientCachingTest {
                 CacheConfig.DEADLOCK_PLAYER_RANK, 1000L,
                 CacheConfig.DEADLOCK_MATCH_METADATA, 300L,
                 CacheConfig.PROFILE_SUMMARY, 1000L,
-                CacheConfig.DEADLOCK_HERO_STATS, 50L);
+                CacheConfig.DEADLOCK_HERO_STATS, 50L,
+                CacheConfig.DEADLOCK_ITEM_FLOW, 200L,
+                CacheConfig.DEADLOCK_ABILITY_ORDER, 200L);
 
         assertThat(cacheManager.getCacheNames()).containsExactlyInAnyOrderElementsOf(ttls.keySet());
         for (String name : ttls.keySet()) {
