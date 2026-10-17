@@ -101,9 +101,15 @@ Last updated 2026-10-17 after Task 011 (PR #36) and Task 012 (PR #37) were merge
   - `services/CounterService`; records `CounterGuide`, `CounterMatchup`, `CounterItem`. Shared helpers `commands/CommandSupport` (hero/rank options, rank labels, percent format, unexpected-error handling) and `services/ServiceSupport` (rank validation, 30-day UTC window), also used by `/build`.
   - Verified: `./mvnw clean verify` (332 tests, 0 failures). No manual Discord check.
 - The test count on `main` after merging Task 012 is 332 tests.
+- **Performance and deduplication refactor** (owner request, no task spec), report in `docs/task-reports/refactor-perf-dedup.md`. Branch `refactor/perf-dedup`, **not merged**:
+  - `clients/DeadlockApiRequests` (package-private) holds the shared GET/503/429/404 rules used by `DeadlockApiClient` and `JsonMatchMetadataSource` (Task 022 follow-up (b) resolved; Task 023 must reuse it). Public client constructors unchanged.
+  - `getMatchHistory` streams the array and stops after 200 entries (parse of a 6,842-entry body: about 24 ms → 1 ms in the benchmark).
+  - `services/GameAssets`: hero/item lookup maps rebuilt only when the cached asset list changes; used by `HeroResolver`, `/build`, `/counter`, `/meta`, `/profile` services. `ServiceSupport.top(...)` for sort-and-limit.
+  - `CommandSupport.handleUnexpectedError(hook, messages, log, title, callerId, context, ex)` and `CommandSupport.oneDecimal` are used by all embed commands.
+  - Verified: `./mvnw -B verify` (344 tests, 0 failures, 2 skipped benchmark tests).
 
 ### In progress (not verified, not merged)
-Task 024 (rich presentation: JDA bump for application emojis, emoji sync, `AssetImages`, `IconCatalog`, `AssetImageClient`): spec in `docs/tasks/024-rich-presentation.md`; worktree `../rejuv-wt/024`, branch `feature/024-rich-presentation`, created from `main` @ e962185. Not started. It changes `CounterCommand`; its `PROJECT_CONTEXT.md` update stays pending integration.
+Task 024 (rich presentation: JDA bump for application emojis, emoji sync, `AssetImages`, `IconCatalog`, `AssetImageClient`): spec in `docs/tasks/024-rich-presentation.md`; worktree `../rejuv-wt/024`, branch `feature/024-rich-presentation`, created from `main` @ e962185. Not started. It changes `CounterCommand`; its `PROJECT_CONTEXT.md` update stays pending integration. If `refactor/perf-dedup` is merged first, rebase 024 on it and reuse `GameAssets` and `CommandSupport` instead of rebuilding lookups.
 
 ### Not started (planned only)
 Tasks 009, 010, 014-021, 023 and 024 (024 has a worktree, see In progress). Nothing beyond `/ping`, `/help`, `/link`, `/unlink`, `/profile`, `/meta`, `/build`, `/counter`, the database baseline, the Deadlock API client, the match metadata port, the AI client, and `MetricsService` exists yet: no `/analyze`, web server, premium or Patreon check. The MVP has not been built, launched or deployed.
