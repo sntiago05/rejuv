@@ -64,7 +64,7 @@ Completed and verified. `.\mvnw.cmd clean verify` passes with 152 tests (135 bas
   - `RejuvApplicationTests` verified context starts cleanly with no API key set.
 - `git diff --check`: clean (no whitespace issues or trailing blank lines).
 - Secret check: verified diff contains no API keys, tokens, or real user/match data.
-- Live check: not run (requires live `ANTHROPIC_API_KEY` and owner approval; mock tests comprehensively cover all status codes and edge cases).
+- Live check (owner-approved, 2026-10-17): one `analyze` call against the real Spring context with `ANTHROPIC_API_KEY` set and a hand-built Infernus / Archon 3 input. Result: `outcome=ok`, `model=claude-haiku-5-5`, `attempts=1`, `input_tokens=872`, `output_tokens=275`, 4670 ms; all four fields passed validation and `key_numbers` had 3 entries using only input numbers. No `max_tokens` stop at 1500. The model ended `next_game_action` with a stray `}` character; it still passed validation (prompt-tuning input for Task 010). The `run-rejuv` driver could not compile on Windows (`:` classpath separator), so the call was made by launching `java` with the driver directly using a `;` classpath.
 
 ## Acceptance criteria
 
