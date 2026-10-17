@@ -1,0 +1,30 @@
+[
+  {
+    "mate_id": 3000001,
+    "matches_played": 20,
+    "wins": 15,
+    "matches": [
+      900000001,
+      900000002
+    ],
+    "extra_field": "ignored_string",
+    "unknown_metric": 42
+  },
+  {
+    "mate_id": 3000002,
+    "matches_played": 10,
+    "wins": 6,
+    "matches": [
+      900000003
+    ],
+    "some_boolean_flag": true
+  },
+  {
+    "mate_id": 3000003,
+    "matches_played": 5,
+    "wins": 2,
+    "matches": [
+      900000004
+    ]
+  }
+]

@@ -72,6 +72,7 @@ class HelpCommandTest {
                 "/build",
                 "/counter",
                 "/heroes",
+                "/mates",
                 "/leaderboard server",
                 "/help",
                 "7656119",

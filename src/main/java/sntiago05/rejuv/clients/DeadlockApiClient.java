@@ -22,6 +22,7 @@ import sntiago05.rejuv.clients.dto.ItemAsset;
 import sntiago05.rejuv.clients.dto.ItemFlowStats;
 import sntiago05.rejuv.clients.dto.ItemStat;
 import sntiago05.rejuv.clients.dto.MatchHistoryEntry;
+import sntiago05.rejuv.clients.dto.MateStat;
 import sntiago05.rejuv.clients.dto.MetricPercentiles;
 import sntiago05.rejuv.clients.dto.PlayerHeroStat;
 import sntiago05.rejuv.clients.dto.PlayerRank;
@@ -48,6 +49,7 @@ public class DeadlockApiClient {
     private static final String ITEM_STATS_PATH = "/v1/analytics/item-stats";
     private static final String HERO_STATS_PATH = "/v1/analytics/hero-stats";
     private static final String PLAYER_HERO_STATS_PATH = "/v1/players/hero-stats";
+    private static final String MATE_STATS_PATH = "/v1/players/{account_id}/mate-stats";
     private static final String HERO_COUNTERS_PATH = "/v1/analytics/hero-counter-stats";
     private static final String ITEM_FLOW_PATH = "/v1/analytics/item-flow-stats";
     private static final String ABILITY_ORDER_PATH = "/v1/analytics/ability-order-stats";
@@ -64,6 +66,7 @@ public class DeadlockApiClient {
     private static final BodyReader<List<ItemStat>> ITEM_STATS_READER = DeadlockApiRequests.json(new ParameterizedTypeReference<>() { });
     private static final BodyReader<List<HeroStat>> HERO_STATS_READER = DeadlockApiRequests.json(new ParameterizedTypeReference<>() { });
     private static final BodyReader<List<PlayerHeroStat>> PLAYER_HERO_STATS_READER = DeadlockApiRequests.json(new ParameterizedTypeReference<>() { });
+    private static final BodyReader<List<MateStat>> MATE_STATS_READER = DeadlockApiRequests.json(new ParameterizedTypeReference<>() { });
     private static final BodyReader<List<HeroCounterStat>> HERO_COUNTERS_READER = DeadlockApiRequests.json(new ParameterizedTypeReference<>() { });
     private static final BodyReader<ItemFlowStats> ITEM_FLOW_READER = DeadlockApiRequests.json(new ParameterizedTypeReference<>() { });
     private static final BodyReader<List<AbilityOrderStat>> ABILITY_ORDER_READER = DeadlockApiRequests.json(new ParameterizedTypeReference<>() { });
@@ -196,6 +199,20 @@ public class DeadlockApiClient {
                         .queryParam("min_unix_timestamp", minUnixTimestamp)
                         .build(),
                 PLAYER_HERO_STATS_READER);
+        return List.copyOf(stats);
+    }
+
+    /**
+     * Teammates of one player (matches that started at or after minUnixTimestamp). Empty list = no data.
+     * Callers must not call the analytics-style methods in parallel for different uncached keys.
+     */
+    @Cacheable(cacheNames = CacheConfig.DEADLOCK_MATE_STATS, sync = true, key = "#accountId + ':' + #minUnixTimestamp")
+    public List<MateStat> getMateStats(long accountId, long minUnixTimestamp) {
+        List<MateStat> stats = requests.get(MATE_STATS_PATH,
+                uri -> uri.path(MATE_STATS_PATH)
+                        .queryParam("min_unix_timestamp", minUnixTimestamp)
+                        .build(accountId),
+                MATE_STATS_READER);
         return List.copyOf(stats);
     }
 
