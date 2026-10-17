@@ -22,6 +22,7 @@ import sntiago05.rejuv.domain.AnalysisInput;
 import sntiago05.rejuv.domain.AnalysisReport;
 import sntiago05.rejuv.domain.AnalysisResult;
 import sntiago05.rejuv.services.AnalyzeService;
+import sntiago05.rejuv.services.AssetImages;
 import sntiago05.rejuv.services.Messages;
 import sntiago05.rejuv.services.NoMatchHistoryException;
 import sntiago05.rejuv.services.ProfileService;
@@ -37,11 +38,14 @@ public class AnalyzeCommand implements SlashCommand {
     private final AnalyzeService analyzeService;
     private final ProfileService profileService;
     private final Messages messages;
+    private final AssetImages assetImages;
 
-    public AnalyzeCommand(AnalyzeService analyzeService, ProfileService profileService, Messages messages) {
+    public AnalyzeCommand(AnalyzeService analyzeService, ProfileService profileService, Messages messages,
+                          AssetImages assetImages) {
         this.analyzeService = analyzeService;
         this.profileService = profileService;
         this.messages = messages;
+        this.assetImages = assetImages;
     }
 
     @Override
@@ -81,7 +85,8 @@ public class AnalyzeCommand implements SlashCommand {
     }
 
     private MessageEmbed buildEmbed(AnalysisReport report) {
-        EmbedBuilder builder = new EmbedBuilder();
+        EmbedBuilder builder = new EmbedBuilder().setColor(EmbedStyle.COLOR);
+        assetImages.heroCardUrl(report.heroId()).ifPresent(builder::setThumbnail);
 
         String result = "win".equalsIgnoreCase(report.result())
                 ? messages.get("analyze.result.win")

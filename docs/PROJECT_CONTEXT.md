@@ -124,9 +124,9 @@ Last updated 2026-10-17 after Task 009 (PR #41), Task 014 (PR #42), Task 016 (PR
   - JDA bumped from 5.0.0 to 5.6.1 (application emojis). Asset DTOs gained image fields (`HeroImages`, `ItemAsset.image`, `RankAsset.images`) with backward-compatible constructors.
   - Emoji sync: `services/EmojiSyncService` uploads hero and shop-upgrade emojis as Discord application emojis in a background thread (`config/EmojiSyncStarter`, `config/JdaEmojiGateway` behind `services/EmojiGateway`), capped at 400 new emojis; failures are logged WARN and skipped. `services/IconCatalog` holds the emoji mentions; until it fills, embeds are text-only. The first sync uploads about 315 emojis (1-3 minutes).
   - `clients/AssetImageClient` (uncached, HTTPS only, hosts `assets-bucket.deadlock-api.com` and `api.deadlock-api.com`, body <= 256 KB); `services/AssetImages` resolves hero card and rank badge URLs from cached assets.
-  - `commands/EmbedStyle` (brand color `0xE5A93C`, `withIcon`, `fitField` for the 1024-char field limit). Restyled: `/profile`, `/meta`, `/build`, `/counter`, `/help` (ephemeral embed, key `help.title`). `/analyze`, `/heroes` and `/leaderboard` do not use the icons or `EmbedStyle` yet.
+  - `commands/EmbedStyle` (brand color `0xE5A93C`, `withIcon`, `fitField` for the 1024-char field limit). Restyled: `/profile`, `/meta`, `/build`, `/counter`, `/help` (ephemeral embed, key `help.title`). A later change (no task spec) applied the same style to `/analyze` (brand color, hero card thumbnail; `AnalysisReport` gained `heroId`), `/heroes` (brand color, hero icons per entry, top hero card thumbnail, `fitField`) and `/leaderboard` (brand color, rank badge thumbnail of the first place). Verified with `./mvnw verify` (498 tests, 0 failures, 2 skipped); no manual Discord check.
   - Verified: on its branch 388 tests; after merging `main` with 009, 014 and 016, `./mvnw verify` passed with 496 tests, 0 failures, 2 skipped. No manual Discord check.
-- The test count on `main` after merging Tasks 009, 014, 016 and 024 is 496 (2 skipped benchmark tests).
+- The test count on `main` after merging Tasks 009, 014, 016 and 024 is 496 (2 skipped benchmark tests); 498 with the `/analyze`, `/heroes` and `/leaderboard` styling change.
 
 ### In progress
 Nothing.
@@ -135,7 +135,7 @@ Nothing.
 Tasks 010, 015, 017-021 and 023. Nothing beyond `/ping`, `/help`, `/link`, `/unlink`, `/profile`, `/analyze`, `/meta`, `/build`, `/counter`, `/heroes`, `/leaderboard server`, the database baseline, the Deadlock API client, the match metadata port, the AI client, and `MetricsService` exists yet: no web server, premium or Patreon check. The MVP code is merged but has not been run end to end in Discord, launched or deployed. `/help` lists every implemented command except `/ping`.
 
 ### Next
-Task 010 (prompt tuning with testers, now unblocked by 009) and the manual Discord check of `/analyze`, `/heroes` and `/leaderboard server`. Also eligible: 015 (depends on 005 and 006), Task 023 (depends on 022, only if the JSON metadata endpoint fails often). Follow-ups: apply the Task 024 icons and `EmbedStyle` to `/analyze`, `/heroes` and `/leaderboard`. Check the first emoji sync in the dev guild.
+Task 010 (prompt tuning with testers, now unblocked by 009) and the manual Discord check of `/analyze`, `/heroes` and `/leaderboard server`. Also eligible: 015 (depends on 005 and 006), Task 023 (depends on 022, only if the JSON metadata endpoint fails often). Check the first emoji sync in the dev guild.
 
 ### Deadlock API facts observed in real responses (2026-10-16, evidence collected by the owner)
 - Host `https://api.deadlock-api.com`. `GET /v1/players/{account_id}/match-history` returns an array, newest first. An account without data returns 200 `[]` (not 404). The payload is large (about 5 MB for 6,842 matches), so a client must cap what it keeps.

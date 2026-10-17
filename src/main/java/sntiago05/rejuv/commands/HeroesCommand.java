@@ -4,7 +4,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.OptionalLong;
-import java.util.stream.Collectors;
 
 import net.dv8tion.jda.api.EmbedBuilder;
 import net.dv8tion.jda.api.entities.MessageEmbed;
@@ -21,7 +20,9 @@ import org.springframework.stereotype.Component;
 import sntiago05.rejuv.clients.DeadlockApiUnavailableException;
 import sntiago05.rejuv.domain.HeroPerformance;
 import sntiago05.rejuv.domain.HeroPoolSummary;
+import sntiago05.rejuv.services.AssetImages;
 import sntiago05.rejuv.services.HeroPoolService;
+import sntiago05.rejuv.services.IconCatalog;
 import sntiago05.rejuv.services.Messages;
 import sntiago05.rejuv.services.ProfileService;
 
@@ -34,11 +35,16 @@ public class HeroesCommand implements SlashCommand {
     private final ProfileService profileService;
     private final HeroPoolService heroPoolService;
     private final Messages messages;
+    private final AssetImages assetImages;
+    private final IconCatalog iconCatalog;
 
-    public HeroesCommand(ProfileService profileService, HeroPoolService heroPoolService, Messages messages) {
+    public HeroesCommand(ProfileService profileService, HeroPoolService heroPoolService, Messages messages,
+                         AssetImages assetImages, IconCatalog iconCatalog) {
         this.profileService = profileService;
         this.heroPoolService = heroPoolService;
         this.messages = messages;
+        this.assetImages = assetImages;
+        this.iconCatalog = iconCatalog;
     }
 
     @Override
@@ -87,9 +93,9 @@ public class HeroesCommand implements SlashCommand {
     }
 
     private MessageEmbed embed(HeroPoolSummary summary, User target) {
-        String topLines = summary.topHeroes().stream()
+        String topLines = EmbedStyle.fitField(summary.topHeroes().stream()
                 .map(this::formatHeroEntry)
-                .collect(Collectors.joining("\n"));
+                .toList());
 
         List<String> tipLines = new ArrayList<>();
         if (summary.best() != null) {
@@ -112,12 +118,14 @@ public class HeroesCommand implements SlashCommand {
                 CommandSupport.rankLabel(messages, summary.rankTier()),
                 String.valueOf(HeroPoolService.MIN_BENCHMARK_MATCHES));
 
-        return new EmbedBuilder()
+        EmbedBuilder builder = new EmbedBuilder()
+                .setColor(EmbedStyle.COLOR)
                 .setTitle(messages.get("heroes.title", target.getEffectiveName()))
                 .addField(messages.get("heroes.field.top"), topLines, false)
                 .addField(messages.get("heroes.field.tips"), tipsText, false)
-                .setFooter(footer)
-                .build();
+                .setFooter(footer);
+        assetImages.heroCardUrl(summary.topHeroes().get(0).heroId()).ifPresent(builder::setThumbnail);
+        return builder.build();
     }
 
     private String formatHeroEntry(HeroPerformance hero) {
@@ -131,11 +139,12 @@ public class HeroesCommand implements SlashCommand {
                 ? messages.get("heroes.kda_vs_average", CommandSupport.oneDecimal(hero.kda()), CommandSupport.oneDecimal(hero.heroAvgKda()))
                 : messages.get("heroes.kda", CommandSupport.oneDecimal(hero.kda()));
 
-        return messages.get("heroes.entry",
+        String line = messages.get("heroes.entry",
                 heroName,
                 String.valueOf(hero.matches()),
                 String.valueOf(Math.round(hero.winRatePercent())),
                 comparisonText,
                 kdaText);
+        return EmbedStyle.withIcon(iconCatalog.hero(hero.heroId()), line);
     }
 }
