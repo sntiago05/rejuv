@@ -5,6 +5,11 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record HeroAsset(@JsonProperty("id") int id,
-                        @JsonProperty("class_name") String className,
-                        @JsonProperty("name") String name) {
+                         @JsonProperty("class_name") String className,
+                         @JsonProperty("name") String name,
+                         @JsonProperty("images") HeroImages images) {
+
+    public HeroAsset(int id, String className, String name) {
+        this(id, className, name, null);
+    }
 }

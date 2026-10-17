@@ -2,12 +2,20 @@
   {
     "tier": 0,
     "name": "Obscurus",
-    "color": "#333333"
+    "color": "#333333",
+    "images": {
+      "large": "https://api.deadlock-api.com/v1/assets/ranks/0/large.png"
+    }
   },
   {
     "tier": 1,
     "name": "Initiate",
-    "color": "#6A3E1E"
+    "color": "#6A3E1E",
+    "images": {
+      "large": "https://api.deadlock-api.com/v1/assets/ranks/1/large.png",
+      "large_subrank1": "https://api.deadlock-api.com/v1/assets/ranks/1/1/image",
+      "large_subrank2": "https://api.deadlock-api.com/v1/assets/ranks/1/2/image"
+    }
   },
   {
     "tier": 2,

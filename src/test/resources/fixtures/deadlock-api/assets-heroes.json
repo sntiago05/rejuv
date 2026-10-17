@@ -3,13 +3,21 @@
     "id": 1,
     "class_name": "hero_inferno",
     "name": "Infernus",
-    "player_selectable": true
+    "player_selectable": true,
+    "images": {
+      "icon_image_small": "https://assets-bucket.deadlock-api.com/assets-api-res/images/heroes/inferno_sm.png",
+      "icon_hero_card": "https://assets-bucket.deadlock-api.com/assets-api-res/images/heroes/inferno_card.png"
+    }
   },
   {
     "id": 2,
     "class_name": "hero_gigawatt",
     "name": "Seven",
-    "player_selectable": true
+    "player_selectable": true,
+    "images": {
+      "icon_image_small": "https://assets-bucket.deadlock-api.com/assets-api-res/images/heroes/seven_sm.png",
+      "icon_hero_card": "https://assets-bucket.deadlock-api.com/assets-api-res/images/heroes/seven_card.png"
+    }
   },
   {
     "id": 3,

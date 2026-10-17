@@ -37,6 +37,7 @@ import org.springframework.web.client.RestClient;
 import sntiago05.rejuv.clients.dto.AbilityOrderStat;
 import sntiago05.rejuv.clients.dto.HeroAsset;
 import sntiago05.rejuv.clients.dto.HeroCounterStat;
+import sntiago05.rejuv.clients.dto.HeroImages;
 import sntiago05.rejuv.clients.dto.HeroStat;
 import sntiago05.rejuv.clients.dto.ItemAsset;
 import sntiago05.rejuv.clients.dto.ItemFlowNode;
@@ -544,7 +545,12 @@ class DeadlockApiClientTest {
                 .andRespond(withSuccess(fixture("assets-ranks.json"), MediaType.APPLICATION_JSON));
 
         assertThat(client.getRanks()).containsExactly(
-                new RankAsset(0, "Obscurus"), new RankAsset(1, "Initiate"), new RankAsset(2, "Seeker"));
+                new RankAsset(0, "Obscurus", Map.of("large", "https://api.deadlock-api.com/v1/assets/ranks/0/large.png")),
+                new RankAsset(1, "Initiate", Map.of(
+                        "large", "https://api.deadlock-api.com/v1/assets/ranks/1/large.png",
+                        "large_subrank1", "https://api.deadlock-api.com/v1/assets/ranks/1/1/image",
+                        "large_subrank2", "https://api.deadlock-api.com/v1/assets/ranks/1/2/image")),
+                new RankAsset(2, "Seeker"));
     }
 
     @Test
@@ -553,8 +559,12 @@ class DeadlockApiClientTest {
                 .andRespond(withSuccess(fixture("assets-heroes.json"), MediaType.APPLICATION_JSON));
 
         assertThat(client.getHeroes()).containsExactly(
-                new HeroAsset(1, "hero_inferno", "Infernus"),
-                new HeroAsset(2, "hero_gigawatt", "Seven"),
+                new HeroAsset(1, "hero_inferno", "Infernus",
+                        new HeroImages("https://assets-bucket.deadlock-api.com/assets-api-res/images/heroes/inferno_sm.png",
+                                "https://assets-bucket.deadlock-api.com/assets-api-res/images/heroes/inferno_card.png")),
+                new HeroAsset(2, "hero_gigawatt", "Seven",
+                        new HeroImages("https://assets-bucket.deadlock-api.com/assets-api-res/images/heroes/seven_sm.png",
+                                "https://assets-bucket.deadlock-api.com/assets-api-res/images/heroes/seven_card.png")),
                 new HeroAsset(3, "hero_hornet", "Vindicta"));
     }
 
@@ -567,7 +577,8 @@ class DeadlockApiClientTest {
 
         assertThat(items).hasSize(3);
         assertThat(items.get(0)).isEqualTo(new ItemAsset(1548066885L, "upgrade_clip_size", "Extended Magazine",
-                "upgrade", 1, "weapon", 800));
+                "upgrade", 1, "weapon", 800,
+                "https://assets-bucket.deadlock-api.com/assets-api-res/images/upgrades/mods_weapon/clip_size.png"));
         assertThat(items.get(1)).isEqualTo(new ItemAsset(2521299219L, "ability_golden_idol", "Soul Urn",
                 "ability", null, null, null));
     }

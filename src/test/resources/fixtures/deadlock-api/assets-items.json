@@ -7,7 +7,8 @@
     "item_tier": 1,
     "item_slot_type": "weapon",
     "cost": 800,
-    "shopable": true
+    "shopable": true,
+    "image": "https://assets-bucket.deadlock-api.com/assets-api-res/images/upgrades/mods_weapon/clip_size.png"
   },
   {
     "id": 2521299219,
