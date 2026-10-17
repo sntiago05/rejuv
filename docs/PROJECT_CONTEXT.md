@@ -34,7 +34,7 @@ Rule from `AGENTS.md`: update this file after each task with verified facts only
 23 tasks in `docs/implementation-plan.md` (022-023 added for match metadata), ADRs 0001-0015 in `docs/adr/`. Fast track in `docs/roadmap.md`: week 1 = tasks 001-010 plus 022 before 007 (MVP, tester gate before public launch on day 5), week 2 = tasks 011-021 (hero utilities, social, web reports, premium behind a feature flag until ~30 weekly active users). `roadmap.md` has not been updated for 022 yet. Task 023 (raw protobuf fallback) is scheduled only if the JSON metadata endpoint fails often during testing.
 
 ## Current status
-Last updated at the closeout of Task 005 on branch `feature/005-link-unlink` (verified, not merged yet).
+Last updated at the closeout of Task 005 on branch `feature/005-link-unlink` (verified, PR open, not merged yet).
 
 ### Done (verified)
 - Setup: `AGENTS.md`, Antigravity rule, Claude Code settings and the `new-discord-command` skill. All planning docs and ADRs 0001-0015 written.
@@ -64,10 +64,10 @@ Last updated at the closeout of Task 005 on branch `feature/005-link-unlink` (ve
   - `services/LinkService`: `link(discordUserId, accountId)` requires non-empty cached match history (else `NoMatchHistoryException`), then upserts `linked_account`; `unlink(discordUserId)` returns whether a row was deleted. Re-linking replaces the account; the same account may be linked by several users.
   - `LinkCommand` parses before deferring, then `deferReply(true)` and handles its own errors (the router cannot reply after a deferral). `UnlinkCommand` replies directly. All replies ephemeral.
   - Shared catalog key `error.data_source_busy` for `DeadlockApiUnavailableException`; later commands reuse it.
-  - Verified: `./mvnw clean verify` (102 tests, 0 failures). Manual Discord/driver check not run.
+  - Verified: `./mvnw clean verify` (102 tests, 0 failures). Manual Discord check by the owner in the dev guild (2026-10-16): `/link` with a real account id, `/link` again with the same id (one row, upsert), `/unlink` (`unlink.success`), `/unlink` again (`unlink.not_linked`), invalid input and vanity URL; all replies ephemeral.
 
 ### In progress (not verified, not merged)
-Task 005 waits for human review and merge (see above). The Task 022 spec is on `main`; its worktree had no changes at the Task 005 closeout.
+Task 005 has a PR open and waits for human review and merge (see above). Task 022 has commits and a task report on `feature/022-match-metadata` (not reviewed here); its report marks the context update as pending integration.
 
 ### Not started (planned only)
 Tasks 006-023. Nothing beyond `/ping`, `/help`, `/link`, `/unlink`, the database baseline and the Deadlock API client exists yet: no `/profile`, `/analyze`, match metadata, AI client, web server, premium or Patreon check. The MVP has not been built, launched or deployed.

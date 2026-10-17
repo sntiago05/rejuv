@@ -2,7 +2,7 @@
 
 ## Status
 
-Completed and verified. `./mvnw clean verify` passes with 102 tests (62 baseline + 40 new). Manual Discord or driver check not run (see Verification). Not pushed, not merged.
+Completed and verified. `./mvnw clean verify` passes with 102 tests (62 baseline + 40 new). Manual Discord check done by the owner (see Verification). Pushed, PR open, not merged.
 
 ## Summary
 
@@ -34,7 +34,7 @@ Completed and verified. `./mvnw clean verify` passes with 102 tests (62 baseline
 - Baseline before changes: `./mvnw clean verify` first failed with 15 errors (all Testcontainers tests) because Docker Desktop was not running. After starting Docker Desktop: BUILD SUCCESS, 62 tests, 0 failures, 0 errors (matches the Task 004 report).
 - Narrow run: `./mvnw -q test -Dtest='AccountIdParserTest,LinkServiceTest,LinkCommandTest,UnlinkCommandTest'`: 40 tests, 0 failures.
 - Final: `./mvnw -q clean verify`: exit 0, **102 tests**, 0 failures, 0 errors, 0 skipped. Difference from baseline: +40 new tests. `MessagesIntegrationTest` (Spring context with Testcontainers) proves `LinkCommand`, `UnlinkCommand` and `LinkService` wire up and every new key resolves.
-- Manual check: **not run**. No Discord token was used. `.claude/skills/run-rejuv/driver.sh build` worked, but `list`/`cmd` fail to compile `Driver.java` on Windows (`package sntiago05.rejuv does not exist`, likely the `:` classpath separator). The driver is outside this task's scope and was not changed. The throwaway `rejuv-run` database it started was stopped with `driver.sh db-down`.
+- Manual check: Manual Discord check by the owner in the dev guild (2026-10-16): `/link` with a real account id, `/link` again with the same id (one row, upsert), `/unlink` (`unlink.success`), `/unlink` again (`unlink.not_linked`), invalid input and vanity URL; all replies ephemeral. The `psql` row check was not run. Earlier attempt with the driver: `.claude/skills/run-rejuv/driver.sh build` worked, but `list`/`cmd` fail to compile `Driver.java` on Windows (`package sntiago05.rejuv does not exist`, likely the `:` classpath separator). The driver is outside this task's scope and was not changed. The throwaway `rejuv-run` database it started was stopped with `driver.sh db-down`.
 - `git diff --check`: clean. Committed files are LF. Only the files in the spec table changed. No token, key or real id in the diff; all example ids are the fake `1000001` / `76561197961265729`. `.env` was never read.
 
 ## Acceptance criteria
@@ -53,7 +53,7 @@ Completed and verified. `./mvnw clean verify` passes with 102 tests (62 baseline
 
 ## Deviations
 
-- None in code. The manual check was not run (allowed by the spec as optional, reason above).
+- None.
 
 ## Known Issues
 
@@ -66,4 +66,4 @@ Completed and verified. `./mvnw clean verify` passes with 102 tests (62 baseline
 ## Merge Risks
 
 - `messages.properties` and `MessagesIntegrationTest` are shared files; later tasks that append keys may conflict textually (append-only, easy to resolve).
-- The `feature/022-match-metadata` worktree existed at closeout with no commits and no changes, so `docs/PROJECT_CONTEXT.md` was updated here.
+- `feature/022-match-metadata` has commits but does not touch `docs/PROJECT_CONTEXT.md` (its report marks the update pending integration), so the context was updated here. After 022 merges, its context entry must be added without dropping the Task 005 entry.
