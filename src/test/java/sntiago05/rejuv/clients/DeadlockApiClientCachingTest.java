@@ -156,15 +156,17 @@ class DeadlockApiClientCachingTest {
                 CacheConfig.DEADLOCK_BENCHMARKS, Duration.ofHours(6),
                 CacheConfig.DEADLOCK_ITEM_STATS, Duration.ofHours(6),
                 CacheConfig.DEADLOCK_MATCH_HISTORY, Duration.ofMinutes(2),
-                CacheConfig.DEADLOCK_PLAYER_RANK, Duration.ofMinutes(10));
+                CacheConfig.DEADLOCK_PLAYER_RANK, Duration.ofMinutes(10),
+                CacheConfig.DEADLOCK_MATCH_METADATA, Duration.ofHours(24));
         Map<String, Long> sizes = Map.of(
                 CacheConfig.DEADLOCK_ASSETS, 10L,
                 CacheConfig.DEADLOCK_BENCHMARKS, 500L,
                 CacheConfig.DEADLOCK_ITEM_STATS, 500L,
                 CacheConfig.DEADLOCK_MATCH_HISTORY, 1000L,
-                CacheConfig.DEADLOCK_PLAYER_RANK, 1000L);
+                CacheConfig.DEADLOCK_PLAYER_RANK, 1000L,
+                CacheConfig.DEADLOCK_MATCH_METADATA, 300L);
 
-        assertThat(cacheManager.getCacheNames()).containsAll(ttls.keySet());
+        assertThat(cacheManager.getCacheNames()).containsExactlyInAnyOrderElementsOf(ttls.keySet());
         for (String name : ttls.keySet()) {
             Policy<Object, Object> policy = ((CaffeineCache) cacheManager.getCache(name)).getNativeCache().policy();
             assertThat(policy.expireAfterWrite()).as(name).hasValueSatisfying(

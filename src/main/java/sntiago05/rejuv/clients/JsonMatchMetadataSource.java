@@ -169,29 +169,32 @@ public class JsonMatchMetadataSource implements MatchMetadataSource {
     }
 
     private static PlayerTelemetry mapPlayer(MatchMetadataResponse.Player player) {
-        long accountId = player.accountId() != null ? player.accountId() : 0L;
-        int team = player.team() != null ? player.team() : 0;
-        int heroId = player.heroId() != null ? player.heroId() : 0;
+        required(player, "players[]");
+        long accountId = required(player.accountId(), "account_id");
+        int team = required(player.team(), "team");
+        int heroId = required(player.heroId(), "hero_id");
 
         List<ItemPurchase> items = player.items() == null ? List.of() : player.items().stream()
+                .map(item -> required(item, "items[]"))
                 .map(item -> new ItemPurchase(
-                        item.itemId() != null ? item.itemId() : 0L,
-                        item.gameTimeS() != null ? item.gameTimeS() : 0,
+                        required(item.itemId(), "item_id"),
+                        required(item.gameTimeS(), "game_time_s"),
                         item.soldTimeS() != null && item.soldTimeS() > 0 ? item.soldTimeS() : null))
                 .sorted(Comparator.comparingInt(ItemPurchase::boughtAtS))
                 .toList();
 
         List<StatSnapshot> snapshots = player.stats() == null ? List.of() : player.stats().stream()
+                .map(stat -> required(stat, "stats[]"))
                 .map(stat -> new StatSnapshot(
-                        stat.timeStampS() != null ? stat.timeStampS() : 0,
-                        stat.netWorth() != null ? stat.netWorth() : 0L,
-                        stat.playerDamage() != null ? stat.playerDamage() : 0L,
-                        stat.playerHealing() != null ? stat.playerHealing() : 0L))
+                        required(stat.timeStampS(), "time_stamp_s"),
+                        required(stat.netWorth(), "net_worth"),
+                        required(stat.playerDamage(), "player_damage"),
+                        required(stat.playerHealing(), "player_healing")))
                 .sorted(Comparator.comparingInt(StatSnapshot::timeS))
                 .toList();
 
         List<PowerUpBuff> buffs = player.powerUpBuffs() == null ? List.of() : player.powerUpBuffs().stream()
-                .filter(buff -> buff.type() != null)
+                .filter(buff -> buff != null && buff.type() != null)
                 .map(buff -> {
                     List<Integer> pickupTimes = buff.pickupTimesS() == null
                             ? List.of()
@@ -201,6 +204,13 @@ public class JsonMatchMetadataSource implements MatchMetadataSource {
                 .toList();
 
         return new PlayerTelemetry(accountId, team, heroId, items, snapshots, buffs);
+    }
+
+    private static <T> T required(T value, String field) {
+        if (value == null) {
+            throw new DeadlockApiException("Invalid body: " + field + " is missing");
+        }
+        return value;
     }
 
     private record Response(int status, boolean success, MatchMetadataResponse body, String retryAfter) {

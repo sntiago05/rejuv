@@ -244,4 +244,40 @@ class JsonMatchMetadataSourceTest {
                 .isInstanceOf(DeadlockApiException.class)
                 .isNotInstanceOf(DeadlockApiUnavailableException.class);
     }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "{\"team\":1,\"hero_id\":1}",
+            "{\"account_id\":1000001,\"hero_id\":1}",
+            "{\"account_id\":1000001,\"team\":1}",
+            "{\"account_id\":1000001,\"team\":1,\"hero_id\":1,\"items\":[null]}",
+            "{\"account_id\":1000001,\"team\":1,\"hero_id\":1,\"items\":[{\"game_time_s\":200}]}",
+            "{\"account_id\":1000001,\"team\":1,\"hero_id\":1,\"items\":[{\"item_id\":1001}]}",
+            "{\"account_id\":1000001,\"team\":1,\"hero_id\":1,\"stats\":[{\"net_worth\":1500,\"player_damage\":500,\"player_healing\":0}]}",
+            "{\"account_id\":1000001,\"team\":1,\"hero_id\":1,\"stats\":[{\"time_stamp_s\":180,\"player_damage\":500,\"player_healing\":0}]}",
+            "{\"account_id\":1000001,\"team\":1,\"hero_id\":1,\"stats\":[{\"time_stamp_s\":180,\"net_worth\":1500,\"player_healing\":0}]}",
+            "{\"account_id\":1000001,\"team\":1,\"hero_id\":1,\"stats\":[{\"time_stamp_s\":180,\"net_worth\":1500,\"player_damage\":500}]}"
+    })
+    void missingRequiredFieldsThrowApiException(String player) {
+        String body = "{\"match_info\":{\"match_id\":900000003,\"duration_s\":1952,\"players\":[" + player + "]}}";
+        server.expect(once(), requestTo(METADATA_URL))
+                .andRespond(withSuccess(body, MediaType.APPLICATION_JSON));
+
+        assertThatThrownBy(() -> source.getMatch(MATCH_ID))
+                .isInstanceOf(DeadlockApiException.class)
+                .isNotInstanceOf(DeadlockApiUnavailableException.class)
+                .hasMessageStartingWith("Invalid body:");
+    }
+
+    @Test
+    void missingSoldTimeMeansNotSold() {
+        String body = """
+                {"match_info":{"match_id":900000003,"duration_s":1952,"players":[
+                {"account_id":1000001,"team":1,"hero_id":1,"items":[{"item_id":1001,"game_time_s":200}]}]}}""";
+        server.expect(once(), requestTo(METADATA_URL))
+                .andRespond(withSuccess(body, MediaType.APPLICATION_JSON));
+
+        assertThat(source.getMatch(MATCH_ID).players().get(0).items())
+                .containsExactly(new ItemPurchase(1001L, 200, null));
+    }
 }
