@@ -1,5 +1,7 @@
 package sntiago05.rejuv.commands;
 
+import net.dv8tion.jda.api.EmbedBuilder;
+import net.dv8tion.jda.api.entities.MessageEmbed;
 import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEvent;
 import net.dv8tion.jda.api.interactions.commands.build.Commands;
 import net.dv8tion.jda.api.interactions.commands.build.SlashCommandData;
@@ -27,7 +29,13 @@ public class HelpCommand implements SlashCommand {
 
     @Override
     public void handle(SlashCommandInteractionEvent event) {
-        event.reply(messages.get("help.body"))
+        MessageEmbed embed = new EmbedBuilder()
+                .setTitle(messages.get("help.title"))
+                .setDescription(messages.get("help.body"))
+                .setColor(EmbedStyle.COLOR)
+                .build();
+
+        event.replyEmbeds(embed)
                 .setEphemeral(true)
                 .queue();
     }

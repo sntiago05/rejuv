@@ -1,6 +1,6 @@
 package sntiago05.rejuv.commands;
 
-import java.util.stream.Collectors;
+import java.util.List;
 
 import net.dv8tion.jda.api.EmbedBuilder;
 import net.dv8tion.jda.api.entities.MessageEmbed;
@@ -15,8 +15,10 @@ import sntiago05.rejuv.clients.DeadlockApiUnavailableException;
 import sntiago05.rejuv.domain.CounterGuide;
 import sntiago05.rejuv.domain.CounterItem;
 import sntiago05.rejuv.domain.CounterMatchup;
+import sntiago05.rejuv.services.AssetImages;
 import sntiago05.rejuv.services.CounterService;
 import sntiago05.rejuv.services.HeroNotFoundException;
+import sntiago05.rejuv.services.IconCatalog;
 import sntiago05.rejuv.services.Messages;
 
 @Component
@@ -26,10 +28,15 @@ public class CounterCommand implements SlashCommand {
 
     private final CounterService counterService;
     private final Messages messages;
+    private final AssetImages assetImages;
+    private final IconCatalog iconCatalog;
 
-    public CounterCommand(CounterService counterService, Messages messages) {
+    public CounterCommand(CounterService counterService, Messages messages,
+                          AssetImages assetImages, IconCatalog iconCatalog) {
         this.counterService = counterService;
         this.messages = messages;
+        this.assetImages = assetImages;
+        this.iconCatalog = iconCatalog;
     }
 
     @Override
@@ -71,27 +78,39 @@ public class CounterCommand implements SlashCommand {
         String rankLabel = CommandSupport.rankLabel(messages, guide.rankTier());
 
         EmbedBuilder builder = new EmbedBuilder()
+                .setColor(EmbedStyle.COLOR)
                 .setTitle(messages.get("counter.title", guide.heroName(), rankLabel));
 
+        assetImages.heroCardUrl(guide.heroId()).ifPresent(builder::setThumbnail);
+
         if (!guide.counters().isEmpty()) {
-            String value = guide.counters().stream()
+            List<String> counterLines = guide.counters().stream()
                     .map(this::matchupLine)
-                    .collect(Collectors.joining("\n"));
-            builder.addField(messages.get("counter.field.counters"), value, false);
+                    .toList();
+            String value = EmbedStyle.fitField(counterLines);
+            if (!value.isEmpty()) {
+                builder.addField(messages.get("counter.field.counters"), value, false);
+            }
         }
 
         if (!guide.items().isEmpty()) {
-            String value = guide.items().stream()
+            List<String> itemLines = guide.items().stream()
                     .map(this::itemLine)
-                    .collect(Collectors.joining("\n"));
-            builder.addField(messages.get("counter.field.items"), value, false);
+                    .toList();
+            String value = EmbedStyle.fitField(itemLines);
+            if (!value.isEmpty()) {
+                builder.addField(messages.get("counter.field.items"), value, false);
+            }
         }
 
         if (!guide.favorable().isEmpty()) {
-            String value = guide.favorable().stream()
+            List<String> favorableLines = guide.favorable().stream()
                     .map(this::matchupLine)
-                    .collect(Collectors.joining("\n"));
-            builder.addField(messages.get("counter.field.favorable"), value, false);
+                    .toList();
+            String value = EmbedStyle.fitField(favorableLines);
+            if (!value.isEmpty()) {
+                builder.addField(messages.get("counter.field.favorable"), value, false);
+            }
         }
 
         builder.setFooter(messages.get("counter.footer", String.valueOf(CounterService.MIN_MATCHUP_MATCHES),
@@ -105,11 +124,13 @@ public class CounterCommand implements SlashCommand {
                 ? matchup.heroName()
                 : messages.get("counter.hero_unknown", String.valueOf(matchup.heroId()));
         String winRate = CommandSupport.oneDecimal(matchup.winRatePercent());
-        return messages.get("counter.matchup_entry", heroName, winRate);
+        String text = messages.get("counter.matchup_entry", heroName, winRate);
+        return EmbedStyle.withIcon(iconCatalog.hero(matchup.heroId()), text);
     }
 
     private String itemLine(CounterItem item) {
         String winRate = CommandSupport.oneDecimal(item.winRatePercent());
-        return messages.get("counter.item_entry", item.itemName(), winRate);
+        String text = messages.get("counter.item_entry", item.itemName(), winRate);
+        return EmbedStyle.withIcon(iconCatalog.item(item.itemId()), text);
     }
 }

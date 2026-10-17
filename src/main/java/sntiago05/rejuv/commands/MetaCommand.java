@@ -1,9 +1,10 @@
 package sntiago05.rejuv.commands;
 
+import java.util.ArrayList;
 import java.util.EnumMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.StringJoiner;
 
 import net.dv8tion.jda.api.EmbedBuilder;
 import net.dv8tion.jda.api.entities.MessageEmbed;
@@ -18,6 +19,7 @@ import sntiago05.rejuv.clients.DeadlockApiUnavailableException;
 import sntiago05.rejuv.domain.HeroTier;
 import sntiago05.rejuv.domain.MetaHero;
 import sntiago05.rejuv.domain.MetaTierList;
+import sntiago05.rejuv.services.IconCatalog;
 import sntiago05.rejuv.services.Messages;
 import sntiago05.rejuv.services.MetaService;
 
@@ -28,10 +30,12 @@ public class MetaCommand implements SlashCommand {
 
     private final MetaService metaService;
     private final Messages messages;
+    private final IconCatalog iconCatalog;
 
-    public MetaCommand(MetaService metaService, Messages messages) {
+    public MetaCommand(MetaService metaService, Messages messages, IconCatalog iconCatalog) {
         this.metaService = metaService;
         this.messages = messages;
+        this.iconCatalog = iconCatalog;
     }
 
     @Override
@@ -68,15 +72,20 @@ public class MetaCommand implements SlashCommand {
 
     private MessageEmbed buildEmbed(MetaTierList tierList) {
         EmbedBuilder builder = new EmbedBuilder()
+                .setColor(EmbedStyle.COLOR)
                 .setTitle(messages.get("meta.title", CommandSupport.rankLabel(messages, tierList.rankTier())));
 
         // One pass over the heroes (already sorted); EnumMap iterates the tiers in S..D order.
-        Map<HeroTier, StringJoiner> linesByTier = new EnumMap<>(HeroTier.class);
+        Map<HeroTier, List<String>> linesByTier = new EnumMap<>(HeroTier.class);
         for (MetaHero hero : tierList.heroes()) {
-            linesByTier.computeIfAbsent(hero.tier(), tier -> new StringJoiner("\n")).add(heroLine(hero));
+            linesByTier.computeIfAbsent(hero.tier(), tier -> new ArrayList<>()).add(heroLine(hero));
         }
-        linesByTier.forEach((tier, lines) -> builder.addField(
-                messages.get("meta.tier." + tier.name().toLowerCase(Locale.ROOT)), lines.toString(), false));
+        linesByTier.forEach((tier, lines) -> {
+            String value = EmbedStyle.fitField(lines);
+            if (!value.isEmpty()) {
+                builder.addField(messages.get("meta.tier." + tier.name().toLowerCase(Locale.ROOT)), value, false);
+            }
+        });
 
         builder.setFooter(messages.get("meta.footer", String.valueOf(tierList.minMatches())));
         return builder.build();
@@ -86,6 +95,7 @@ public class MetaCommand implements SlashCommand {
         String heroName = hero.heroName() != null
                 ? hero.heroName()
                 : messages.get("meta.hero_unknown", String.valueOf(hero.heroId()));
-        return messages.get("meta.hero_entry", heroName, CommandSupport.oneDecimal(hero.winRatePercent()));
+        String text = messages.get("meta.hero_entry", heroName, CommandSupport.oneDecimal(hero.winRatePercent()));
+        return EmbedStyle.withIcon(iconCatalog.hero(hero.heroId()), text);
     }
 }

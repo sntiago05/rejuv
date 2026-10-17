@@ -1,7 +1,7 @@
 package sntiago05.rejuv.commands;
 
+import java.util.List;
 import java.util.OptionalLong;
-import java.util.stream.Collectors;
 
 import net.dv8tion.jda.api.EmbedBuilder;
 import net.dv8tion.jda.api.entities.MessageEmbed;
@@ -18,6 +18,8 @@ import org.springframework.stereotype.Component;
 import sntiago05.rejuv.clients.DeadlockApiUnavailableException;
 import sntiago05.rejuv.domain.HeroUsage;
 import sntiago05.rejuv.domain.ProfileSummary;
+import sntiago05.rejuv.services.AssetImages;
+import sntiago05.rejuv.services.IconCatalog;
 import sntiago05.rejuv.services.Messages;
 import sntiago05.rejuv.services.NoMatchHistoryException;
 import sntiago05.rejuv.services.ProfileService;
@@ -30,10 +32,15 @@ public class ProfileCommand implements SlashCommand {
 
     private final ProfileService profileService;
     private final Messages messages;
+    private final AssetImages assetImages;
+    private final IconCatalog iconCatalog;
 
-    public ProfileCommand(ProfileService profileService, Messages messages) {
+    public ProfileCommand(ProfileService profileService, Messages messages,
+                          AssetImages assetImages, IconCatalog iconCatalog) {
         this.profileService = profileService;
         this.messages = messages;
+        this.assetImages = assetImages;
+        this.iconCatalog = iconCatalog;
     }
 
     @Override
@@ -81,21 +88,22 @@ public class ProfileCommand implements SlashCommand {
     }
 
     private MessageEmbed embed(ProfileSummary summary, User target) {
-        return new EmbedBuilder()
-                .setTitle(messages.get("profile.title", target.getEffectiveName()))
-                .addField(messages.get("profile.field.rank"), rankValue(summary), false)
-                .addField(messages.get("profile.field.recent", String.valueOf(summary.recentMatches())),
-                        messages.get("profile.recent_value",
-                                String.valueOf(summary.recentWins()),
-                                String.valueOf(summary.recentMatches()),
-                                String.valueOf(summary.winRatePercent()),
-                                CommandSupport.oneDecimal(summary.avgKills()),
-                                CommandSupport.oneDecimal(summary.avgDeaths()),
-                                CommandSupport.oneDecimal(summary.avgAssists())),
-                        false)
-                .addField(messages.get("profile.field.top_heroes"), topHeroesValue(summary), false)
-                .setFooter(messages.get("profile.footer", String.valueOf(summary.accountId())))
-                .build();
+        EmbedBuilder builder = new EmbedBuilder()
+                .setColor(EmbedStyle.COLOR)
+                .setAuthor(target.getEffectiveName(), null, target.getEffectiveAvatarUrl())
+                .setTitle(messages.get("profile.title"));
+
+        if (summary.rankTier() != null) {
+            assetImages.rankBadgeUrl(summary.rankTier(), summary.subrank()).ifPresent(builder::setThumbnail);
+        }
+
+        builder.addField(messages.get("profile.field.rank"), rankValue(summary), false);
+        builder.addField(messages.get("profile.field.recent", String.valueOf(summary.recentMatches())),
+                recentValue(summary), false);
+        builder.addField(messages.get("profile.field.top_heroes"), topHeroesValue(summary), false);
+        builder.setFooter(messages.get("profile.footer", String.valueOf(summary.accountId())));
+
+        return builder.build();
     }
 
     private String rankValue(ProfileSummary summary) {
@@ -111,19 +119,31 @@ public class ProfileCommand implements SlashCommand {
         return summary.rankName();
     }
 
+    private String recentValue(ProfileSummary summary) {
+        return messages.get("profile.recent_value",
+                String.valueOf(summary.recentWins()),
+                String.valueOf(summary.recentMatches()),
+                String.valueOf(summary.winRatePercent()),
+                CommandSupport.oneDecimal(summary.avgKills()),
+                CommandSupport.oneDecimal(summary.avgDeaths()),
+                CommandSupport.oneDecimal(summary.avgAssists()));
+    }
+
     private String topHeroesValue(ProfileSummary summary) {
         if (summary.topHeroes().isEmpty()) {
             return messages.get("profile.no_recent_heroes");
         }
-        return summary.topHeroes().stream()
+        List<String> lines = summary.topHeroes().stream()
                 .map(this::heroLine)
-                .collect(Collectors.joining("\n"));
+                .toList();
+        return EmbedStyle.fitField(lines);
     }
 
     private String heroLine(HeroUsage hero) {
         String heroName = hero.heroName() != null
                 ? hero.heroName()
                 : messages.get("profile.hero_unknown", String.valueOf(hero.heroId()));
-        return messages.get("profile.hero_line", heroName, String.valueOf(hero.matches()));
+        String line = messages.get("profile.hero_line", heroName, String.valueOf(hero.matches()));
+        return EmbedStyle.withIcon(iconCatalog.hero(hero.heroId()), line);
     }
 }

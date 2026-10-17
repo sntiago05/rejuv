@@ -11,6 +11,8 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 
 import net.dv8tion.jda.api.entities.Message;
 import net.dv8tion.jda.api.entities.MessageEmbed;
@@ -31,8 +33,10 @@ import sntiago05.rejuv.clients.DeadlockApiUnavailableException;
 import sntiago05.rejuv.domain.CounterGuide;
 import sntiago05.rejuv.domain.CounterItem;
 import sntiago05.rejuv.domain.CounterMatchup;
+import sntiago05.rejuv.services.AssetImages;
 import sntiago05.rejuv.services.CounterService;
 import sntiago05.rejuv.services.HeroNotFoundException;
+import sntiago05.rejuv.services.IconCatalog;
 import sntiago05.rejuv.services.Messages;
 import sntiago05.rejuv.services.MessagesFixture;
 
@@ -42,6 +46,8 @@ class CounterCommandTest {
 
     private final Messages messages = MessagesFixture.english();
     private CounterService counterService;
+    private AssetImages assetImages;
+    private IconCatalog iconCatalog;
     private CounterCommand command;
     private User caller;
     private WebhookMessageEditAction<Message> edit;
@@ -49,7 +55,9 @@ class CounterCommandTest {
     @BeforeEach
     void setUp() {
         counterService = mock(CounterService.class);
-        command = new CounterCommand(counterService, messages);
+        assetImages = mock(AssetImages.class);
+        iconCatalog = new IconCatalog();
+        command = new CounterCommand(counterService, messages, assetImages, iconCatalog);
         caller = mock(User.class);
         when(caller.getIdLong()).thenReturn(CALLER_ID);
     }
@@ -91,10 +99,17 @@ class CounterCommandTest {
     }
 
     @Test
-    void defersPubliclyAndEditsWithEmbed() {
+    void defersPubliclyAndEditsWithEmbedWithThumbnailAndIcons() {
         SlashCommandInteractionEvent event = event("Infernus", 7);
         ReplyCallbackAction defer = deferFor(event);
         InteractionHook hook = hookFor(event);
+
+        when(assetImages.heroCardUrl(1)).thenReturn(Optional.of("https://assets-bucket.deadlock-api.com/inferno_card.png"));
+        iconCatalog.replace(Map.of(
+                "h_2", "<:h_2:222>",
+                "h_3", "<:h_3:333>",
+                "i_101", "<:i_101:444>"
+        ));
 
         CounterGuide guide = new CounterGuide(1, "Infernus", 7,
                 List.of(new CounterMatchup(2, "Seven", 100, 60.0)),
@@ -110,6 +125,8 @@ class CounterCommandTest {
         verify(defer).queue();
 
         MessageEmbed embed = capturedEmbed(hook);
+        assertThat(embed.getColorRaw()).isEqualTo(EmbedStyle.COLOR);
+        assertThat(embed.getThumbnail().getUrl()).isEqualTo("https://assets-bucket.deadlock-api.com/inferno_card.png");
         assertThat(embed.getTitle()).isEqualTo(messages.get("counter.title", "Infernus", messages.get("meta.rank.7")));
 
         List<MessageEmbed.Field> fields = embed.getFields();
@@ -118,15 +135,37 @@ class CounterCommandTest {
 
         // In order: counters, items, favorable
         assertThat(fields.get(0).getName()).isEqualTo(messages.get("counter.field.counters"));
-        assertThat(fields.get(0).getValue()).isEqualTo(messages.get("counter.matchup_entry", "Seven", "60.0"));
+        assertThat(fields.get(0).getValue()).isEqualTo("<:h_2:222> " + messages.get("counter.matchup_entry", "Seven", "60.0"));
 
         assertThat(fields.get(1).getName()).isEqualTo(messages.get("counter.field.items"));
-        assertThat(fields.get(1).getValue()).isEqualTo(messages.get("counter.item_entry", "Item A", "55.0"));
+        assertThat(fields.get(1).getValue()).isEqualTo("<:i_101:444> " + messages.get("counter.item_entry", "Item A", "55.0"));
 
         assertThat(fields.get(2).getName()).isEqualTo(messages.get("counter.field.favorable"));
-        assertThat(fields.get(2).getValue()).isEqualTo(messages.get("counter.matchup_entry", "Vindicta", "70.0"));
+        assertThat(fields.get(2).getValue()).isEqualTo("<:h_3:333> " + messages.get("counter.matchup_entry", "Vindicta", "70.0"));
 
         assertThat(embed.getFooter().getText()).isEqualTo(messages.get("counter.footer", "50", "100"));
+    }
+
+    @Test
+    void defersPubliclyAndEditsWithEmbedWithoutThumbnailOrIcons() {
+        SlashCommandInteractionEvent event = event("Infernus", 7);
+        deferFor(event);
+        InteractionHook hook = hookFor(event);
+
+        CounterGuide guide = new CounterGuide(1, "Infernus", 7,
+                List.of(new CounterMatchup(2, "Seven", 100, 60.0)),
+                List.of(),
+                List.of(new CounterItem(101L, "Item A", 100, 55.0))
+        );
+        when(counterService.getCounterGuide("Infernus", 7)).thenReturn(guide);
+
+        command.handle(event);
+
+        MessageEmbed embed = capturedEmbed(hook);
+        assertThat(embed.getThumbnail()).isNull();
+        assertThat(embed.getColorRaw()).isEqualTo(EmbedStyle.COLOR);
+        assertThat(embed.getFields().get(0).getValue()).isEqualTo(messages.get("counter.matchup_entry", "Seven", "60.0"));
+        assertThat(embed.getFields().get(1).getValue()).isEqualTo(messages.get("counter.item_entry", "Item A", "55.0"));
     }
 
     @Test
@@ -150,24 +189,20 @@ class CounterCommandTest {
 
     @Test
     void heroAndRankAreSentToService() {
-        SlashCommandInteractionEvent event = event("Haze", 7);
+        SlashCommandInteractionEvent event = event("Seven", 8);
         deferFor(event);
         hookFor(event);
 
-        CounterGuide guide = new CounterGuide(1, "Haze", 7,
-                List.of(new CounterMatchup(2, "Seven", 100, 60.0)),
-                List.of(),
-                List.of()
-        );
-        when(counterService.getCounterGuide("Haze", 7)).thenReturn(guide);
+        CounterGuide guide = new CounterGuide(2, "Seven", 8, List.of(), List.of(), List.of());
+        when(counterService.getCounterGuide("Seven", 8)).thenReturn(guide);
 
         command.handle(event);
 
-        verify(counterService).getCounterGuide("Haze", 7);
+        verify(counterService).getCounterGuide("Seven", 8);
     }
 
     @Test
-    void emptyListsAreOmittedFromTheEmbed() {
+    void omitsSectionsWhenEmpty() {
         SlashCommandInteractionEvent event = event("Infernus", null);
         deferFor(event);
         InteractionHook hook = hookFor(event);
@@ -187,14 +222,14 @@ class CounterCommandTest {
     }
 
     @Test
-    void unknownOpponentUsesHeroUnknown() {
+    void unknownHeroUsesHeroUnknown() {
         SlashCommandInteractionEvent event = event("Infernus", null);
         deferFor(event);
         InteractionHook hook = hookFor(event);
 
         CounterGuide guide = new CounterGuide(1, "Infernus", null,
-                List.of(new CounterMatchup(99, null, 100, 60.0)),
-                List.of(new CounterMatchup(88, null, 100, 70.0)),
+                List.of(new CounterMatchup(999, null, 100, 55.0)),
+                List.of(),
                 List.of()
         );
         when(counterService.getCounterGuide("Infernus", null)).thenReturn(guide);
@@ -202,20 +237,19 @@ class CounterCommandTest {
         command.handle(event);
 
         MessageEmbed embed = capturedEmbed(hook);
-        assertThat(embed.getFields().get(0).getValue())
-                .isEqualTo(messages.get("counter.matchup_entry", messages.get("counter.hero_unknown", "99"), "60.0"));
-        assertThat(embed.getFields().get(1).getValue())
-                .isEqualTo(messages.get("counter.matchup_entry", messages.get("counter.hero_unknown", "88"), "70.0"));
+        assertThat(embed.getFields().get(0).getValue()).isEqualTo(
+                messages.get("counter.matchup_entry", messages.get("counter.hero_unknown", "999"), "55.0")
+        );
     }
 
     @Test
-    void allEmptyEditsWithNoData() {
+    void emptyGuideEditsWithNoData() {
         SlashCommandInteractionEvent event = event("Infernus", null);
         deferFor(event);
         InteractionHook hook = hookFor(event);
 
-        CounterGuide guide = new CounterGuide(1, "Infernus", null, List.of(), List.of(), List.of());
-        when(counterService.getCounterGuide("Infernus", null)).thenReturn(guide);
+        when(counterService.getCounterGuide("Infernus", null))
+                .thenReturn(new CounterGuide(1, "Infernus", null, List.of(), List.of(), List.of()));
 
         command.handle(event);
 
@@ -226,19 +260,19 @@ class CounterCommandTest {
 
     @Test
     void heroNotFoundEditsWithoutEchoingInput() {
-        SlashCommandInteractionEvent event = event("my_bad_hero", null);
+        SlashCommandInteractionEvent event = event("typoHero", null);
         deferFor(event);
         InteractionHook hook = hookFor(event);
 
-        when(counterService.getCounterGuide("my_bad_hero", null))
-                .thenThrow(new HeroNotFoundException("my_bad_hero"));
+        when(counterService.getCounterGuide("typoHero", null))
+                .thenThrow(new HeroNotFoundException("typoHero"));
 
         command.handle(event);
 
-        ArgumentCaptor<String> replyText = ArgumentCaptor.forClass(String.class);
-        verify(hook).editOriginal(replyText.capture());
-        assertThat(replyText.getValue()).isEqualTo(messages.get("counter.hero_not_found"));
-        assertThat(replyText.getValue()).doesNotContain("my_bad_hero");
+        ArgumentCaptor<String> text = ArgumentCaptor.forClass(String.class);
+        verify(hook).editOriginal(text.capture());
+        assertThat(text.getValue()).isEqualTo(messages.get("counter.hero_not_found"));
+        assertThat(text.getValue()).doesNotContain("typoHero");
         verify(hook, never()).editOriginalEmbeds(any(MessageEmbed.class));
         verify(edit).queue();
     }
@@ -265,7 +299,7 @@ class CounterCommandTest {
         deferFor(event);
         InteractionHook hook = hookFor(event);
 
-        when(counterService.getCounterGuide("Infernus", null)).thenThrow(new RuntimeException("unexpected crash"));
+        when(counterService.getCounterGuide("Infernus", null)).thenThrow(new RuntimeException("unexpected failure"));
 
         assertThatCode(() -> command.handle(event)).doesNotThrowAnyException();
 
@@ -276,18 +310,18 @@ class CounterCommandTest {
         verify(edit).queue();
     }
 
-    private SlashCommandInteractionEvent event(String heroInput, Integer rankOptionValue) {
+    private SlashCommandInteractionEvent event(String hero, Integer rank) {
         SlashCommandInteractionEvent event = mock(SlashCommandInteractionEvent.class);
         when(event.getUser()).thenReturn(caller);
-        if (heroInput != null) {
-            OptionMapping option = mock(OptionMapping.class);
-            when(option.getAsString()).thenReturn(heroInput);
-            when(event.getOption("hero")).thenReturn(option);
+        if (hero != null) {
+            OptionMapping heroOption = mock(OptionMapping.class);
+            when(heroOption.getAsString()).thenReturn(hero);
+            when(event.getOption("hero")).thenReturn(heroOption);
         }
-        if (rankOptionValue != null) {
-            OptionMapping option = mock(OptionMapping.class);
-            when(option.getAsInt()).thenReturn(rankOptionValue);
-            when(event.getOption("rank")).thenReturn(option);
+        if (rank != null) {
+            OptionMapping rankOption = mock(OptionMapping.class);
+            when(rankOption.getAsInt()).thenReturn(rank);
+            when(event.getOption("rank")).thenReturn(rankOption);
         }
         return event;
     }

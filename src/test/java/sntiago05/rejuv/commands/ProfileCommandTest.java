@@ -12,6 +12,8 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import java.util.OptionalLong;
 
 import net.dv8tion.jda.api.entities.Message;
@@ -31,6 +33,8 @@ import org.mockito.ArgumentCaptor;
 import sntiago05.rejuv.clients.DeadlockApiUnavailableException;
 import sntiago05.rejuv.domain.HeroUsage;
 import sntiago05.rejuv.domain.ProfileSummary;
+import sntiago05.rejuv.services.AssetImages;
+import sntiago05.rejuv.services.IconCatalog;
 import sntiago05.rejuv.services.Messages;
 import sntiago05.rejuv.services.MessagesFixture;
 import sntiago05.rejuv.services.NoMatchHistoryException;
@@ -44,6 +48,8 @@ class ProfileCommandTest {
 
     private final Messages messages = MessagesFixture.english();
     private ProfileService profileService;
+    private AssetImages assetImages;
+    private IconCatalog iconCatalog;
     private ProfileCommand command;
     private User caller;
     private User other;
@@ -52,7 +58,9 @@ class ProfileCommandTest {
     @BeforeEach
     void setUp() {
         profileService = mock(ProfileService.class);
-        command = new ProfileCommand(profileService, messages);
+        assetImages = mock(AssetImages.class);
+        iconCatalog = new IconCatalog();
+        command = new ProfileCommand(profileService, messages, assetImages, iconCatalog);
         caller = user(CALLER_ID, "Caller");
         other = user(OTHER_ID, "Other");
     }
@@ -104,14 +112,20 @@ class ProfileCommandTest {
 
         verify(profileService).findLinkedAccountId(OTHER_ID);
         verify(profileService, never()).findLinkedAccountId(CALLER_ID);
-        assertThat(capturedEmbed(hook).getTitle()).isEqualTo(messages.get("profile.title", "Other"));
+        MessageEmbed embed = capturedEmbed(hook);
+        assertThat(embed.getTitle()).isEqualTo(messages.get("profile.title"));
+        assertThat(embed.getAuthor().getName()).isEqualTo("Other");
+        assertThat(embed.getAuthor().getIconUrl()).isEqualTo("https://cdn.discordapp.com/avatars/333/avatar.png");
     }
 
     @Test
-    void successDefersPubliclyAndEditsWithEmbed() {
+    void successDefersPubliclyAndEditsWithEmbedWithIconsAndThumbnail() {
         SlashCommandInteractionEvent event = event(null);
         when(profileService.findLinkedAccountId(CALLER_ID)).thenReturn(OptionalLong.of(ACCOUNT_ID));
         when(profileService.getProfile(ACCOUNT_ID)).thenReturn(rankedSummary());
+        when(assetImages.rankBadgeUrl(7, 3)).thenReturn(Optional.of("https://api.deadlock-api.com/v1/assets/ranks/7/3/image"));
+        iconCatalog.replace(Map.of("h_1", "<:h_1:111>", "h_2", "<:h_2:222>"));
+
         ReplyCallbackAction defer = deferFor(event);
         InteractionHook hook = hookFor(event);
 
@@ -121,7 +135,12 @@ class ProfileCommandTest {
         verify(event, never()).deferReply(anyBoolean());
         verify(defer).queue();
         MessageEmbed embed = capturedEmbed(hook);
-        assertThat(embed.getTitle()).isEqualTo(messages.get("profile.title", "Caller"));
+        assertThat(embed.getTitle()).isEqualTo(messages.get("profile.title"));
+        assertThat(embed.getAuthor().getName()).isEqualTo("Caller");
+        assertThat(embed.getAuthor().getIconUrl()).isEqualTo("https://cdn.discordapp.com/avatars/222/avatar.png");
+        assertThat(embed.getColorRaw()).isEqualTo(EmbedStyle.COLOR);
+        assertThat(embed.getThumbnail().getUrl()).isEqualTo("https://api.deadlock-api.com/v1/assets/ranks/7/3/image");
+
         List<MessageEmbed.Field> fields = embed.getFields();
         assertThat(fields).hasSize(3);
         assertThat(fields).noneMatch(MessageEmbed.Field::isInline);
@@ -134,16 +153,40 @@ class ProfileCommandTest {
                 .contains("7 wins of 10", "70%", "6.2", "3.0", "8.5");
         assertThat(fields.get(2).getName()).isEqualTo(messages.get("profile.field.top_heroes"));
         assertThat(fields.get(2).getValue()).isEqualTo(
-                messages.get("profile.hero_line", "Infernus", "5") + "\n" + messages.get("profile.hero_line", "Seven", "3"));
+                "<:h_1:111> " + messages.get("profile.hero_line", "Infernus", "5") + "\n" +
+                "<:h_2:222> " + messages.get("profile.hero_line", "Seven", "3"));
         assertThat(embed.getFooter().getText()).isEqualTo(messages.get("profile.footer", "1000001"))
                 .contains("1000001");
     }
 
     @Test
-    void embedShowsUnrankedAndNoRecentHeroes() {
+    void successWithoutIconsOrThumbnailShowsTextOnlyInPreviousFormat() {
+        SlashCommandInteractionEvent event = event(null);
+        when(profileService.findLinkedAccountId(CALLER_ID)).thenReturn(OptionalLong.of(ACCOUNT_ID));
+        when(profileService.getProfile(ACCOUNT_ID)).thenReturn(rankedSummary());
+        when(assetImages.rankBadgeUrl(7, 3)).thenReturn(Optional.empty());
+        // iconCatalog is empty by default
+
+        deferFor(event);
+        InteractionHook hook = hookFor(event);
+
+        command.handle(event);
+
+        MessageEmbed embed = capturedEmbed(hook);
+        assertThat(embed.getThumbnail()).isNull();
+        assertThat(embed.getColorRaw()).isEqualTo(EmbedStyle.COLOR);
+        List<MessageEmbed.Field> fields = embed.getFields();
+        assertThat(fields.get(2).getValue()).isEqualTo(
+                messages.get("profile.hero_line", "Infernus", "5") + "\n" +
+                messages.get("profile.hero_line", "Seven", "3"));
+    }
+
+    @Test
+    void embedShowsUnrankedAndNoRecentHeroesWithoutThumbnail() {
         MessageEmbed embed = embedFor(new ProfileSummary(ACCOUNT_ID, null, null, 0,
                 3, 1, 33, 1.0, 2.0, 3.0, List.of()));
 
+        assertThat(embed.getThumbnail()).isNull();
         assertThat(embed.getFields().get(0).getValue()).isEqualTo(messages.get("profile.rank_unranked"));
         assertThat(embed.getFields().get(2).getValue()).isEqualTo(messages.get("profile.no_recent_heroes"));
     }
@@ -191,7 +234,7 @@ class ProfileCommandTest {
     void catalogTextsHaveRequiredContent() {
         assertThat(messages.get("profile.no_matches")).contains("ingest tool");
         assertThat(messages.get("profile.not_linked_self")).contains("/link");
-        assertThat(messages.get("profile.title", "x".repeat(32)).length()).isLessThanOrEqualTo(256);
+        assertThat(messages.get("profile.title").length()).isLessThanOrEqualTo(256);
     }
 
     private String assertImmediateReply(SlashCommandInteractionEvent event, String expected) {
@@ -267,6 +310,7 @@ class ProfileCommandTest {
         when(user.getIdLong()).thenReturn(id);
         when(user.getEffectiveName()).thenReturn(name);
         when(user.getAsMention()).thenReturn("<@" + id + ">");
+        when(user.getEffectiveAvatarUrl()).thenReturn("https://cdn.discordapp.com/avatars/" + id + "/avatar.png");
         return user;
     }
 

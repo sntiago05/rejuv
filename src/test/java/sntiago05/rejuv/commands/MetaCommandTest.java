@@ -10,7 +10,9 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 import net.dv8tion.jda.api.entities.Message;
 import net.dv8tion.jda.api.entities.MessageEmbed;
@@ -31,6 +33,7 @@ import sntiago05.rejuv.clients.DeadlockApiUnavailableException;
 import sntiago05.rejuv.domain.HeroTier;
 import sntiago05.rejuv.domain.MetaHero;
 import sntiago05.rejuv.domain.MetaTierList;
+import sntiago05.rejuv.services.IconCatalog;
 import sntiago05.rejuv.services.Messages;
 import sntiago05.rejuv.services.MessagesFixture;
 import sntiago05.rejuv.services.MetaService;
@@ -41,6 +44,7 @@ class MetaCommandTest {
 
     private final Messages messages = MessagesFixture.english();
     private MetaService metaService;
+    private IconCatalog iconCatalog;
     private MetaCommand command;
     private User caller;
     private WebhookMessageEditAction<Message> edit;
@@ -48,7 +52,8 @@ class MetaCommandTest {
     @BeforeEach
     void setUp() {
         metaService = mock(MetaService.class);
-        command = new MetaCommand(metaService, messages);
+        iconCatalog = new IconCatalog();
+        command = new MetaCommand(metaService, messages, iconCatalog);
         caller = mock(User.class);
         when(caller.getIdLong()).thenReturn(CALLER_ID);
     }
@@ -81,10 +86,15 @@ class MetaCommandTest {
     }
 
     @Test
-    void defersPubliclyAndEditsWithEmbed() {
+    void defersPubliclyAndEditsWithEmbedWithIcons() {
         SlashCommandInteractionEvent event = event(null);
         ReplyCallbackAction defer = deferFor(event);
         InteractionHook hook = hookFor(event);
+
+        iconCatalog.replace(Map.of(
+                "h_1", "<:h_1:1001>",
+                "h_2", "<:h_2:1002>"
+        ));
 
         MetaTierList tierList = new MetaTierList(null, 100, List.of(
                 new MetaHero(1, "Infernus", 500, 55.4, HeroTier.S),
@@ -100,20 +110,60 @@ class MetaCommandTest {
         verify(defer).queue();
 
         MessageEmbed embed = capturedEmbed(hook);
+        assertThat(embed.getColorRaw()).isEqualTo(EmbedStyle.COLOR);
         assertThat(embed.getTitle()).isEqualTo(messages.get("meta.title", messages.get("meta.all_ranks")));
 
         List<MessageEmbed.Field> fields = embed.getFields();
-        // A and C tiers are empty, so only S, B, D should be present
         assertThat(fields).hasSize(3);
         assertThat(fields).noneMatch(MessageEmbed.Field::isInline);
         assertThat(fields.get(0).getName()).isEqualTo(messages.get("meta.tier.s"));
-        assertThat(fields.get(0).getValue()).isEqualTo(messages.get("meta.hero_entry", "Infernus", "55.4"));
+        assertThat(fields.get(0).getValue()).isEqualTo("<:h_1:1001> " + messages.get("meta.hero_entry", "Infernus", "55.4"));
         assertThat(fields.get(1).getName()).isEqualTo(messages.get("meta.tier.b"));
-        assertThat(fields.get(1).getValue()).isEqualTo(messages.get("meta.hero_entry", "Seven", "49.5"));
+        assertThat(fields.get(1).getValue()).isEqualTo("<:h_2:1002> " + messages.get("meta.hero_entry", "Seven", "49.5"));
         assertThat(fields.get(2).getName()).isEqualTo(messages.get("meta.tier.d"));
         assertThat(fields.get(2).getValue()).isEqualTo(messages.get("meta.hero_entry", "Vindicta", "45.0"));
 
         assertThat(embed.getFooter().getText()).isEqualTo(messages.get("meta.footer", "100"));
+    }
+
+    @Test
+    void defersPubliclyAndEditsWithEmbedWithoutIcons() {
+        SlashCommandInteractionEvent event = event(null);
+        deferFor(event);
+        InteractionHook hook = hookFor(event);
+
+        MetaTierList tierList = new MetaTierList(null, 100, List.of(
+                new MetaHero(1, "Infernus", 500, 55.4, HeroTier.S)
+        ));
+        when(metaService.getTierList(null)).thenReturn(tierList);
+
+        command.handle(event);
+
+        MessageEmbed embed = capturedEmbed(hook);
+        assertThat(embed.getColorRaw()).isEqualTo(EmbedStyle.COLOR);
+        assertThat(embed.getThumbnail()).isNull();
+        assertThat(embed.getFields().get(0).getValue()).isEqualTo(messages.get("meta.hero_entry", "Infernus", "55.4"));
+    }
+
+    @Test
+    void veryLongTierNeverExceeds1024CharsPerFieldAndEmbedUnder6000() {
+        SlashCommandInteractionEvent event = event(null);
+        deferFor(event);
+        InteractionHook hook = hookFor(event);
+
+        List<MetaHero> manyHeroes = new ArrayList<>();
+        for (int i = 1; i <= 60; i++) {
+            manyHeroes.add(new MetaHero(i, "HeroLongName" + i, 100 + i, 55.0, HeroTier.S));
+        }
+        when(metaService.getTierList(null)).thenReturn(new MetaTierList(null, 100, manyHeroes));
+
+        command.handle(event);
+
+        MessageEmbed embed = capturedEmbed(hook);
+        for (MessageEmbed.Field field : embed.getFields()) {
+            assertThat(field.getValue().length()).isLessThanOrEqualTo(1024);
+        }
+        assertThat(embed.getLength()).isLessThanOrEqualTo(6000);
     }
 
     @Test
@@ -130,7 +180,7 @@ class MetaCommandTest {
         command.handle(event);
 
         verify(metaService).getTierList(null);
-        assertThat(capturedEmbed(hook).getTitle()).isEqualTo("Hero tier list: All ranks");
+        assertThat(capturedEmbed(hook).getTitle()).isEqualTo(messages.get("meta.title", messages.get("meta.all_ranks")));
     }
 
     @Test
@@ -147,7 +197,7 @@ class MetaCommandTest {
         command.handle(event);
 
         verify(metaService).getTierList(7);
-        assertThat(capturedEmbed(hook).getTitle()).isEqualTo("Hero tier list: Archon");
+        assertThat(capturedEmbed(hook).getTitle()).isEqualTo(messages.get("meta.title", messages.get("meta.rank.7")));
     }
 
     @Test

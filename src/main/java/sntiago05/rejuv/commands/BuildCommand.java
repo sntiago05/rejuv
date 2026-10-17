@@ -1,6 +1,6 @@
 package sntiago05.rejuv.commands;
 
-import java.util.stream.Collectors;
+import java.util.List;
 
 import net.dv8tion.jda.api.EmbedBuilder;
 import net.dv8tion.jda.api.entities.MessageEmbed;
@@ -15,8 +15,10 @@ import sntiago05.rejuv.clients.DeadlockApiUnavailableException;
 import sntiago05.rejuv.domain.BuildItem;
 import sntiago05.rejuv.domain.BuildPhase;
 import sntiago05.rejuv.domain.HeroBuild;
+import sntiago05.rejuv.services.AssetImages;
 import sntiago05.rejuv.services.BuildService;
 import sntiago05.rejuv.services.HeroNotFoundException;
+import sntiago05.rejuv.services.IconCatalog;
 import sntiago05.rejuv.services.Messages;
 
 @Component
@@ -26,10 +28,15 @@ public class BuildCommand implements SlashCommand {
 
     private final BuildService buildService;
     private final Messages messages;
+    private final AssetImages assetImages;
+    private final IconCatalog iconCatalog;
 
-    public BuildCommand(BuildService buildService, Messages messages) {
+    public BuildCommand(BuildService buildService, Messages messages,
+                        AssetImages assetImages, IconCatalog iconCatalog) {
         this.buildService = buildService;
         this.messages = messages;
+        this.assetImages = assetImages;
+        this.iconCatalog = iconCatalog;
     }
 
     @Override
@@ -71,14 +78,17 @@ public class BuildCommand implements SlashCommand {
         String rankLabel = CommandSupport.rankLabel(messages, build.rankTier());
 
         EmbedBuilder builder = new EmbedBuilder()
+                .setColor(EmbedStyle.COLOR)
                 .setTitle(messages.get("build.title", build.heroName(), rankLabel));
+
+        assetImages.heroCardUrl(build.heroId()).ifPresent(builder::setThumbnail);
 
         for (BuildPhase phase : build.phases()) {
             String fieldName = messages.get("build.phase", String.valueOf(phase.column() + 1));
-            String fieldValue = phase.items().stream()
+            List<String> itemLines = phase.items().stream()
                     .map(this::itemLine)
-                    .collect(Collectors.joining("\n"));
-            builder.addField(fieldName, fieldValue, false);
+                    .toList();
+            builder.addField(fieldName, EmbedStyle.fitField(itemLines), false);
         }
 
         if (!build.abilityOrder().isEmpty()) {
@@ -103,6 +113,7 @@ public class BuildCommand implements SlashCommand {
                 : messages.get("build.item_unknown", String.valueOf(item.itemId()));
         String pickRate = CommandSupport.oneDecimal(item.pickRatePercent());
         String winRate = CommandSupport.oneDecimal(item.winRatePercent());
-        return messages.get("build.item_entry", itemName, pickRate, winRate);
+        String text = messages.get("build.item_entry", itemName, pickRate, winRate);
+        return EmbedStyle.withIcon(iconCatalog.item(item.itemId()), text);
     }
 }
