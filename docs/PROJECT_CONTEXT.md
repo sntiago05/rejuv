@@ -34,7 +34,7 @@ Rule from `AGENTS.md`: update this file after each task with verified facts only
 23 tasks in `docs/implementation-plan.md` (022-023 added for match metadata), ADRs 0001-0015 in `docs/adr/`. Fast track in `docs/roadmap.md`: week 1 = tasks 001-010 plus 022 before 007 (MVP, tester gate before public launch on day 5), week 2 = tasks 011-021 (hero utilities, social, web reports, premium behind a feature flag until ~30 weekly active users). `roadmap.md` has not been updated for 022 yet. Task 023 (raw protobuf fallback) is scheduled only if the JSON metadata endpoint fails often during testing.
 
 ## Current status
-Last updated 2026-10-17 after Task 007 (PR #33) was merged into `main` and Task 013 (`/meta`) was implemented. Tasks 001-008, 013 and 022 are merged or verified.
+Last updated 2026-10-17 after Task 011 (PR #36) and Task 012 (PR #37) were merged into `main`. Tasks 001-008, 011-013 and 022 are merged or verified.
 
 ### Done (verified)
 - Setup: `AGENTS.md`, Antigravity rule, Claude Code settings and the `new-discord-command` skill. All planning docs and ADRs 0001-0015 written.
@@ -90,16 +90,26 @@ Last updated 2026-10-17 after Task 007 (PR #33) was merged into `main` and Task 
   - `clients/DeadlockApiClient.getHeroStats(Integer rankTier, long minUnixTimestamp)`: cached in `deadlockHeroStats` (6 h, max 50); filters by `min_unix_timestamp` and `rankTier*10` .. `rankTier*10+9` badges.
   - Records `domain/HeroTier`, `domain/MetaHero`, `domain/MetaTierList`, `clients/dto/HeroStat`.
   - Verified: `./mvnw clean verify` (243 tests, 0 failures on merged branch).
-- The combined test count on `main` after merging Task 007 and Task 013 is 243 tests.
+- **Task 011** (`/build hero [rank]`), report in `docs/task-reports/011-build.md`. Merged (PR #36):
+  - Public slash command: popular item flow by phase (column order, max 4 items/phase, 6 phases, items with >= 20 matches, pick and win rate) plus the most played ability order. Works without a linked account.
+  - `DeadlockApiClient.getItemFlowStats(heroId, rankTier, minUnixTimestamp)` (`item-flow-stats`, `hero_ids`) and `getAbilityOrderStats(...)` (`ability-order-stats`, `hero_id`), cached in `deadlockItemFlow` / `deadlockAbilityOrder` (6 h/200 each).
+  - Reusable `services/HeroResolver` (exact name ignoring case, then unique prefix, else empty) and `HeroNotFoundException`; `services/BuildService`; records `HeroBuild`, `BuildPhase`, `BuildItem`.
+  - Verified: `./mvnw clean verify` (295 tests, 0 failures). No manual Discord check.
+- **Task 012** (`/counter hero [rank]`), report in `docs/task-reports/012-counter.md`. Merged (PR #37):
+  - Public slash command: top 5 heroes that counter the target, top 5 it is favorable against (>= 50 matches each), top 5 upgrade items against it (>= 100 matches, named upgrades only). Works without a linked account.
+  - `DeadlockApiClient.getHeroCounterStats(rankTier, minUnixTimestamp)` (global pair table, `hero-counter-stats`) and `getItemStatsAgainst(enemyHeroId, rankTier, minUnixTimestamp)` (`item-stats?enemy_hero_ids`), cached in `deadlockHeroCounters` (6 h/50) and `deadlockCounterItems` (6 h/200). `CacheConfig` now has 12 caches.
+  - `services/CounterService`; records `CounterGuide`, `CounterMatchup`, `CounterItem`. Shared helpers `commands/CommandSupport` (hero/rank options, rank labels, percent format, unexpected-error handling) and `services/ServiceSupport` (rank validation, 30-day UTC window), also used by `/build`.
+  - Verified: `./mvnw clean verify` (332 tests, 0 failures). No manual Discord check.
+- The test count on `main` after merging Task 012 is 332 tests.
 
 ### In progress (not verified, not merged)
-None currently active.
+Task 024 (rich presentation: JDA bump for application emojis, emoji sync, `AssetImages`, `IconCatalog`, `AssetImageClient`): spec in `docs/tasks/024-rich-presentation.md`; worktree `../rejuv-wt/024`, branch `feature/024-rich-presentation`, created from `main` @ e962185. Not started. It changes `CounterCommand`; its `PROJECT_CONTEXT.md` update stays pending integration.
 
 ### Not started (planned only)
-Tasks 009-012, 014-021 and 023. Nothing beyond `/ping`, `/help`, `/link`, `/unlink`, `/profile`, `/meta`, the database baseline, the Deadlock API client, the match metadata port, the AI client, and `MetricsService` exists yet: no `/analyze`, web server, premium or Patreon check. The MVP has not been built, launched or deployed.
+Tasks 009, 010, 014-021, 023 and 024 (024 has a worktree, see In progress). Nothing beyond `/ping`, `/help`, `/link`, `/unlink`, `/profile`, `/meta`, `/build`, `/counter`, the database baseline, the Deadlock API client, the match metadata port, the AI client, and `MetricsService` exists yet: no `/analyze`, web server, premium or Patreon check. The MVP has not been built, launched or deployed.
 
 ### Next
-Task 009 (`/analyze`, depends on 005, 007, 008, all of which are merged in `main`). Also eligible: Tasks 011, 012 (depend on 004), 014, 016 (depend on 005), 015 (depends on 005 and 006), Task 023 (depends on 022, only if the JSON metadata endpoint fails often).
+Task 009 (`/analyze`, depends on 005, 007, 008, all of which are merged in `main`). Task 024 is prepared (dependencies 011 and 012 merged). Also eligible: 014, 016 (depend on 005), 015 (depends on 005 and 006), Task 023 (depends on 022, only if the JSON metadata endpoint fails often).
 
 ### Deadlock API facts observed in real responses (2026-10-16, evidence collected by the owner)
 - Host `https://api.deadlock-api.com`. `GET /v1/players/{account_id}/match-history` returns an array, newest first. An account without data returns 200 `[]` (not 404). The payload is large (about 5 MB for 6,842 matches), so a client must cap what it keeps.
@@ -114,6 +124,7 @@ Task 009 (`/analyze`, depends on 005, 007, 008, all of which are merged in `main
 - User-facing behavior is English-only (ADR-0008); all user-facing text lives in `messages.properties` and is accessed via `Messages`.
 - Discord credentials come from environment variables (`.env`, see `.env.example`) and must never be committed. Manual Discord checks need `DISCORD_TOKEN` and `DEV_GUILD_ID`.
 - After Task 003: the app needs a reachable PostgreSQL at startup (`POSTGRES_*` variables, no default password), Flyway is the only schema authority (`ddl-auto: validate`), and `verify` needs Docker running for Testcontainers.
+- `/meta`, `/build` and `/counter` call the API synchronously on the JDA event thread after a public deferral (same risk as `/profile`).
 - Adding a cache to `CacheConfig` requires updating `DeadlockApiClientCachingTest.cacheTtlsAndSizesMatchTheDesign`, which asserts the exact set of cache names, TTLs and sizes.
 - `KEY_PATTERN` in `MessagesIntegrationTest` permits numeric dot segments (`(\\.[a-z0-9_]+)+`) for catalog keys like `meta.rank.1`.
 - The Claude API key comes only from `ANTHROPIC_API_KEY`; it is never logged.
@@ -140,6 +151,9 @@ Task 009 (`/analyze`, depends on 005, 007, 008, all of which are merged in `main
 - Task 006: `docs/tasks/006-profile.md`, `docs/task-reports/006-profile.md`
 - Task 007: `docs/tasks/007-metrics-service.md`, `docs/task-reports/007-metrics-service.md`
 - Task 008: `docs/tasks/008-analysis-client.md`, `docs/task-reports/008-analysis-client.md`
+- Task 011: `docs/tasks/011-build.md`, `docs/task-reports/011-build.md`
+- Task 012: `docs/tasks/012-counter.md`, `docs/task-reports/012-counter.md`
 - Task 013: `docs/tasks/013-meta.md`, `docs/task-reports/013-meta.md`
 - Task 022: `docs/tasks/022-match-metadata.md`, `docs/task-reports/022-match-metadata.md`
+- Task 024: `docs/tasks/024-rich-presentation.md`
 - ADRs most relevant so far: `0001-java21-spring-boot-jda.md`, `0002-postgresql-and-caffeine.md`, `0005-oracle-cloud-docker-compose.md`, `0008-english-only-i18n-ready.md`, `0009-claude-plans-antigravity-implements.md`
