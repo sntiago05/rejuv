@@ -24,3 +24,14 @@ deadlock-api:
   read-timeout: 10s
   default-retry-after: 2s
   max-retry-after: 10s
+
+anthropic:
+  base-url: https://api.anthropic.com
+  api-key: ${ANTHROPIC_API_KEY:}
+  model: claude-haiku-5-5
+  effort: low
+  max-tokens: 1500
+  connect-timeout: 3s
+  read-timeout: 30s
+  default-retry-after: 1s
+  max-retry-after: 10s

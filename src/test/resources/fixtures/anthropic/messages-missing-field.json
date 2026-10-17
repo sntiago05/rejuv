@@ -1,0 +1,17 @@
+{
+  "id": "msg_01XFDUDYJgAACzvnptvVoYEE",
+  "type": "message",
+  "role": "assistant",
+  "model": "claude-haiku-5-5-20251001",
+  "content": [
+    {
+      "type": "text",
+      "text": "{\"strength\": \"Great early lane farm.\", \"biggest_leak\": \"Died too often in mid game.\", \"key_numbers\": [\"deaths: 8 / 4\"]}"
+    }
+  ],
+  "stop_reason": "end_turn",
+  "usage": {
+    "input_tokens": 420,
+    "output_tokens": 80
+  }
+}

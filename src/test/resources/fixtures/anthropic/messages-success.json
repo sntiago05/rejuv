@@ -1,0 +1,22 @@
+{
+  "id": "msg_01XFDUDYJgAACzvnptvVoYEE",
+  "type": "message",
+  "role": "assistant",
+  "model": "claude-haiku-5-5-20251001",
+  "content": [
+    {
+      "type": "thinking",
+      "thinking": ""
+    },
+    {
+      "type": "text",
+      "text": "{\"strength\": \"Excellent souls per minute through efficient lane farming.\", \"biggest_leak\": \"Deaths were significantly higher than benchmark at 9 vs 5.\", \"next_game_action\": \"Focus on positioning behind cover during mid-game teamfights.\", \"key_numbers\": [\"souls_per_min: 750 / 680\", \"deaths: 9 / 5\", \"damage_per_min: 1200 / 1150\"]}"
+    }
+  ],
+  "stop_reason": "end_turn",
+  "stop_sequence": null,
+  "usage": {
+    "input_tokens": 450,
+    "output_tokens": 120
+  }
+}
