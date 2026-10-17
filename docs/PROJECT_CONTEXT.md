@@ -34,7 +34,7 @@ Rule from `AGENTS.md`: update this file after each task with verified facts only
 23 tasks in `docs/implementation-plan.md` (022-023 added for match metadata), ADRs 0001-0015 in `docs/adr/`. Fast track in `docs/roadmap.md`: week 1 = tasks 001-010 plus 022 before 007 (MVP, tester gate before public launch on day 5), week 2 = tasks 011-021 (hero utilities, social, web reports, premium behind a feature flag until ~30 weekly active users). `roadmap.md` has not been updated for 022 yet. Task 023 (raw protobuf fallback) is scheduled only if the JSON metadata endpoint fails often during testing.
 
 ## Current status
-Last updated at the closeout of Task 004 on branch `feature/004-deadlock-api-client` (verified, not merged yet).
+Last updated at the closeout of Task 005 on branch `feature/005-link-unlink` (verified, not merged yet).
 
 ### Done (verified)
 - Setup: `AGENTS.md`, Antigravity rule, Claude Code settings and the `new-discord-command` skill. All planning docs and ADRs 0001-0015 written.
@@ -53,21 +53,27 @@ Last updated at the closeout of Task 004 on branch `feature/004-deadlock-api-cli
   - Flyway migration `V1__create_linked_account.sql`, `LinkedAccount` entity, `LinkedAccountRepository`.
   - Testcontainers configuration with `postgres:17` and `@ServiceConnection`.
   - Verified: `./mvnw clean verify` (31 tests, 0 failures); manual check with `docker compose up -d postgres`, `spring-boot:run` (initial migration + idempotent second run), and `psql` schema check confirming table `linked_account`.
-- **Task 004** (`DeadlockApiClient`), report in `docs/task-reports/004-deadlock-api-client.md`. Verified on its branch, **not merged yet**:
+- **Task 004** (`DeadlockApiClient`), report in `docs/task-reports/004-deadlock-api-client.md`. Merged (PR #25):
   - `clients/DeadlockApiClient` on Spring `RestClient` (`spring-boot-starter-restclient`, Jackson 3 with `com.fasterxml.jackson.annotation` annotations): `getMatchHistory` (max 200 entries, newest first; empty list = no data, the account check for Task 005), `getPlayerRank`, `getBenchmarks(heroId, rankTier)` (`player-stats/metrics`, p25/p50/p75), `getItemStats(heroId, rankTier)` (average buy times), `getRanks`, `getHeroes`, `getItems`. No match metadata (Task 022).
   - Failures: `DeadlockApiException` (unexpected status, bad body) and `DeadlockApiUnavailableException` (503, 429, I/O, timeout; optional `retryAfter()`). One 503 retry when `Retry-After` <= 10 s (default 2 s); history 429 with an array body is a success.
   - `config/CacheConfig`: static Caffeine caches `deadlockAssets` 24 h/10, `deadlockBenchmarks` 6 h/500, `deadlockItemStats` 6 h/500, `deadlockMatchHistory` 2 min/1000, `deadlockPlayerRank` 10 min/1000. `config/DeadlockApiConfig.restClientBuilder` and `clients/Sleeper` are reused by Task 022.
   - Confirmed in OpenAPI: `item-stats` filters by `hero_ids` (`hero_id` is deprecated) and `min/max_average_badge`; metric keys are `percentile25/50/75`.
   - Verified: `driver.sh verify` (62 tests, 0 failures) and a live check of assets, benchmarks and item stats.
+- **Task 005** (`/link`, `/unlink`), report in `docs/task-reports/005-link-unlink.md`. Verified on its branch, **not merged yet**:
+  - `services/AccountIdParser.parse` (pure static): SteamID64 (17 digits, prefix `7656119`), `steamcommunity.com/profiles/<SteamID64>` URL, or account ID 1..4294967295; `account_id = steamId64 - 76561197960265728`. Vanity URLs (`/id/<name>`) rejected with reason `VANITY_URL`, everything else `UNRECOGNIZED` (`InvalidAccountInputException`).
+  - `services/LinkService`: `link(discordUserId, accountId)` requires non-empty cached match history (else `NoMatchHistoryException`), then upserts `linked_account`; `unlink(discordUserId)` returns whether a row was deleted. Re-linking replaces the account; the same account may be linked by several users.
+  - `LinkCommand` parses before deferring, then `deferReply(true)` and handles its own errors (the router cannot reply after a deferral). `UnlinkCommand` replies directly. All replies ephemeral.
+  - Shared catalog key `error.data_source_busy` for `DeadlockApiUnavailableException`; later commands reuse it.
+  - Verified: `./mvnw clean verify` (102 tests, 0 failures). Manual Discord/driver check not run.
 
 ### In progress (not verified, not merged)
-Task 004 waits for human review and merge (see above).
+Task 005 waits for human review and merge (see above). The Task 022 spec is on `main`; its worktree had no changes at the Task 005 closeout.
 
 ### Not started (planned only)
-Tasks 005-023. Nothing beyond `/ping`, `/help`, the database baseline and the Deadlock API client exists yet: no `/link`, `/analyze`, match metadata, AI client, web server, premium or Patreon check. The MVP has not been built, launched or deployed.
+Tasks 006-023. Nothing beyond `/ping`, `/help`, `/link`, `/unlink`, the database baseline and the Deadlock API client exists yet: no `/profile`, `/analyze`, match metadata, AI client, web server, premium or Patreon check. The MVP has not been built, launched or deployed.
 
 ### Next
-After Task 004 is merged: Task 005 (`/link`, `/unlink`, depends on 003 and 004) and Tasks 011-013 (depend on 004) become eligible; Task 008 (depends on 001) already is. Write the Task 022 spec (match metadata port + JSON adapter); Task 007 depends on 004 and 022.
+Eligible now: Task 022 (spec written, depends on 004), Tasks 011-013 (depend on 004), Task 008 (depends on 001). After Task 005 is merged: Tasks 006, 014 and 016 (depend on 005); Task 015 also needs 006. Task 007 needs 022; Task 009 needs 005, 007 and 008, and must extend `LinkService.unlink` to delete `match_analysis`.
 
 ### Deadlock API facts observed in real responses (2026-10-16, evidence collected by the owner)
 - Host `https://api.deadlock-api.com`. `GET /v1/players/{account_id}/match-history` returns an array, newest first. An account without data returns 200 `[]` (not 404). The payload is large (about 5 MB for 6,842 matches), so a client must cap what it keeps.
@@ -83,6 +89,8 @@ After Task 004 is merged: Task 005 (`/link`, `/unlink`, depends on 003 and 004) 
 - After Task 003: the app needs a reachable PostgreSQL at startup (`POSTGRES_*` variables, no default password), Flyway is the only schema authority (`ddl-auto: validate`), and `verify` needs Docker running for Testcontainers.
 
 ## Known limitations and risks
+- `/link` blocks the JDA event thread during the history call (up to the client's 10 s retry wait); a risk for Task 009, which makes more calls.
+- `.claude/skills/run-rejuv/driver.sh` `list`/`cmd`/`eval` fail on Windows (`Driver.java` compile error, likely the classpath separator); `build` and `db-down` work.
 - On this Windows machine the Maven wrapper may need `MAVEN_USER_HOME` pointed at a temporary junction to the existing Maven home (null-target issue in PowerShell).
 - deadlock-api data coverage gaps; many competing tracker sites.
 - Match metadata can be unavailable (503 while Steam is busy, strict Steam fallback quota). `/analyze` needs a degraded mode based on history data only (Task 009); a raw protobuf fallback is planned as Task 023.
@@ -96,4 +104,5 @@ After Task 004 is merged: Task 005 (`/link`, `/unlink`, depends on 003 and 004) 
 - Task 002: `docs/tasks/002-i18n-and-help.md`, `docs/task-reports/002-i18n-and-help.md`
 - Task 003: `docs/tasks/003-postgres-flyway-linked-account.md`, `docs/task-reports/003-postgres-flyway-linked-account.md`
 - Task 004: `docs/tasks/004-deadlock-api-client.md`, `docs/task-reports/004-deadlock-api-client.md`
+- Task 005: `docs/tasks/005-link-unlink.md`, `docs/task-reports/005-link-unlink.md`
 - ADRs most relevant so far: `0001-java21-spring-boot-jda.md`, `0002-postgresql-and-caffeine.md`, `0005-oracle-cloud-docker-compose.md`, `0008-english-only-i18n-ready.md`, `0009-claude-plans-antigravity-implements.md`
