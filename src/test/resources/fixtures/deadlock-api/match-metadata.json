@@ -1,0 +1,140 @@
+{
+  "hero_build_ids": [101, 102],
+  "banned_hero_ids": [],
+  "match_info": {
+    "match_id": 900000003,
+    "duration_s": 1952,
+    "start_time": 1789000000,
+    "objectives": {"tier1_lanes": 4},
+    "players": [
+      {
+        "account_id": 1000001,
+        "team": 1,
+        "hero_id": 1,
+        "kills": 10,
+        "gold_player": 26000,
+        "items": [
+          {
+            "item_id": 3612874202,
+            "game_time_s": 400,
+            "sold_time_s": 0,
+            "upgrade_id": 50
+          },
+          {
+            "item_id": 1001,
+            "game_time_s": 200,
+            "sold_time_s": 600,
+            "upgrade_id": 12
+          },
+          {
+            "item_id": 1002,
+            "game_time_s": 200,
+            "sold_time_s": 0,
+            "upgrade_id": 15
+          }
+        ],
+        "stats": [
+          {
+            "time_stamp_s": 180,
+            "net_worth": 1500,
+            "player_damage": 500,
+            "player_healing": 0,
+            "creep_kills": 12
+          },
+          {
+            "time_stamp_s": 360,
+            "net_worth": 3200,
+            "player_damage": 1200,
+            "player_healing": 100,
+            "creep_kills": 25
+          },
+          {
+            "time_stamp_s": 720,
+            "net_worth": 7500,
+            "player_damage": 3800,
+            "player_healing": 300,
+            "creep_kills": 55
+          },
+          {
+            "time_stamp_s": 540,
+            "net_worth": 5100,
+            "player_damage": 2200,
+            "player_healing": 200,
+            "creep_kills": 40
+          },
+          {
+            "time_stamp_s": 900,
+            "net_worth": 10200,
+            "player_damage": 5500,
+            "player_healing": 450,
+            "creep_kills": 70
+          },
+          {
+            "time_stamp_s": 1200,
+            "net_worth": 14000,
+            "player_damage": 8000,
+            "player_healing": 700,
+            "creep_kills": 90
+          },
+          {
+            "time_stamp_s": 1500,
+            "net_worth": 18500,
+            "player_damage": 12000,
+            "player_healing": 950,
+            "creep_kills": 115
+          },
+          {
+            "time_stamp_s": 1800,
+            "net_worth": 23000,
+            "player_damage": 16500,
+            "player_healing": 1200,
+            "creep_kills": 140
+          },
+          {
+            "time_stamp_s": 1952,
+            "net_worth": 26000,
+            "player_damage": 19500,
+            "player_healing": 1500,
+            "creep_kills": 155
+          }
+        ],
+        "power_up_buffs": [
+          {
+            "type": "spirit_permanent_pickup_lv3",
+            "is_permanent": true,
+            "pickup_times_s": [650, 420],
+            "pickup_stat_values": [15, 30]
+          },
+          {
+            "type": "gun_powerup_pickup",
+            "is_permanent": false,
+            "pickup_times_s": [800],
+            "pickup_stat_values": [10]
+          }
+        ]
+      },
+      {
+        "account_id": 1000002,
+        "team": 0,
+        "hero_id": 13,
+        "power_up_buffs": null,
+        "player_rank_data": null,
+        "items": [
+          {
+            "item_id": 2001,
+            "game_time_s": 150,
+            "sold_time_s": 0
+          }
+        ],
+        "stats": [
+          {
+            "time_stamp_s": 180,
+            "net_worth": 1400,
+            "player_damage": 400,
+            "player_healing": 50
+          }
+        ]
+      }
+    ]
+  }
+}

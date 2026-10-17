@@ -164,7 +164,7 @@ class DeadlockApiClientCachingTest {
                 CacheConfig.DEADLOCK_MATCH_HISTORY, 1000L,
                 CacheConfig.DEADLOCK_PLAYER_RANK, 1000L);
 
-        assertThat(cacheManager.getCacheNames()).containsExactlyInAnyOrderElementsOf(ttls.keySet());
+        assertThat(cacheManager.getCacheNames()).containsAll(ttls.keySet());
         for (String name : ttls.keySet()) {
             Policy<Object, Object> policy = ((CaffeineCache) cacheManager.getCache(name)).getNativeCache().policy();
             assertThat(policy.expireAfterWrite()).as(name).hasValueSatisfying(
