@@ -132,10 +132,10 @@ Last updated 2026-10-17 after Task 009 (PR #41), Task 014 (PR #42), Task 016 (PR
 Nothing.
 
 ### Not started (planned only)
-Tasks 010, 015, 017-021 and 023. Nothing beyond `/ping`, `/help`, `/link`, `/unlink`, `/profile`, `/analyze`, `/meta`, `/build`, `/counter`, `/heroes`, `/leaderboard server`, the database baseline, the Deadlock API client, the match metadata port, the AI client, and `MetricsService` exists yet: no web server, premium or Patreon check. The MVP code is merged but has not been run end to end in Discord, launched or deployed. `/help` does not list `/heroes` or `/leaderboard`.
+Tasks 010, 015, 017-021 and 023. Nothing beyond `/ping`, `/help`, `/link`, `/unlink`, `/profile`, `/analyze`, `/meta`, `/build`, `/counter`, `/heroes`, `/leaderboard server`, the database baseline, the Deadlock API client, the match metadata port, the AI client, and `MetricsService` exists yet: no web server, premium or Patreon check. The MVP code is merged but has not been run end to end in Discord, launched or deployed. `/help` lists every implemented command except `/ping`.
 
 ### Next
-Task 010 (prompt tuning with testers, now unblocked by 009) and the manual Discord check of `/analyze`, `/heroes` and `/leaderboard server`. Also eligible: 015 (depends on 005 and 006), Task 023 (depends on 022, only if the JSON metadata endpoint fails often). Follow-ups: list `/heroes` and `/leaderboard` in `/help`, and apply the Task 024 icons and `EmbedStyle` to `/analyze`, `/heroes` and `/leaderboard`. Check the first emoji sync in the dev guild.
+Task 010 (prompt tuning with testers, now unblocked by 009) and the manual Discord check of `/analyze`, `/heroes` and `/leaderboard server`. Also eligible: 015 (depends on 005 and 006), Task 023 (depends on 022, only if the JSON metadata endpoint fails often). Follow-ups: apply the Task 024 icons and `EmbedStyle` to `/analyze`, `/heroes` and `/leaderboard`. Check the first emoji sync in the dev guild.
 
 ### Deadlock API facts observed in real responses (2026-10-16, evidence collected by the owner)
 - Host `https://api.deadlock-api.com`. `GET /v1/players/{account_id}/match-history` returns an array, newest first. An account without data returns 200 `[]` (not 404). The payload is large (about 5 MB for 6,842 matches), so a client must cap what it keeps.
