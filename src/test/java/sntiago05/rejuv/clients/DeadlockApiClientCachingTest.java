@@ -157,14 +157,16 @@ class DeadlockApiClientCachingTest {
                 CacheConfig.DEADLOCK_ITEM_STATS, Duration.ofHours(6),
                 CacheConfig.DEADLOCK_MATCH_HISTORY, Duration.ofMinutes(2),
                 CacheConfig.DEADLOCK_PLAYER_RANK, Duration.ofMinutes(10),
-                CacheConfig.DEADLOCK_MATCH_METADATA, Duration.ofHours(24));
+                CacheConfig.DEADLOCK_MATCH_METADATA, Duration.ofHours(24),
+                CacheConfig.PROFILE_SUMMARY, Duration.ofMinutes(10));
         Map<String, Long> sizes = Map.of(
                 CacheConfig.DEADLOCK_ASSETS, 10L,
                 CacheConfig.DEADLOCK_BENCHMARKS, 500L,
                 CacheConfig.DEADLOCK_ITEM_STATS, 500L,
                 CacheConfig.DEADLOCK_MATCH_HISTORY, 1000L,
                 CacheConfig.DEADLOCK_PLAYER_RANK, 1000L,
-                CacheConfig.DEADLOCK_MATCH_METADATA, 300L);
+                CacheConfig.DEADLOCK_MATCH_METADATA, 300L,
+                CacheConfig.PROFILE_SUMMARY, 1000L);
 
         assertThat(cacheManager.getCacheNames()).containsExactlyInAnyOrderElementsOf(ttls.keySet());
         for (String name : ttls.keySet()) {
