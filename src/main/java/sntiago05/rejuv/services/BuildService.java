@@ -28,7 +28,7 @@ import sntiago05.rejuv.domain.HeroBuild;
 @Service
 public class BuildService {
 
-    static final int MIN_ITEM_MATCHES = 20;
+    public static final int MIN_ITEM_MATCHES = 20;
     static final int MAX_ITEMS_PER_PHASE = 4;
     static final int MAX_PHASES = 6;
     static final Duration WINDOW = Duration.ofDays(30);
