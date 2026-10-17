@@ -21,6 +21,7 @@ public class CacheConfig {
     public static final String DEADLOCK_PLAYER_RANK = "deadlockPlayerRank";      // 10 min, max 1000
     public static final String DEADLOCK_MATCH_METADATA = "deadlockMatchMetadata"; // 24 h, max 300
     public static final String PROFILE_SUMMARY = "profileSummary";               // 10 min, max 1000
+    public static final String DEADLOCK_HERO_STATS = "deadlockHeroStats";        // 6 h, max 50
 
     @Bean
     CacheManager cacheManager() {
@@ -34,6 +35,7 @@ public class CacheConfig {
         register(cacheManager, DEADLOCK_PLAYER_RANK, Duration.ofMinutes(10), 1000);
         register(cacheManager, DEADLOCK_MATCH_METADATA, Duration.ofHours(24), 300);
         register(cacheManager, PROFILE_SUMMARY, Duration.ofMinutes(10), 1000);
+        register(cacheManager, DEADLOCK_HERO_STATS, Duration.ofHours(6), 50);
         return cacheManager;
     }
 
