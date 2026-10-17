@@ -1,0 +1,17 @@
+{
+  "id": "msg_01XFDUDYJgAACzvnptvVoYEE",
+  "type": "message",
+  "role": "assistant",
+  "model": "claude-haiku-5-5-20251001",
+  "content": [
+    {
+      "type": "text",
+      "text": "{\"strength\": \"Good lane farm"
+    }
+  ],
+  "stop_reason": "max_tokens",
+  "usage": {
+    "input_tokens": 450,
+    "output_tokens": 1500
+  }
+}
