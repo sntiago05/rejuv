@@ -29,12 +29,16 @@ Vertical slices: each task delivers something runnable end to end, small enough 
 | 021 | `/compare` and `/items` (premium) | 007, 019 | Claude Code |
 | 022 | Match metadata: port `MatchMetadataSource`, own model `MatchTelemetry`, JSON adapter (`/v1/matches/{match_id}/metadata`) as the primary source, reusing the task 004 HTTP infrastructure | 004 | Antigravity |
 | 023 | Match metadata fallback: raw adapter (`/metadata/raw`: bz2 + protobuf decode) and `FallbackMatchMetadataSource` (JSON first, raw on failure); needs an ADR for the new dependencies | 022 | Claude Code |
+| 024 | Rich presentation: friendlier embeds, hero/item icons as application emojis, hero card and rank badge thumbnails for the existing commands (`/profile`, `/meta`, `/build`, `/counter`, `/help`); introduces `EmbedStyle`, `IconCatalog`, `AssetImages`, bumps JDA, ADR-0016. Run **right after 012 is merged** | 011, 012 | Antigravity |
 
 Fast track: week 1 = 001-010 plus 022 (before 007), week 2 = 011-021 (day by day in `roadmap.md`, to be updated for 022). Task 023 does not block 007 or 009: schedule it before the public launch only if the JSON metadata endpoint fails often during the tester week.
 
 ## Notes on the plan
 - Task numbers 022-023 were appended to avoid renumbering existing references; execution order follows the "Depends on" column.
 - Tasks 011-013 use other analytics endpoints (builds, counters, hero stats): each of their specs must authorize extending `DeadlockApiClient` with the endpoints it needs.
+- Task 024 is appended like 022-023 and runs immediately after 012, before the remaining command tasks (009, 014-016, 019-021). Specs for those tasks that are written **after** 024 is merged must follow the presentation convention below; specs already written before 024 (011-013) are not rewritten, 024 modifies those commands.
+- **Presentation convention for every new embed command (after 024):** use `EmbedStyle.COLOR`; show hero and item names through `IconCatalog.hero/item` and `EmbedStyle.withIcon`; set the thumbnail with `AssetImages` (hero card, or rank badge for player views); pass every field value through `EmbedStyle.fitField`; custom-emoji markup only in field values and descriptions; the command must still work text-only when icons are missing (a test for that case is mandatory). The spec's file table lists `EmbedStyle`, `IconCatalog` and `AssetImages` as **existing** classes to reuse, not to recreate. Adding new icon kinds (for example ability icons) is a separate task that extends `EmojiSyncService`.
+- If a command task is implemented in parallel with 024 (not recommended), it must not use these classes; 024 then adapts it, or the command is adapted in its own follow-up.
 - Resolved (2026-10-16): item purchase times are compared with the `item-stats` average buy time (`avg_buy_time_s`, confirmed in a live call in Task 004; no percentiles). The AI input field is `avg_bought_at_min` (`docs/mvp-spec.md`).
 
 ## Engineering conventions
@@ -49,5 +53,6 @@ Fast track: week 1 = 001-010 plus 022 (before 007), week 2 = 011-021 (day by day
 - [ ] Builds and all tests pass locally and in CI
 - [ ] Follows AGENTS.md and the task spec; nothing out of scope changed
 - [ ] User-facing text only in `messages.properties`
+- [ ] New embed commands (after task 024) follow the presentation convention in the notes above
 - [ ] Docs/ADRs updated if behavior or decisions changed
 - [ ] Reviewed and understood by me before merging
