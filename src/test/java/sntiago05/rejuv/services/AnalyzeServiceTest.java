@@ -1,0 +1,385 @@
+package sntiago05.rejuv.services;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
+import java.time.Instant;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
+import org.springframework.dao.DataIntegrityViolationException;
+import sntiago05.rejuv.clients.AnalysisClient;
+import sntiago05.rejuv.clients.DeadlockApiClient;
+import sntiago05.rejuv.clients.DeadlockApiException;
+import sntiago05.rejuv.clients.DeadlockApiUnavailableException;
+import sntiago05.rejuv.clients.MatchMetadataNotFoundException;
+import sntiago05.rejuv.clients.MatchMetadataSource;
+import sntiago05.rejuv.clients.dto.HeroAsset;
+import sntiago05.rejuv.clients.dto.ItemAsset;
+import sntiago05.rejuv.clients.dto.ItemStat;
+import sntiago05.rejuv.clients.dto.MatchHistoryEntry;
+import sntiago05.rejuv.clients.dto.MetricPercentiles;
+import sntiago05.rejuv.clients.dto.PlayerRank;
+import sntiago05.rejuv.clients.dto.RankAsset;
+import sntiago05.rejuv.domain.AnalysisInput;
+import sntiago05.rejuv.domain.AnalysisOutcome;
+import sntiago05.rejuv.domain.AnalysisReport;
+import sntiago05.rejuv.domain.AnalysisResult;
+import sntiago05.rejuv.domain.ItemPurchase;
+import sntiago05.rejuv.domain.MatchAnalysis;
+import sntiago05.rejuv.domain.MatchTelemetry;
+import sntiago05.rejuv.domain.PlayerTelemetry;
+import sntiago05.rejuv.domain.StatSnapshot;
+import sntiago05.rejuv.repositories.MatchAnalysisRepository;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.json.JsonMapper;
+
+class AnalyzeServiceTest {
+
+    private static final long ACCOUNT_ID = 1000001L;
+    private static final long MATCH_ID = 900000001L;
+    private static final int HERO_ID = 1;
+
+    private static final MatchHistoryEntry MATCH = new MatchHistoryEntry(
+            MATCH_ID, 1, HERO_ID, 1700000000L, 1800, 4, 0, 0, 1, 5, 3, 7, 30000L, 150, 10, 73);
+    private static final PlayerRank RANK = new PlayerRank(73, 7, 3);
+    private static final List<HeroAsset> HEROES = List.of(new HeroAsset(HERO_ID, "hero_infernus", "Infernus"));
+    private static final List<RankAsset> RANKS = List.of(new RankAsset(7, "Archon"));
+    private static final List<ItemAsset> ITEMS = List.of(new ItemAsset(101L, "citadel_item_basic_magazine", "Basic Magazine", "upgrade", 1, "weapon", 500));
+    private static final Map<String, MetricPercentiles> BENCHMARKS = Map.of(
+            "kills", new MetricPercentiles(5.0, 3.0, 5.0, 8.0));
+    private static final Map<Long, ItemStat> ITEM_STATS = Map.of(
+            101L, new ItemStat(101L, 1000L, 550L, 450L, 300.0, 0.15));
+    private static final MatchTelemetry TELEMETRY = new MatchTelemetry(
+            MATCH_ID, 1800, List.of(new PlayerTelemetry(
+                    ACCOUNT_ID, 0, HERO_ID,
+                    List.of(new ItemPurchase(101L, 250, null)),
+                    List.of(new StatSnapshot(180, 1500, 2000, 0)),
+                    List.of())));
+
+    private static final AnalysisResult AI_RESULT = new AnalysisResult(
+            "Great farming", "Too many deaths", "Ward more", List.of("10 kills", "20k souls"));
+
+    private DeadlockApiClient deadlockApiClient;
+    private MatchMetadataSource matchMetadataSource;
+    private MetricsService metricsService;
+    private AnalysisClient analysisClient;
+    private MatchAnalysisRepository repository;
+    private AnalyzeService service;
+
+    @BeforeEach
+    void setUp() {
+        deadlockApiClient = mock(DeadlockApiClient.class);
+        matchMetadataSource = mock(MatchMetadataSource.class);
+        metricsService = new MetricsService();
+        analysisClient = mock(AnalysisClient.class);
+        repository = mock(MatchAnalysisRepository.class);
+        service = new AnalyzeService(deadlockApiClient, matchMetadataSource, metricsService, analysisClient, repository);
+    }
+
+    @Test
+    void freshAiPathStoresRowAndReturnsAiResultWithSequentialCalls() {
+        when(deadlockApiClient.getMatchHistory(ACCOUNT_ID)).thenReturn(List.of(MATCH));
+        when(deadlockApiClient.getPlayerRank(ACCOUNT_ID)).thenReturn(RANK);
+        when(deadlockApiClient.getHeroes()).thenReturn(HEROES);
+        when(deadlockApiClient.getRanks()).thenReturn(RANKS);
+        when(repository.findByAccountIdAndMatchId(ACCOUNT_ID, MATCH_ID)).thenReturn(Optional.empty());
+        when(matchMetadataSource.getMatch(MATCH_ID)).thenReturn(TELEMETRY);
+        when(deadlockApiClient.getBenchmarks(HERO_ID, 7)).thenReturn(BENCHMARKS);
+        when(deadlockApiClient.getItemStats(HERO_ID, 7)).thenReturn(ITEM_STATS);
+        when(deadlockApiClient.getItems()).thenReturn(ITEMS);
+
+        AnalysisOutcome outcome = new AnalysisOutcome(AI_RESULT, "claude-haiku-5-5", 1, 1000, 250);
+        when(analysisClient.analyze(any())).thenReturn(outcome);
+
+        AnalysisReport report = service.analyze(ACCOUNT_ID);
+
+        assertThat(report.hero()).isEqualTo("Infernus");
+        assertThat(report.rank()).isEqualTo("Archon 3");
+        assertThat(report.result()).isEqualTo("win");
+        assertThat(report.durationMin()).isEqualTo(30.0);
+        assertThat(report.analysis()).isEqualTo(AI_RESULT);
+        assertThat(report.metrics()).isEmpty();
+        assertThat(report.degraded()).isFalse();
+
+        ArgumentCaptor<MatchAnalysis> savedCaptor = ArgumentCaptor.forClass(MatchAnalysis.class);
+        verify(repository).save(savedCaptor.capture());
+        MatchAnalysis saved = savedCaptor.getValue();
+        assertThat(saved.getAccountId()).isEqualTo(ACCOUNT_ID);
+        assertThat(saved.getMatchId()).isEqualTo(MATCH_ID);
+        assertThat(saved.getHeroId()).isEqualTo(HERO_ID);
+        assertThat(saved.getModel()).isEqualTo("claude-haiku-5-5");
+        assertThat(saved.getInputTokens()).isEqualTo(1000);
+        assertThat(saved.getOutputTokens()).isEqualTo(250);
+
+        InOrder inOrder = inOrder(deadlockApiClient, repository, matchMetadataSource, analysisClient);
+        inOrder.verify(deadlockApiClient).getMatchHistory(ACCOUNT_ID);
+        inOrder.verify(deadlockApiClient).getPlayerRank(ACCOUNT_ID);
+        inOrder.verify(deadlockApiClient).getHeroes();
+        inOrder.verify(deadlockApiClient).getRanks();
+        inOrder.verify(repository).findByAccountIdAndMatchId(ACCOUNT_ID, MATCH_ID);
+        inOrder.verify(matchMetadataSource).getMatch(MATCH_ID);
+        inOrder.verify(deadlockApiClient).getBenchmarks(HERO_ID, 7);
+        inOrder.verify(deadlockApiClient).getItemStats(HERO_ID, 7);
+        inOrder.verify(deadlockApiClient).getItems();
+
+        ArgumentCaptor<AnalysisInput> inputCaptor = ArgumentCaptor.forClass(AnalysisInput.class);
+        inOrder.verify(analysisClient).analyze(inputCaptor.capture());
+        assertThat(inputCaptor.getValue().hero()).isEqualTo("Infernus");
+        assertThat(inputCaptor.getValue().result()).isEqualTo("win");
+    }
+
+    @Test
+    void storedPathReturnsStoredAnalysisWithoutMetadataOrBenchmarksOrAiCall() throws Exception {
+        String resultJson = new JsonMapper().writeValueAsString(AI_RESULT);
+        MatchAnalysis stored = new MatchAnalysis(
+                ACCOUNT_ID, MATCH_ID, HERO_ID, resultJson, "claude-haiku-5-5", 800, 200, Instant.now());
+
+        when(deadlockApiClient.getMatchHistory(ACCOUNT_ID)).thenReturn(List.of(MATCH));
+        when(deadlockApiClient.getPlayerRank(ACCOUNT_ID)).thenReturn(RANK);
+        when(deadlockApiClient.getHeroes()).thenReturn(HEROES);
+        when(deadlockApiClient.getRanks()).thenReturn(RANKS);
+        when(repository.findByAccountIdAndMatchId(ACCOUNT_ID, MATCH_ID)).thenReturn(Optional.of(stored));
+
+        AnalysisReport report = service.analyze(ACCOUNT_ID);
+
+        assertThat(report.hero()).isEqualTo("Infernus");
+        assertThat(report.rank()).isEqualTo("Archon 3");
+        assertThat(report.result()).isEqualTo("win");
+        assertThat(report.durationMin()).isEqualTo(30.0);
+        assertThat(report.analysis()).isEqualTo(AI_RESULT);
+        assertThat(report.metrics()).isEmpty();
+        assertThat(report.degraded()).isFalse();
+
+        verify(matchMetadataSource, never()).getMatch(anyLong());
+        verify(deadlockApiClient, never()).getBenchmarks(anyInt(), anyInt());
+        verify(deadlockApiClient, never()).getItemStats(anyInt(), anyInt());
+        verify(deadlockApiClient, never()).getItems();
+        verify(analysisClient, never()).analyze(any());
+        verify(repository, never()).save(any());
+    }
+
+    @Test
+    void corruptedStoredJsonIsDeletedAndExecutionContinuesAsFresh() {
+        MatchAnalysis corrupted = new MatchAnalysis(
+                ACCOUNT_ID, MATCH_ID, HERO_ID, "{invalid_json", "claude-haiku-5-5", 800, 200, Instant.now());
+
+        when(deadlockApiClient.getMatchHistory(ACCOUNT_ID)).thenReturn(List.of(MATCH));
+        when(deadlockApiClient.getPlayerRank(ACCOUNT_ID)).thenReturn(RANK);
+        when(deadlockApiClient.getHeroes()).thenReturn(HEROES);
+        when(deadlockApiClient.getRanks()).thenReturn(RANKS);
+        when(repository.findByAccountIdAndMatchId(ACCOUNT_ID, MATCH_ID)).thenReturn(Optional.of(corrupted));
+        when(matchMetadataSource.getMatch(MATCH_ID)).thenReturn(TELEMETRY);
+        when(deadlockApiClient.getBenchmarks(HERO_ID, 7)).thenReturn(BENCHMARKS);
+        when(deadlockApiClient.getItemStats(HERO_ID, 7)).thenReturn(ITEM_STATS);
+        when(deadlockApiClient.getItems()).thenReturn(ITEMS);
+        when(analysisClient.analyze(any())).thenReturn(new AnalysisOutcome(AI_RESULT, "claude-haiku-5-5", 1, 1000, 250));
+
+        AnalysisReport report = service.analyze(ACCOUNT_ID);
+
+        verify(repository).delete(corrupted);
+        assertThat(report.analysis()).isEqualTo(AI_RESULT);
+        verify(analysisClient).analyze(any());
+        verify(repository).save(any());
+    }
+
+    static List<DeadlockApiException> metadataExceptions() {
+        return List.of(
+                new MatchMetadataNotFoundException("Match not found: " + MATCH_ID),
+                new DeadlockApiUnavailableException("busy", null, null),
+                new DeadlockApiException("unexpected failure")
+        );
+    }
+
+    @ParameterizedTest
+    @MethodSource("metadataExceptions")
+    void metadataExceptionsDegradeRunAndSkipItemStatsAndItems(DeadlockApiException exception) {
+        when(deadlockApiClient.getMatchHistory(ACCOUNT_ID)).thenReturn(List.of(MATCH));
+        when(deadlockApiClient.getPlayerRank(ACCOUNT_ID)).thenReturn(RANK);
+        when(deadlockApiClient.getHeroes()).thenReturn(HEROES);
+        when(deadlockApiClient.getRanks()).thenReturn(RANKS);
+        when(repository.findByAccountIdAndMatchId(ACCOUNT_ID, MATCH_ID)).thenReturn(Optional.empty());
+        when(matchMetadataSource.getMatch(MATCH_ID)).thenThrow(exception);
+        when(deadlockApiClient.getBenchmarks(HERO_ID, 7)).thenReturn(BENCHMARKS);
+        when(analysisClient.analyze(any())).thenReturn(new AnalysisOutcome(AI_RESULT, "claude-haiku-5-5", 1, 1000, 250));
+
+        AnalysisReport report = service.analyze(ACCOUNT_ID);
+
+        assertThat(report.degraded()).isTrue();
+        assertThat(report.analysis()).isEqualTo(AI_RESULT);
+        verify(deadlockApiClient, never()).getItemStats(anyInt(), anyInt());
+        verify(deadlockApiClient, never()).getItems();
+        verify(analysisClient).analyze(any());
+    }
+
+    @Test
+    void itemStatsFailureKeepsRunNonDegradedAndSendsItemsWithoutBenchmark() {
+        when(deadlockApiClient.getMatchHistory(ACCOUNT_ID)).thenReturn(List.of(MATCH));
+        when(deadlockApiClient.getPlayerRank(ACCOUNT_ID)).thenReturn(RANK);
+        when(deadlockApiClient.getHeroes()).thenReturn(HEROES);
+        when(deadlockApiClient.getRanks()).thenReturn(RANKS);
+        when(repository.findByAccountIdAndMatchId(ACCOUNT_ID, MATCH_ID)).thenReturn(Optional.empty());
+        when(matchMetadataSource.getMatch(MATCH_ID)).thenReturn(TELEMETRY);
+        when(deadlockApiClient.getBenchmarks(HERO_ID, 7)).thenReturn(BENCHMARKS);
+        when(deadlockApiClient.getItemStats(HERO_ID, 7)).thenThrow(new DeadlockApiException("item stats failed"));
+        when(deadlockApiClient.getItems()).thenReturn(ITEMS);
+
+        when(analysisClient.analyze(any())).thenReturn(new AnalysisOutcome(AI_RESULT, "claude-haiku-5-5", 1, 1000, 250));
+
+        AnalysisReport report = service.analyze(ACCOUNT_ID);
+
+        assertThat(report.degraded()).isFalse();
+        assertThat(report.analysis()).isEqualTo(AI_RESULT);
+
+        ArgumentCaptor<AnalysisInput> captor = ArgumentCaptor.forClass(AnalysisInput.class);
+        verify(analysisClient).analyze(captor.capture());
+        assertThat(captor.getValue().items()).isNotEmpty();
+        assertThat(captor.getValue().items().get(0).avgBoughtAtMin()).isNull();
+    }
+
+    @Test
+    void unrankedPlayerSkipsBenchmarksAndItemStatsAndReportsNullRank() {
+        MatchHistoryEntry unrankedMatch = new MatchHistoryEntry(
+                MATCH_ID, 1, HERO_ID, 1700000000L, 1800, 0, 0, 0, 1, 5, 3, 7, 30000L, 150, 10, null);
+        PlayerRank unrankedPlayer = new PlayerRank(0, 0, 0);
+
+        when(deadlockApiClient.getMatchHistory(ACCOUNT_ID)).thenReturn(List.of(unrankedMatch));
+        when(deadlockApiClient.getPlayerRank(ACCOUNT_ID)).thenReturn(unrankedPlayer);
+        when(deadlockApiClient.getHeroes()).thenReturn(HEROES);
+        when(deadlockApiClient.getRanks()).thenReturn(RANKS);
+        when(repository.findByAccountIdAndMatchId(ACCOUNT_ID, MATCH_ID)).thenReturn(Optional.empty());
+        when(matchMetadataSource.getMatch(MATCH_ID)).thenReturn(TELEMETRY);
+        when(analysisClient.analyze(any())).thenReturn(new AnalysisOutcome(AI_RESULT, "claude-haiku-5-5", 1, 1000, 250));
+
+        AnalysisReport report = service.analyze(ACCOUNT_ID);
+
+        assertThat(report.rank()).isNull();
+        verify(deadlockApiClient, never()).getBenchmarks(anyInt(), anyInt());
+        verify(deadlockApiClient, never()).getItemStats(anyInt(), anyInt());
+        verify(deadlockApiClient, never()).getItems();
+    }
+
+    @Test
+    void aiFallbackStoresNothingAndReturnsInputMetrics() {
+        when(deadlockApiClient.getMatchHistory(ACCOUNT_ID)).thenReturn(List.of(MATCH));
+        when(deadlockApiClient.getPlayerRank(ACCOUNT_ID)).thenReturn(RANK);
+        when(deadlockApiClient.getHeroes()).thenReturn(HEROES);
+        when(deadlockApiClient.getRanks()).thenReturn(RANKS);
+        when(repository.findByAccountIdAndMatchId(ACCOUNT_ID, MATCH_ID)).thenReturn(Optional.empty());
+        when(matchMetadataSource.getMatch(MATCH_ID)).thenReturn(TELEMETRY);
+        when(deadlockApiClient.getBenchmarks(HERO_ID, 7)).thenReturn(BENCHMARKS);
+        when(deadlockApiClient.getItemStats(HERO_ID, 7)).thenReturn(ITEM_STATS);
+        when(deadlockApiClient.getItems()).thenReturn(ITEMS);
+
+        AnalysisOutcome fallbackOutcome = new AnalysisOutcome(null, "claude-haiku-5-5", 2, 500, 0);
+        when(analysisClient.analyze(any())).thenReturn(fallbackOutcome);
+
+        AnalysisReport report = service.analyze(ACCOUNT_ID);
+
+        assertThat(report.analysis()).isNull();
+        assertThat(report.metrics()).isNotEmpty();
+        verify(repository, never()).save(any());
+    }
+
+    @Test
+    void dataIntegrityViolationExceptionOnSaveReturnsConcurrentlyStoredReport() throws Exception {
+        when(deadlockApiClient.getMatchHistory(ACCOUNT_ID)).thenReturn(List.of(MATCH));
+        when(deadlockApiClient.getPlayerRank(ACCOUNT_ID)).thenReturn(RANK);
+        when(deadlockApiClient.getHeroes()).thenReturn(HEROES);
+        when(deadlockApiClient.getRanks()).thenReturn(RANKS);
+        when(matchMetadataSource.getMatch(MATCH_ID)).thenReturn(TELEMETRY);
+        when(deadlockApiClient.getBenchmarks(HERO_ID, 7)).thenReturn(BENCHMARKS);
+        when(deadlockApiClient.getItemStats(HERO_ID, 7)).thenReturn(ITEM_STATS);
+        when(deadlockApiClient.getItems()).thenReturn(ITEMS);
+
+        AnalysisOutcome outcome = new AnalysisOutcome(AI_RESULT, "claude-haiku-5-5", 1, 1000, 250);
+        when(analysisClient.analyze(any())).thenReturn(outcome);
+
+        String resultJson = new JsonMapper().writeValueAsString(AI_RESULT);
+        MatchAnalysis concurrent = new MatchAnalysis(
+                ACCOUNT_ID, MATCH_ID, HERO_ID, resultJson, "claude-haiku-5-5", 1000, 250, Instant.now());
+
+        when(repository.findByAccountIdAndMatchId(ACCOUNT_ID, MATCH_ID))
+                .thenReturn(Optional.empty())
+                .thenReturn(Optional.of(concurrent));
+
+        doThrow(new DataIntegrityViolationException("duplicate")).when(repository).save(any());
+
+        AnalysisReport report = service.analyze(ACCOUNT_ID);
+
+        assertThat(report.analysis()).isEqualTo(AI_RESULT);
+        assertThat(report.degraded()).isFalse();
+    }
+
+    @Test
+    void emptyHistoryThrowsNoMatchHistoryExceptionWithoutFurtherCalls() {
+        when(deadlockApiClient.getMatchHistory(ACCOUNT_ID)).thenReturn(List.of());
+
+        assertThatThrownBy(() -> service.analyze(ACCOUNT_ID))
+                .isInstanceOf(NoMatchHistoryException.class);
+
+        verify(deadlockApiClient, never()).getPlayerRank(anyLong());
+        verify(repository, never()).findByAccountIdAndMatchId(anyLong(), anyLong());
+    }
+
+    @Test
+    void getPlayerRankThrowingUnavailablePropagatesAndSavesNothing() {
+        when(deadlockApiClient.getMatchHistory(ACCOUNT_ID)).thenReturn(List.of(MATCH));
+        DeadlockApiUnavailableException unavailable = new DeadlockApiUnavailableException("busy", null, null);
+        when(deadlockApiClient.getPlayerRank(ACCOUNT_ID)).thenThrow(unavailable);
+
+        assertThatThrownBy(() -> service.analyze(ACCOUNT_ID)).isSameAs(unavailable);
+        verify(repository, never()).save(any());
+    }
+
+    @Test
+    void getBenchmarksThrowingUnavailablePropagatesAndSavesNothing() {
+        when(deadlockApiClient.getMatchHistory(ACCOUNT_ID)).thenReturn(List.of(MATCH));
+        when(deadlockApiClient.getPlayerRank(ACCOUNT_ID)).thenReturn(RANK);
+        when(deadlockApiClient.getHeroes()).thenReturn(HEROES);
+        when(deadlockApiClient.getRanks()).thenReturn(RANKS);
+        when(repository.findByAccountIdAndMatchId(ACCOUNT_ID, MATCH_ID)).thenReturn(Optional.empty());
+        when(matchMetadataSource.getMatch(MATCH_ID)).thenReturn(TELEMETRY);
+
+        DeadlockApiUnavailableException unavailable = new DeadlockApiUnavailableException("busy", null, null);
+        when(deadlockApiClient.getBenchmarks(HERO_ID, 7)).thenThrow(unavailable);
+
+        assertThatThrownBy(() -> service.analyze(ACCOUNT_ID)).isSameAs(unavailable);
+        verify(repository, never()).save(any());
+    }
+
+    @Test
+    void storedResultJsonRoundTripsThroughAnalysisResult() throws Exception {
+        ObjectMapper mapper = new JsonMapper();
+        AnalysisResult original = new AnalysisResult(
+                "Strong laning phase and map presence",
+                "High death count in mid-game team fights",
+                "Play around team cooldowns and vision",
+                List.of("12 kills (p50: 8.5)", "35,000 net worth @ 20 min (p50: 28,000)")
+        );
+
+        String json = mapper.writeValueAsString(original);
+        assertThat(json).contains("\"biggest_leak\":");
+        assertThat(json).contains("\"next_game_action\":");
+        assertThat(json).contains("\"key_numbers\":");
+
+        AnalysisResult deserialized = mapper.readValue(json, AnalysisResult.class);
+        assertThat(deserialized).isEqualTo(original);
+    }
+}

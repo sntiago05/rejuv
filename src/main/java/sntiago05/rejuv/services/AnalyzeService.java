@@ -1,0 +1,167 @@
+package sntiago05.rejuv.services;
+
+import java.time.Instant;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.stereotype.Service;
+import sntiago05.rejuv.clients.AnalysisClient;
+import sntiago05.rejuv.clients.DeadlockApiClient;
+import sntiago05.rejuv.clients.DeadlockApiException;
+import sntiago05.rejuv.clients.MatchMetadataSource;
+import sntiago05.rejuv.clients.dto.HeroAsset;
+import sntiago05.rejuv.clients.dto.ItemAsset;
+import sntiago05.rejuv.clients.dto.ItemStat;
+import sntiago05.rejuv.clients.dto.MatchHistoryEntry;
+import sntiago05.rejuv.clients.dto.MetricPercentiles;
+import sntiago05.rejuv.clients.dto.PlayerRank;
+import sntiago05.rejuv.clients.dto.RankAsset;
+import sntiago05.rejuv.domain.AnalysisInput;
+import sntiago05.rejuv.domain.AnalysisOutcome;
+import sntiago05.rejuv.domain.AnalysisReport;
+import sntiago05.rejuv.domain.AnalysisResult;
+import sntiago05.rejuv.domain.MatchAnalysis;
+import sntiago05.rejuv.domain.MatchRank;
+import sntiago05.rejuv.domain.MatchTelemetry;
+import sntiago05.rejuv.repositories.MatchAnalysisRepository;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.json.JsonMapper;
+
+@Service
+public class AnalyzeService {
+
+    private static final Logger log = LoggerFactory.getLogger(AnalyzeService.class);
+    private static final ObjectMapper JSON_MAPPER = new JsonMapper();
+
+    private final DeadlockApiClient deadlockApiClient;
+    private final MatchMetadataSource matchMetadataSource;
+    private final MetricsService metricsService;
+    private final AnalysisClient analysisClient;
+    private final MatchAnalysisRepository repository;
+
+    public AnalyzeService(DeadlockApiClient deadlockApiClient,
+                          MatchMetadataSource matchMetadataSource,
+                          MetricsService metricsService,
+                          AnalysisClient analysisClient,
+                          MatchAnalysisRepository repository) {
+        this.deadlockApiClient = deadlockApiClient;
+        this.matchMetadataSource = matchMetadataSource;
+        this.metricsService = metricsService;
+        this.analysisClient = analysisClient;
+        this.repository = repository;
+    }
+
+    /**
+     * @throws NoMatchHistoryException when the account has no match history
+     * @throws sntiago05.rejuv.clients.DeadlockApiException (including DeadlockApiUnavailableException) when history,
+     *         rank, benchmarks or assets cannot be read
+     */
+    public AnalysisReport analyze(long accountId) {
+        List<MatchHistoryEntry> history = deadlockApiClient.getMatchHistory(accountId);
+        if (history.isEmpty()) {
+            throw new NoMatchHistoryException(accountId);
+        }
+        MatchHistoryEntry match = metricsService.latestMatch(history)
+                .orElseThrow(() -> new NoMatchHistoryException(accountId));
+
+        PlayerRank currentRank = deadlockApiClient.getPlayerRank(accountId);
+        Optional<MatchRank> rank = metricsService.benchmarkRank(match, currentRank);
+        List<HeroAsset> heroes = deadlockApiClient.getHeroes();
+        List<RankAsset> ranks = deadlockApiClient.getRanks();
+
+        Optional<MatchAnalysis> storedOpt = repository.findByAccountIdAndMatchId(accountId, match.matchId());
+        if (storedOpt.isPresent()) {
+            MatchAnalysis stored = storedOpt.get();
+            try {
+                AnalysisResult analysis = JSON_MAPPER.readValue(stored.getResultJson(), AnalysisResult.class);
+                AnalysisInput headerInput = metricsService.buildInput(new MetricsRequest(
+                        accountId, match, null, rank.orElse(null), Map.of(), Map.of(), List.of(), heroes, ranks));
+                log.info("Analyze accountId={} matchId={} source=stored degraded=false inputTokens={} outputTokens={}",
+                        accountId, match.matchId(), stored.getInputTokens(), stored.getOutputTokens());
+                return new AnalysisReport(headerInput.hero(), headerInput.rank(), headerInput.result(),
+                        headerInput.durationMin(), analysis, Map.of(), false);
+            } catch (Exception ex) {
+                log.warn("Corrupted match analysis JSON for accountId={} matchId={}", accountId, match.matchId());
+                repository.delete(stored);
+            }
+        }
+
+        MatchTelemetry telemetry;
+        boolean degraded = false;
+        try {
+            telemetry = matchMetadataSource.getMatch(match.matchId());
+        } catch (DeadlockApiException ex) {
+            log.warn("Match metadata unavailable for accountId={} matchId={}: {}",
+                    accountId, match.matchId(), ex.getClass().getSimpleName());
+            telemetry = null;
+            degraded = true;
+        }
+
+        Map<String, MetricPercentiles> benchmarks;
+        Map<Long, ItemStat> itemStats = Map.of();
+        List<ItemAsset> items = List.of();
+
+        if (rank.isPresent()) {
+            benchmarks = deadlockApiClient.getBenchmarks(match.heroId(), rank.get().tier());
+            if (telemetry != null) {
+                try {
+                    itemStats = deadlockApiClient.getItemStats(match.heroId(), rank.get().tier());
+                } catch (DeadlockApiException ex) {
+                    log.warn("Item stats unavailable for heroId={} rankTier={}: {}",
+                            match.heroId(), rank.get().tier(), ex.getClass().getSimpleName());
+                    itemStats = Map.of();
+                }
+                items = deadlockApiClient.getItems();
+            }
+        } else {
+            benchmarks = Map.of();
+        }
+
+        AnalysisInput input = metricsService.buildInput(new MetricsRequest(
+                accountId, match, telemetry, rank.orElse(null), benchmarks, itemStats, items, heroes, ranks));
+        AnalysisOutcome outcome = analysisClient.analyze(input);
+
+        if (outcome.isFallback()) {
+            log.info("Analyze accountId={} matchId={} source=fallback degraded={} inputTokens={} outputTokens={}",
+                    accountId, match.matchId(), degraded, outcome.inputTokens(), outcome.outputTokens());
+            return new AnalysisReport(input.hero(), input.rank(), input.result(), input.durationMin(),
+                    null, input.metrics(), degraded);
+        }
+
+        String json;
+        try {
+            json = JSON_MAPPER.writeValueAsString(outcome.result());
+        } catch (Exception ex) {
+            throw new RuntimeException("Failed to serialize analysis result", ex);
+        }
+
+        MatchAnalysis entity = new MatchAnalysis(accountId, match.matchId(), match.heroId(),
+                json, outcome.model(), outcome.inputTokens(), outcome.outputTokens(), Instant.now());
+        try {
+            repository.save(entity);
+            log.info("Analyze accountId={} matchId={} source=ai degraded={} inputTokens={} outputTokens={}",
+                    accountId, match.matchId(), degraded, outcome.inputTokens(), outcome.outputTokens());
+            return new AnalysisReport(input.hero(), input.rank(), input.result(), input.durationMin(),
+                    outcome.result(), Map.of(), degraded);
+        } catch (DataIntegrityViolationException ex) {
+            Optional<MatchAnalysis> concurrent = repository.findByAccountIdAndMatchId(accountId, match.matchId());
+            if (concurrent.isPresent()) {
+                try {
+                    AnalysisResult concurrentResult = JSON_MAPPER.readValue(concurrent.get().getResultJson(), AnalysisResult.class);
+                    log.info("Analyze accountId={} matchId={} source=stored degraded=false inputTokens={} outputTokens={}",
+                            accountId, match.matchId(), concurrent.get().getInputTokens(), concurrent.get().getOutputTokens());
+                    return new AnalysisReport(input.hero(), input.rank(), input.result(), input.durationMin(),
+                            concurrentResult, Map.of(), false);
+                } catch (Exception parseEx) {
+                    log.warn("Corrupted concurrent match analysis JSON for accountId={} matchId={}", accountId, match.matchId());
+                }
+            }
+            return new AnalysisReport(input.hero(), input.rank(), input.result(), input.durationMin(),
+                    outcome.result(), Map.of(), degraded);
+        }
+    }
+}
