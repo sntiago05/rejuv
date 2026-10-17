@@ -24,7 +24,7 @@ import sntiago05.rejuv.commands.SlashCommand;
 @Import(TestcontainersConfiguration.class)
 class MessagesIntegrationTest {
 
-    private static final Pattern KEY_PATTERN = Pattern.compile("^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)+$");
+    private static final Pattern KEY_PATTERN = Pattern.compile("^[a-z][a-z0-9_]*(\\.[a-z0-9_]+)+$");
 
     @Autowired
     private Messages messages;
@@ -67,7 +67,31 @@ class MessagesIntegrationTest {
                 "profile.hero_line",
                 "profile.hero_unknown",
                 "profile.no_recent_heroes",
-                "profile.footer"
+                "profile.footer",
+                "meta.description",
+                "meta.option.rank",
+                "meta.rank.1",
+                "meta.rank.2",
+                "meta.rank.3",
+                "meta.rank.4",
+                "meta.rank.5",
+                "meta.rank.6",
+                "meta.rank.7",
+                "meta.rank.8",
+                "meta.rank.9",
+                "meta.rank.10",
+                "meta.rank.11",
+                "meta.all_ranks",
+                "meta.title",
+                "meta.tier.s",
+                "meta.tier.a",
+                "meta.tier.b",
+                "meta.tier.c",
+                "meta.tier.d",
+                "meta.hero_entry",
+                "meta.hero_unknown",
+                "meta.footer",
+                "meta.no_data"
         );
 
         for (String key : requiredKeys) {
@@ -102,6 +126,6 @@ class MessagesIntegrationTest {
     @Test
     void registersHelpAndPingAsSlashCommands() {
         List<String> commandNames = commands.stream().map(SlashCommand::name).toList();
-        assertThat(commandNames).contains("help", "ping", "link", "unlink", "profile");
+        assertThat(commandNames).contains("help", "ping", "link", "unlink", "profile", "meta");
     }
 }
