@@ -12,7 +12,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import sntiago05.rejuv.clients.DeadlockApiClient;
-import sntiago05.rejuv.clients.dto.HeroAsset;
 import sntiago05.rejuv.clients.dto.MatchHistoryEntry;
 import sntiago05.rejuv.clients.dto.PlayerRank;
 import sntiago05.rejuv.clients.dto.RankAsset;
@@ -31,16 +30,20 @@ public class ProfileService {
 
     private final LinkedAccountRepository repository;
     private final DeadlockApiClient deadlockApiClient;
+    private final GameAssets gameAssets;
     private final Clock clock;
 
     @Autowired
-    public ProfileService(LinkedAccountRepository repository, DeadlockApiClient deadlockApiClient) {
-        this(repository, deadlockApiClient, Clock.systemUTC());
+    public ProfileService(LinkedAccountRepository repository, DeadlockApiClient deadlockApiClient,
+                          GameAssets gameAssets) {
+        this(repository, deadlockApiClient, gameAssets, Clock.systemUTC());
     }
 
-    ProfileService(LinkedAccountRepository repository, DeadlockApiClient deadlockApiClient, Clock clock) {
+    ProfileService(LinkedAccountRepository repository, DeadlockApiClient deadlockApiClient, GameAssets gameAssets,
+                   Clock clock) {
         this.repository = repository;
         this.deadlockApiClient = deadlockApiClient;
+        this.gameAssets = gameAssets;
         this.clock = clock;
     }
 
@@ -66,7 +69,7 @@ public class ProfileService {
         }
         PlayerRank rank = deadlockApiClient.getPlayerRank(accountId);
         List<RankAsset> ranks = deadlockApiClient.getRanks();
-        List<HeroAsset> heroes = deadlockApiClient.getHeroes();
+        Map<Integer, String> heroNames = gameAssets.heroNames();
 
         Integer rankTier = null;
         String rankName = null;
@@ -78,28 +81,33 @@ public class ProfileService {
             rankName = ranks.stream().filter(asset -> asset.tier() == tier).map(RankAsset::name).findFirst().orElse(null);
         }
 
-        List<MatchHistoryEntry> recent = history.subList(0, Math.min(RECENT_MATCHES, history.size()));
-        int recentMatches = recent.size();
-        int recentWins = (int) recent.stream().filter(ProfileService::isWin).count();
+        // One pass over the recent matches (the history is non-empty here, so recentMatches > 0).
+        int recentMatches = Math.min(RECENT_MATCHES, history.size());
+        int recentWins = 0;
+        long kills = 0;
+        long deaths = 0;
+        long assists = 0;
+        for (MatchHistoryEntry entry : history.subList(0, recentMatches)) {
+            if (isWin(entry)) {
+                recentWins++;
+            }
+            kills += entry.playerKills();
+            deaths += entry.playerDeaths();
+            assists += entry.playerAssists();
+        }
         int winRatePercent = (int) Math.round(recentWins * 100.0 / recentMatches);
-        double avgKills = recent.stream().mapToInt(MatchHistoryEntry::playerKills).average().orElse(0);
-        double avgDeaths = recent.stream().mapToInt(MatchHistoryEntry::playerDeaths).average().orElse(0);
-        double avgAssists = recent.stream().mapToInt(MatchHistoryEntry::playerAssists).average().orElse(0);
 
         return new ProfileSummary(accountId, rankTier, rankName, subrank,
-                recentMatches, recentWins, winRatePercent, avgKills, avgDeaths, avgAssists,
-                topHeroes(history, heroes));
+                recentMatches, recentWins, winRatePercent,
+                (double) kills / recentMatches, (double) deaths / recentMatches, (double) assists / recentMatches,
+                topHeroes(history, heroNames));
     }
 
-    private List<HeroUsage> topHeroes(List<MatchHistoryEntry> history, List<HeroAsset> heroes) {
+    private List<HeroUsage> topHeroes(List<MatchHistoryEntry> history, Map<Integer, String> namesById) {
         long windowStart = clock.instant().minus(TOP_HEROES_WINDOW).getEpochSecond();
         Map<Integer, Long> countsByHero = history.stream()
                 .filter(entry -> entry.startTime() >= windowStart)
                 .collect(Collectors.groupingBy(MatchHistoryEntry::heroId, Collectors.counting()));
-        // toMap rejects null values, so heroes without a name are skipped (their name stays null).
-        Map<Integer, String> namesById = heroes.stream()
-                .filter(hero -> hero.name() != null)
-                .collect(Collectors.toMap(HeroAsset::id, HeroAsset::name, (first, second) -> first));
         return countsByHero.entrySet().stream()
                 .sorted(Map.Entry.<Integer, Long>comparingByValue(Comparator.reverseOrder())
                         .thenComparing(Map.Entry.comparingByKey()))

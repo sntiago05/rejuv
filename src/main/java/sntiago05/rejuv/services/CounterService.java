@@ -3,13 +3,11 @@ package sntiago05.rejuv.services;
 import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import org.jspecify.annotations.NonNull;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import sntiago05.rejuv.clients.DeadlockApiClient;
@@ -24,8 +22,8 @@ import sntiago05.rejuv.domain.CounterMatchup;
 @Service
 public class CounterService {
 
-    static final int MIN_MATCHUP_MATCHES = 50;
-    static final int MIN_ITEM_MATCHES = 100;
+    public static final int MIN_MATCHUP_MATCHES = 50;
+    public static final int MIN_ITEM_MATCHES = 100;
     static final int MAX_MATCHUPS = 5;
     static final int MAX_ITEMS = 5;
     static final String UPGRADE_TYPE = "upgrade";
@@ -56,16 +54,18 @@ public class CounterService {
 
     private final DeadlockApiClient deadlockApiClient;
     private final HeroResolver heroResolver;
+    private final GameAssets gameAssets;
     private final Clock clock;
 
     @Autowired
-    public CounterService(DeadlockApiClient deadlockApiClient, HeroResolver heroResolver) {
-        this(deadlockApiClient, heroResolver, Clock.systemUTC());
+    public CounterService(DeadlockApiClient deadlockApiClient, HeroResolver heroResolver, GameAssets gameAssets) {
+        this(deadlockApiClient, heroResolver, gameAssets, Clock.systemUTC());
     }
 
-    CounterService(DeadlockApiClient deadlockApiClient, HeroResolver heroResolver, Clock clock) {
+    CounterService(DeadlockApiClient deadlockApiClient, HeroResolver heroResolver, GameAssets gameAssets, Clock clock) {
         this.deadlockApiClient = deadlockApiClient;
         this.heroResolver = heroResolver;
+        this.gameAssets = gameAssets;
         this.clock = clock;
     }
 
@@ -86,13 +86,8 @@ public class CounterService {
 
         List<HeroCounterStat> counterStats = deadlockApiClient.getHeroCounterStats(rankTier, minUnixTimestamp);
         List<ItemStat> itemStats = deadlockApiClient.getItemStatsAgainst(targetHero.id(), rankTier, minUnixTimestamp);
-        List<HeroAsset> heroesAsset = deadlockApiClient.getHeroes();
-        List<ItemAsset> itemsAsset = deadlockApiClient.getItems();
-
-        Map<Integer, String> heroNames = new HashMap<>(Math.max((int) (heroesAsset.size() / 0.75f) + 1, 16));
-        for (HeroAsset hero : heroesAsset) {
-            heroNames.putIfAbsent(hero.id(), hero.name());
-        }
+        Map<Integer, String> heroNames = gameAssets.heroNames();
+        Map<Long, ItemAsset> itemAssets = gameAssets.itemsById();
 
         Set<Integer> seenCounterOpponents = new HashSet<>();
         List<CounterMatchup> counterCandidates = new ArrayList<>();
@@ -127,25 +122,14 @@ public class CounterService {
             }
         }
 
-        counterCandidates.sort(MATCHUP_COMPARATOR);
-        List<CounterMatchup> counters = List.copyOf(counterCandidates.subList(0, Math.min(counterCandidates.size(), MAX_MATCHUPS)));
-
-        favorableCandidates.sort(MATCHUP_COMPARATOR);
-        List<CounterMatchup> favorable = List.copyOf(favorableCandidates.subList(0, Math.min(favorableCandidates.size(), MAX_MATCHUPS)));
-
-        List<CounterItem> itemCandidates = getItemCandidates(itemsAsset, itemStats);
-        itemCandidates.sort(ITEM_COMPARATOR);
-        List<CounterItem> items = List.copyOf(itemCandidates.subList(0, Math.min(itemCandidates.size(), MAX_ITEMS)));
+        List<CounterMatchup> counters = ServiceSupport.top(counterCandidates, MATCHUP_COMPARATOR, MAX_MATCHUPS);
+        List<CounterMatchup> favorable = ServiceSupport.top(favorableCandidates, MATCHUP_COMPARATOR, MAX_MATCHUPS);
+        List<CounterItem> items = ServiceSupport.top(itemCandidates(itemAssets, itemStats), ITEM_COMPARATOR, MAX_ITEMS);
 
         return new CounterGuide(targetHero.id(), targetHero.name(), rankTier, counters, favorable, items);
     }
 
-    private static @NonNull List<CounterItem> getItemCandidates(List<ItemAsset> itemsAsset, List<ItemStat> itemStats) {
-        Map<Long, ItemAsset> itemAssets = new HashMap<>(Math.max((int) (itemsAsset.size() / 0.75f) + 1, 16));
-        for (ItemAsset item : itemsAsset) {
-            itemAssets.putIfAbsent(item.id(), item);
-        }
-
+    private static List<CounterItem> itemCandidates(Map<Long, ItemAsset> itemAssets, List<ItemStat> itemStats) {
         Set<Long> seenItemIds = new HashSet<>();
         List<CounterItem> itemCandidates = new ArrayList<>();
         for (ItemStat stat : itemStats) {

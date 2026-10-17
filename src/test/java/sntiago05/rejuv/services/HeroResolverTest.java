@@ -22,7 +22,7 @@ class HeroResolverTest {
     @BeforeEach
     void setUp() {
         deadlockApiClient = mock(DeadlockApiClient.class);
-        resolver = new HeroResolver(deadlockApiClient);
+        resolver = new HeroResolver(new GameAssets(deadlockApiClient));
     }
 
     @Test

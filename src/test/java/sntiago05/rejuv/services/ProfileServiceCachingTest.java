@@ -36,7 +36,7 @@ import sntiago05.rejuv.repositories.LinkedAccountRepository;
 class ProfileServiceCachingTest {
 
     @Configuration
-    @Import({CacheConfig.class, ProfileService.class})
+    @Import({CacheConfig.class, ProfileService.class, GameAssets.class})
     static class TestConfig {
 
         // DeadlockApiClient has @Cacheable methods, so its bean is wrapped in a caching proxy:

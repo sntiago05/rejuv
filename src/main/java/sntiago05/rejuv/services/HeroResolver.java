@@ -5,16 +5,15 @@ import java.util.Locale;
 import java.util.Optional;
 
 import org.springframework.stereotype.Component;
-import sntiago05.rejuv.clients.DeadlockApiClient;
 import sntiago05.rejuv.clients.dto.HeroAsset;
 
 @Component
 public class HeroResolver {
 
-    private final DeadlockApiClient deadlockApiClient;
+    private final GameAssets gameAssets;
 
-    public HeroResolver(DeadlockApiClient deadlockApiClient) {
-        this.deadlockApiClient = deadlockApiClient;
+    public HeroResolver(GameAssets gameAssets) {
+        this.gameAssets = gameAssets;
     }
 
     /**
@@ -34,10 +33,7 @@ public class HeroResolver {
             return Optional.empty();
         }
 
-        List<HeroAsset> heroes = deadlockApiClient.getHeroes();
-        List<HeroAsset> validHeroes = heroes.stream()
-                .filter(hero -> hero.name() != null && !hero.name().isBlank())
-                .toList();
+        List<HeroAsset> validHeroes = gameAssets.namedHeroes();
 
         Optional<HeroAsset> exactMatch = validHeroes.stream()
                 .filter(hero -> hero.name().equalsIgnoreCase(normalized))

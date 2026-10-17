@@ -43,7 +43,7 @@ class MetaServiceTest {
     void setUp() {
         deadlockApiClient = mock(DeadlockApiClient.class);
         clock = Clock.fixed(FIXED_INSTANT, ZoneOffset.UTC);
-        metaService = new MetaService(deadlockApiClient, clock);
+        metaService = new MetaService(deadlockApiClient, new GameAssets(deadlockApiClient), clock);
     }
 
     @Test
@@ -66,6 +66,18 @@ class MetaServiceTest {
         InOrder inOrder = inOrder(deadlockApiClient);
         inOrder.verify(deadlockApiClient).getHeroStats(7, EXPECTED_TIMESTAMP);
         inOrder.verify(deadlockApiClient).getHeroes();
+    }
+
+    @Test
+    void heroWithoutNameInAssetsHasNullName() {
+        when(deadlockApiClient.getHeroStats(eq(null), eq(EXPECTED_TIMESTAMP)))
+                .thenReturn(List.of(new HeroStat(4, 200, 100, 100)));
+        when(deadlockApiClient.getHeroes()).thenReturn(List.of(new HeroAsset(4, "hero_nameless", null)));
+
+        MetaTierList result = metaService.getTierList(null);
+
+        assertThat(result.heroes()).singleElement()
+                .satisfies(hero -> assertThat(hero.heroName()).isNull());
     }
 
     @Test

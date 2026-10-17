@@ -4,6 +4,8 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
+import java.util.Comparator;
+import java.util.List;
 
 /**
  * Shared helper methods and constants for services handling rank tiers and time windows.
@@ -40,5 +42,15 @@ final class ServiceSupport {
     static long startOfUtcDayMinus(Clock clock, Duration duration) {
         LocalDate todayUtc = LocalDate.ofInstant(clock.instant(), ZoneOffset.UTC);
         return todayUtc.atStartOfDay(ZoneOffset.UTC).minus(duration).toEpochSecond();
+    }
+
+    /**
+     * Sorts the candidates in place and returns an immutable copy of the first {@code limit} of them.
+     *
+     * @param candidates mutable list, reordered by this call
+     */
+    static <T> List<T> top(List<T> candidates, Comparator<? super T> order, int limit) {
+        candidates.sort(order);
+        return List.copyOf(candidates.subList(0, Math.min(candidates.size(), limit)));
     }
 }
