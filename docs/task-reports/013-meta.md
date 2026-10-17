@@ -95,7 +95,7 @@ Checked `GET /v1/analytics/hero-stats` in `https://api.deadlock-api.com/openapi.
 | Sequential API calls; no business logic in command; no JDA types in service | `callsStatsThenHeroesSequentially`; `MetaService` has no JDA imports; `MetaCommand` only formats |
 | `help.body` lists `/meta` | `helpBodyCoversMvpTopics` passes; `/meta [rank]` present in `messages.properties` |
 | Only table files changed; no new dependency, migration or secret | `git status --short`, `git diff --name-only origin/main...HEAD` |
-| Task report created, `PROJECT_CONTEXT.md` pending integration | This report; `PROJECT_CONTEXT.md` untouched |
+| Task report created, `PROJECT_CONTEXT.md` updated | This report; `PROJECT_CONTEXT.md` updated after merging `main` |
 
 ## Deviations
 
@@ -108,12 +108,14 @@ Checked `GET /v1/analytics/hero-stats` in `https://api.deadlock-api.com/openapi.
 - If a rank has no hero with at least 100 matches in the 30-day window, `meta.no_data` is returned.
 - API calls happen synchronously on the JDA event thread after public deferral.
 
-## PROJECT_CONTEXT update pending integration
+## PROJECT_CONTEXT integration
 
-Task 007 is running in parallel in another worktree; `docs/PROJECT_CONTEXT.md` was not modified in this branch. Facts to add after merging:
-- Task 013 done: `/meta [rank]` hero tier list (S to D) by 30-day win rate (min 100 matches); public deferred embed; `DeadlockApiClient.getHeroStats` and cache `deadlockHeroStats` 6 h / 50; `MetaService` and `MetaCommand`. 212 tests.
+Incoming changes from `main` (Task 007: PR #33) were merged cleanly into `feature/013-meta`. `docs/PROJECT_CONTEXT.md` has been updated with:
+- Task 007 (`MetricsService`) merged and verified.
+- Task 013 (`/meta [rank]`) done: hero tier list (S to D) by 30-day win rate (min 100 matches); public deferred embed; `DeadlockApiClient.getHeroStats` and cache `deadlockHeroStats` 6 h / 50; `MetaService` and `MetaCommand`. 243 combined tests on merged branch.
 - Deadlock API facts: `GET /v1/analytics/hero-stats` filters by `min_average_badge`/`max_average_badge` (0..116) and `min_unix_timestamp` (default 30 days ago); returns array of per-hero stats.
 - Messages catalog constraint: `KEY_PATTERN` in `MessagesIntegrationTest` allows numeric dot segments (`(\\.[a-z0-9_]+)+`).
+- Next: Task 009 (`/analyze`).
 
 ## Merge Risks
 
