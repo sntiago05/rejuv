@@ -12,6 +12,14 @@ Read `docs/mvp-spec.md` for behavior and `docs/architecture.md` for structure wh
 - Do not add dependencies, change architecture, edit ADRs, or edit other task specs unless the spec explicitly authorizes it.
 - The documentation closeout exception does not authorize expanding the implementation scope.
 
+## Design and algorithm quality
+
+- **Think before implementing.** Before writing code, decide the approach: read the relevant code, identify what already exists, and choose the data structures and algorithm. Briefly justify non-trivial choices (in the task report, or in a short code comment when it prevents a future mistake).
+- **Efficient algorithms.** Prefer optimal solutions: hash maps/sets for lookups, a single pass over the data, pre-sized collections. Avoid nested loops and repeated scans of large collections (for example the ~1,800 rows of `hero-counter-stats` or the 200-match history) unless the size is provably small or the simpler solution is justified in writing.
+- **No duplicated code.** Before adding a helper, search for an existing one (`CommandSupport`, `ServiceSupport`, `HeroResolver`, ...) and reuse or extend it. Extract shared logic instead of copying it. Do not extract speculatively for a single use.
+- **Alternatives and escalation.** When a choice needs the owner's decision, stop and present: the options, the pros and cons of each, and your recommendation with the reason. Do not pick silently and do not redesign. This complements the "stop and ask" rule in **Your role**.
+- Keep readability: an optimization must not make the code obscure without a measurable reason.
+
 ## Stack
 
 Java 21 · Spring Boot 4.1 · JDA 5 · Maven (`./mvnw`) · PostgreSQL + Spring Data JPA + Flyway · Caffeine (Spring Cache) · Spring `RestClient` · Claude Haiku 5.5 (`claude-haiku-5-5`) · Docker Compose.
