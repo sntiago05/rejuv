@@ -25,6 +25,8 @@ import java.util.stream.IntStream;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
@@ -125,6 +127,29 @@ class DeadlockApiClientTest {
         assertThat(history.get(0).matchId()).isEqualTo(900000001L);
         assertThat(history.get(DeadlockApiClient.MAX_HISTORY_ENTRIES - 1).matchId())
                 .isEqualTo(900000001L + DeadlockApiClient.MAX_HISTORY_ENTRIES - 1);
+    }
+
+    @Test
+    void historyStopsReadingAfterTheCap() {
+        // Everything after the 200th entry is invalid JSON: it must never be parsed.
+        String body = IntStream.range(0, DeadlockApiClient.MAX_HISTORY_ENTRIES)
+                .mapToObj(i -> historyEntryJson(900000001L + i))
+                .collect(Collectors.joining(",", "[", ",{\"match_id\":"));
+        server.expect(once(), requestTo(HISTORY_URL))
+                .andRespond(withSuccess(body, MediaType.APPLICATION_JSON));
+
+        assertThat(client.getMatchHistory(ACCOUNT_ID)).hasSize(DeadlockApiClient.MAX_HISTORY_ENTRIES);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"", "null", "{}", "[{\"match_id\":", "[1]"})
+    void historyWithEmptyOrInvalidBodyThrowsApiException(String body) {
+        server.expect(once(), requestTo(HISTORY_URL))
+                .andRespond(withSuccess(body, MediaType.APPLICATION_JSON));
+
+        assertThatThrownBy(() -> client.getMatchHistory(ACCOUNT_ID))
+                .isInstanceOf(DeadlockApiException.class)
+                .isNotInstanceOf(DeadlockApiUnavailableException.class);
     }
 
     @Test
