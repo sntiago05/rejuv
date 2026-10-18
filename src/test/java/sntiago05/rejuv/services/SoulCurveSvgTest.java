@@ -194,4 +194,53 @@ class SoulCurveSvgTest {
         assertThat(r2).isPresent();
         assertThat(r1.get()).isEqualTo(r2.get());
     }
+
+    @Test
+    void ownRankTrueCaptionContainsOwnRankWording() {
+        List<Integer> times = List.of(180, 360, 540);
+        List<Long> player = List.of(1500L, 3200L, 5100L);
+        List<Double> avg = List.of(1400.0, 3000.0, 5000.0);
+        List<Double> std = List.of(200.0, 400.0, 600.0);
+
+        Optional<String> result = svgRenderer.render("Infernus", "Archon", true, times, player, avg, std);
+        assertThat(result).isPresent();
+        assertThat(result.get()).contains("Infernus net worth vs Archon average at your current rank");
+    }
+
+    @Test
+    void oldSixArgumentOverloadProducesOldCaption() {
+        List<Integer> times = List.of(180, 360, 540);
+        List<Long> player = List.of(1500L, 3200L, 5100L);
+        List<Double> avg = List.of(1400.0, 3000.0, 5000.0);
+        List<Double> std = List.of(200.0, 400.0, 600.0);
+
+        Optional<String> result = svgRenderer.render("Infernus", "Archon", times, player, avg, std);
+        assertThat(result).isPresent();
+        assertThat(result.get()).contains("Infernus net worth vs Archon lobby average");
+    }
+
+    @Test
+    void ownRankOutputStaysEscapedAndScriptFree() throws Exception {
+        List<Integer> times = List.of(180, 360, 540);
+        List<Long> player = List.of(1500L, 3200L, 5100L);
+        List<Double> avg = List.of(1400.0, 3000.0, 5000.0);
+        List<Double> std = List.of(200.0, 400.0, 600.0);
+
+        String maliciousHero = "Hero <script>alert(1)</script>";
+        String maliciousRank = "Rank <tag> & 'test'";
+
+        Optional<String> result = svgRenderer.render(maliciousHero, maliciousRank, true, times, player, avg, std);
+        assertThat(result).isPresent();
+        String svg = result.get();
+
+        assertThat(svg.toLowerCase()).doesNotContain("<script");
+        assertThat(svg).contains("&lt;script&gt;");
+        assertThat(svg).contains("&amp;");
+        assertThat(svg).contains("&apos;test&apos;");
+
+        DocumentBuilderFactory dbf = DocumentBuilderFactory.newInstance();
+        dbf.setNamespaceAware(true);
+        Document doc = dbf.newDocumentBuilder().parse(new InputSource(new StringReader(svg)));
+        assertThat(doc).isNotNull();
+    }
 }

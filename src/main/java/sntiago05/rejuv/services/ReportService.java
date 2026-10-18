@@ -13,6 +13,7 @@ import org.springframework.stereotype.Service;
 import sntiago05.rejuv.clients.DeadlockApiClient;
 import sntiago05.rejuv.clients.MatchMetadataSource;
 import sntiago05.rejuv.clients.dto.PerformanceCurvePoint;
+import sntiago05.rejuv.clients.dto.PlayerRank;
 import sntiago05.rejuv.clients.dto.RankAsset;
 import sntiago05.rejuv.domain.AnalysisResult;
 import sntiago05.rejuv.domain.MatchAnalysis;
@@ -183,13 +184,14 @@ public class ReportService {
             return Optional.empty();
         }
         SoulCurveData data = dataOpt.get();
-        return soulCurveSvg.render(data.heroName(), data.rankLabel(),
+        return soulCurveSvg.render(data.heroName(), data.rankLabel(), data.ownRank(),
                 data.timesS(), data.playerNetWorth(), data.avgNetWorth(), data.stdNetWorth());
     }
 
     private record SoulCurveData(
             String heroName,
             String rankLabel,
+            boolean ownRank,
             List<Integer> timesS,
             List<Long> playerNetWorth,
             List<Double> avgNetWorth,
@@ -197,10 +199,30 @@ public class ReportService {
     ) { }
 
     private Optional<SoulCurveData> computeSoulCurveData(MatchAnalysis stored, MatchTelemetry telemetry) {
-        if (deadlockApiClient == null || telemetry == null || telemetry.averageBadge() == null) {
+        if (deadlockApiClient == null || telemetry == null) {
             return Optional.empty();
         }
-        int tier = Math.clamp(telemetry.averageBadge() / 10, 1, 11);
+
+        int tier;
+        boolean ownRank;
+        if (telemetry.averageBadge() != null) {
+            tier = Math.clamp(telemetry.averageBadge() / 10, 1, 11);
+            ownRank = false;
+        } else {
+            PlayerRank playerRank;
+            try {
+                playerRank = deadlockApiClient.getPlayerRank(stored.getAccountId());
+            } catch (RuntimeException ex) {
+                log.warn("Player rank unavailable for accountId={}: {}", stored.getAccountId(), ex.getClass().getSimpleName());
+                return Optional.empty();
+            }
+            if (playerRank == null || playerRank.badge() <= 0 || playerRank.rank() < 1) {
+                return Optional.empty();
+            }
+            tier = Math.clamp(playerRank.rank(), 1, 11);
+            ownRank = true;
+        }
+
         Optional<PlayerTelemetry> playerOpt = telemetry.player(stored.getAccountId());
         if (playerOpt.isEmpty()) {
             return Optional.empty();
@@ -249,7 +271,7 @@ public class ReportService {
         String heroName = resolveHeroName(stored.getHeroId());
         String rankLabel = resolveRankLabel(tier);
 
-        return Optional.of(new SoulCurveData(heroName, rankLabel, timesS, playerNetWorth, avgNetWorth, stdNetWorth));
+        return Optional.of(new SoulCurveData(heroName, rankLabel, ownRank, timesS, playerNetWorth, avgNetWorth, stdNetWorth));
     }
 
     private String resolveRankLabel(int tier) {

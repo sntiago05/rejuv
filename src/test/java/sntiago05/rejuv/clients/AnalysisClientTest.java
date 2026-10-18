@@ -172,6 +172,49 @@ class AnalysisClientTest {
                 "deaths: 9 / 5",
                 "damage_per_min: 1200 / 1150"
         );
+        assertThat(result.focusArea()).isNull();
+        assertThat(result.severity()).isNull();
+    }
+
+    @Test
+    void responseWithValidNewFieldsReturnsThem() {
+        server.expect(once(), requestTo(BASE_URL + "/v1/messages"))
+                .andExpect(method(HttpMethod.POST))
+                .andRespond(withSuccess(fixture("messages-with-priorities.json"), MediaType.APPLICATION_JSON));
+
+        AnalysisOutcome outcome = client.analyze(sampleInput());
+
+        assertThat(outcome.isFallback()).isFalse();
+        AnalysisResult result = outcome.result();
+        assertThat(result).isNotNull();
+        assertThat(result.focusArea()).isEqualTo("deaths");
+        assertThat(result.severity()).isEqualTo("major");
+    }
+
+    @Test
+    void responseWithInvalidSeveritySucceedsWithNull() {
+        String invalidSeverityJson = """
+                {
+                  "id": "msg_03",
+                  "type": "message",
+                  "role": "assistant",
+                  "model": "claude-haiku-5-5",
+                  "content": [{"type": "text", "text": "{\\"strength\\": \\"ok\\", \\"biggest_leak\\": \\"leak\\", \\"next_game_action\\": \\"action\\", \\"key_numbers\\": [\\"1\\"], \\"focus_area\\": \\"unknown_area\\", \\"severity\\": \\"critical\\"}"}],
+                  "stop_reason": "end_turn",
+                  "usage": {"input_tokens": 100, "output_tokens": 50}
+                }
+                """;
+
+        server.expect(once(), requestTo(BASE_URL + "/v1/messages"))
+                .andRespond(withSuccess(invalidSeverityJson, MediaType.APPLICATION_JSON));
+
+        AnalysisOutcome outcome = client.analyze(sampleInput());
+
+        assertThat(outcome.isFallback()).isFalse();
+        AnalysisResult result = outcome.result();
+        assertThat(result).isNotNull();
+        assertThat(result.focusArea()).isNull();
+        assertThat(result.severity()).isNull();
     }
 
     @Test

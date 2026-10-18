@@ -162,4 +162,73 @@ class AnalysisResultTest {
 
         assertThat(tree.get("next_game_action").asText()).endsWith("creep score.");
     }
+
+    @Test
+    void fourArgumentConstructorGivesNullFocusAreaAndSeverity() {
+        AnalysisResult result = new AnalysisResult("s", "l", "a", List.of("1"));
+        assertThat(result.focusArea()).isNull();
+        assertThat(result.severity()).isNull();
+    }
+
+    @Test
+    void oldJsonWithoutNewKeysParsesWithNulls() throws Exception {
+        String json = """
+                {
+                    "strength": "Good farm",
+                    "biggest_leak": "Many deaths",
+                    "next_game_action": "Ward more",
+                    "key_numbers": ["10 / 5"]
+                }
+                """;
+        AnalysisResult result = objectMapper.readValue(json, AnalysisResult.class);
+        assertThat(result.strength()).isEqualTo("Good farm");
+        assertThat(result.focusArea()).isNull();
+        assertThat(result.severity()).isNull();
+    }
+
+    @Test
+    void focusAreaNormalizesWhitespaceAndCase() {
+        AnalysisResult result = new AnalysisResult("s", "l", "a", List.of(), " Deaths ", "major");
+        assertThat(result.focusArea()).isEqualTo("deaths");
+    }
+
+    @Test
+    void invalidSeverityBecomesNull() {
+        AnalysisResult result = new AnalysisResult("s", "l", "a", List.of(), "deaths", "critical");
+        assertThat(result.severity()).isNull();
+    }
+
+    @Test
+    void invalidFocusAreaBecomesNull() {
+        AnalysisResult result = new AnalysisResult("s", "l", "a", List.of(), "unknown_area", "major");
+        assertThat(result.focusArea()).isNull();
+    }
+
+    @Test
+    void severityNormalizesWhitespaceAndCase() {
+        AnalysisResult result = new AnalysisResult("s", "l", "a", List.of(), "deaths", " NOTABLE ");
+        assertThat(result.severity()).isEqualTo("notable");
+    }
+
+    @Test
+    void serializingResultWithBothNullOmitsTheKeys() throws Exception {
+        AnalysisResult result = new AnalysisResult("s", "l", "a", List.of("1"), null, null);
+        String json = objectMapper.writeValueAsString(result);
+        JsonNode tree = objectMapper.readTree(json);
+        assertThat(tree.has("focus_area")).isFalse();
+        assertThat(tree.has("severity")).isFalse();
+        assertThat(tree.has("strength")).isTrue();
+        assertThat(tree.has("biggest_leak")).isTrue();
+        assertThat(tree.has("next_game_action")).isTrue();
+        assertThat(tree.has("key_numbers")).isTrue();
+    }
+
+    @Test
+    void serializingResultWithValidKeysIncludesThem() throws Exception {
+        AnalysisResult result = new AnalysisResult("s", "l", "a", List.of("1"), "phases", "major");
+        String json = objectMapper.writeValueAsString(result);
+        JsonNode tree = objectMapper.readTree(json);
+        assertThat(tree.path("focus_area").asText()).isEqualTo("phases");
+        assertThat(tree.path("severity").asText()).isEqualTo("major");
+    }
 }
