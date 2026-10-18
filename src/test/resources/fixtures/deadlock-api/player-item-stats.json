@@ -1,0 +1,41 @@
+[
+  {
+    "item_id": 1001,
+    "bucket": 0,
+    "wins": 15,
+    "losses": 5,
+    "matches": 20,
+    "players": 1,
+    "avg_buy_time_s": 573.2,
+    "avg_sell_time_s": 1861.0,
+    "avg_buy_time_relative": 28.2,
+    "avg_sell_time_relative": 80.0,
+    "sold": 5
+  },
+  {
+    "item_id": 1002,
+    "bucket": 0,
+    "wins": 3,
+    "losses": 7,
+    "matches": 10,
+    "players": 1,
+    "avg_buy_time_s": 774.3,
+    "avg_sell_time_s": 0.0,
+    "avg_buy_time_relative": 38.8,
+    "avg_sell_time_relative": 0.0,
+    "sold": 0
+  },
+  {
+    "item_id": 1003,
+    "bucket": 0,
+    "wins": 8,
+    "losses": 4,
+    "matches": 12,
+    "players": 1,
+    "avg_buy_time_s": 1011.5,
+    "avg_sell_time_s": 2244.0,
+    "avg_buy_time_relative": 49.3,
+    "avg_sell_time_relative": 95.0,
+    "sold": 1
+  }
+]
