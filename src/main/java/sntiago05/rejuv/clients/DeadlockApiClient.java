@@ -27,6 +27,7 @@ import sntiago05.rejuv.clients.dto.MetricPercentiles;
 import sntiago05.rejuv.clients.dto.PlayerHeroStat;
 import sntiago05.rejuv.clients.dto.PlayerRank;
 import sntiago05.rejuv.clients.dto.RankAsset;
+import sntiago05.rejuv.clients.dto.SteamProfile;
 import sntiago05.rejuv.config.CacheConfig;
 import sntiago05.rejuv.config.DeadlockApiProperties;
 
@@ -45,6 +46,7 @@ public class DeadlockApiClient {
     private static final String MATCH_HISTORY_PATH = "/v1/players/{account_id}/match-history";
     private static final String PLAYER_RANK_PATH = "/v1/players/{account_id}/rank";
     private static final String PLAYER_RANKS_PATH = "/v1/players/rank";
+    private static final String PLAYER_STEAM_PATH = "/v1/players/steam";
     private static final String METRICS_PATH = "/v1/analytics/player-stats/metrics";
     private static final String ITEM_STATS_PATH = "/v1/analytics/item-stats";
     private static final String HERO_STATS_PATH = "/v1/analytics/hero-stats";
@@ -62,6 +64,7 @@ public class DeadlockApiClient {
             new JacksonJsonHttpMessageConverter().getMapper().readerFor(MatchHistoryEntry.class), MAX_HISTORY_ENTRIES);
     private static final BodyReader<PlayerRank> RANK_READER = DeadlockApiRequests.json(new ParameterizedTypeReference<>() { });
     private static final BodyReader<List<AccountRank>> PLAYER_RANKS_READER = DeadlockApiRequests.json(new ParameterizedTypeReference<>() { });
+    private static final BodyReader<List<SteamProfile>> STEAM_PROFILES_READER = DeadlockApiRequests.json(new ParameterizedTypeReference<>() { });
     private static final BodyReader<Map<String, MetricPercentiles>> METRICS_READER = DeadlockApiRequests.json(new ParameterizedTypeReference<>() { });
     private static final BodyReader<List<ItemStat>> ITEM_STATS_READER = DeadlockApiRequests.json(new ParameterizedTypeReference<>() { });
     private static final BodyReader<List<HeroStat>> HERO_STATS_READER = DeadlockApiRequests.json(new ParameterizedTypeReference<>() { });
@@ -125,6 +128,36 @@ public class DeadlockApiClient {
                 PLAYER_RANKS_READER);
         return ranks.stream()
                 .collect(Collectors.toUnmodifiableMap(AccountRank::accountId, Function.identity(), (first, second) -> first));
+    }
+
+    /**
+     * Steam persona names of many accounts in one request, keyed by account id. Accounts the API does not return, or
+     * returns without a usable name, are absent from the map. Never sends the refresh parameter. Callers pass a sorted,
+     * distinct, immutable list so the cache key is stable.
+     *
+     * @throws IllegalArgumentException if the list is empty, has more than 1000 ids, or contains a negative id (before any HTTP call)
+     */
+    @Cacheable(cacheNames = CacheConfig.DEADLOCK_PLAYER_NAMES, sync = true, key = "#accountIds")
+    public Map<Long, String> getPlayerNames(List<Long> accountIds) {
+        if (accountIds == null || accountIds.isEmpty()) {
+            throw new IllegalArgumentException("accountIds must not be empty");
+        }
+        if (accountIds.size() > 1000) {
+            throw new IllegalArgumentException("accountIds must not contain more than 1000 entries");
+        }
+        for (Long accountId : accountIds) {
+            if (accountId == null || accountId < 0) {
+                throw new IllegalArgumentException("accountId must not be negative");
+            }
+        }
+        String joined = accountIds.stream().map(String::valueOf).collect(Collectors.joining(","));
+        List<SteamProfile> profiles = requests.get(PLAYER_STEAM_PATH,
+                uri -> uri.path(PLAYER_STEAM_PATH).queryParam("account_ids", joined).build(),
+                STEAM_PROFILES_READER);
+        return profiles.stream()
+                .filter(profile -> profile.personaName() != null && !profile.personaName().isBlank())
+                .collect(Collectors.toUnmodifiableMap(SteamProfile::accountId, SteamProfile::personaName,
+                        (first, second) -> first));
     }
 
     /**
