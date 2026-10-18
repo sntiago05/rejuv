@@ -47,6 +47,7 @@ public class AnalyzeService {
     private final MatchAnalysisRepository repository;
     private final MatchSearchService matchSearchService;
     private final AnthropicPricingProperties pricingProperties;
+    private final UsageService usageService;
 
     public AnalyzeService(DeadlockApiClient deadlockApiClient,
                           MatchMetadataSource matchMetadataSource,
@@ -54,7 +55,8 @@ public class AnalyzeService {
                           AnalysisClient analysisClient,
                           MatchAnalysisRepository repository,
                           MatchSearchService matchSearchService,
-                          AnthropicPricingProperties pricingProperties) {
+                          AnthropicPricingProperties pricingProperties,
+                          UsageService usageService) {
         this.deadlockApiClient = deadlockApiClient;
         this.matchMetadataSource = matchMetadataSource;
         this.metricsService = metricsService;
@@ -62,15 +64,17 @@ public class AnalyzeService {
         this.repository = repository;
         this.matchSearchService = matchSearchService;
         this.pricingProperties = pricingProperties;
+        this.usageService = usageService;
     }
 
     /**
+     * @throws UsageLimitExceededException when the free weekly limit is used up and a fresh AI call would be needed
      * @throws NoMatchHistoryException when the account has no match history
      * @throws MatchNotFoundException when nothing passes the filter
      * @throws sntiago05.rejuv.clients.DeadlockApiException (including DeadlockApiUnavailableException) when history,
      *         rank, benchmarks or assets cannot be read
      */
-    public AnalysisReport analyze(long accountId, MatchFilter filter) {
+    public AnalysisReport analyze(long discordUserId, long accountId, MatchFilter filter) {
         MatchHistoryEntry match = matchSearchService.select(accountId, filter != null ? filter : MatchFilter.LATEST)
                 .orElseGet(() -> {
                     List<MatchHistoryEntry> history = deadlockApiClient.getMatchHistory(accountId);
@@ -101,6 +105,8 @@ public class AnalyzeService {
                 repository.delete(stored);
             }
         }
+
+        usageService.checkAllowance(discordUserId);
 
         MatchTelemetry telemetry;
         boolean degraded = false;
@@ -155,6 +161,7 @@ public class AnalyzeService {
                 json, outcome.model(), outcome.inputTokens(), outcome.outputTokens(), Instant.now());
         try {
             repository.save(entity);
+            usageService.recordAnalysis(discordUserId, match.matchId());
             log.info("Analyze accountId={} matchId={} source=ai degraded={} inputTokens={} outputTokens={} estimatedCostUsd={}",
                     accountId, match.matchId(), degraded, outcome.inputTokens(), outcome.outputTokens(),
                     estimatedCostUsd(outcome.inputTokens(), outcome.outputTokens()));

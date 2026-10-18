@@ -38,3 +38,8 @@ anthropic:
   pricing:
     input-usd-per-million: 0
     output-usd-per-million: 0
+
+rejuv:
+  usage:
+    enabled: ${USAGE_LIMITS_ENABLED:false}
+    weekly-free-analyses: ${USAGE_WEEKLY_FREE_ANALYSES:3}

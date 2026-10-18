@@ -42,6 +42,7 @@ import sntiago05.rejuv.services.MatchSearchService;
 import sntiago05.rejuv.services.Messages;
 import sntiago05.rejuv.services.NoMatchHistoryException;
 import sntiago05.rejuv.services.ProfileService;
+import sntiago05.rejuv.services.UsageLimitExceededException;
 
 @Component
 public class AnalyzeCommand implements SlashCommand {
@@ -230,8 +231,11 @@ public class AnalyzeCommand implements SlashCommand {
 
     private void answer(InteractionHook hook, long callerId, long accountId, MatchFilter filter) {
         try {
-            AnalysisReport report = analyzeService.analyze(accountId, filter);
+            AnalysisReport report = analyzeService.analyze(callerId, accountId, filter);
             hook.editOriginalEmbeds(buildEmbed(report)).queue();
+        } catch (UsageLimitExceededException ex) {
+            String resetTimestamp = "<t:" + ex.resetsAt().getEpochSecond() + ":R>";
+            hook.editOriginal(messages.get("analyze.limit_reached", ex.limit(), resetTimestamp)).queue();
         } catch (NoMatchHistoryException ex) {
             hook.editOriginal(messages.get("analyze.no_matches")).queue();
         } catch (MatchNotFoundException ex) {
