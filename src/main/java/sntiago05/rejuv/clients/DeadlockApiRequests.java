@@ -1,6 +1,8 @@
 package sntiago05.rejuv.clients;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.net.URI;
 import java.time.Duration;
@@ -91,6 +93,31 @@ final class DeadlockApiRequests {
             } catch (JacksonException e) {
                 throw new RestClientException("Could not read the JSON array", e);
             }
+        };
+    }
+
+    static BodyReader<byte[]> bytes(int maxBytes) {
+        return response -> {
+            long contentLength = response.getHeaders().getContentLength();
+            if (contentLength > maxBytes) {
+                throw new DeadlockApiException("Response body exceeded " + maxBytes + " bytes");
+            }
+            InputStream in = response.getBody();
+            if (in == null) {
+                return new byte[0];
+            }
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            byte[] buffer = new byte[8192];
+            int total = 0;
+            int n;
+            while ((n = in.read(buffer)) != -1) {
+                total += n;
+                if (total > maxBytes) {
+                    throw new DeadlockApiException("Response body exceeded " + maxBytes + " bytes");
+                }
+                out.write(buffer, 0, n);
+            }
+            return out.toByteArray();
         };
     }
 

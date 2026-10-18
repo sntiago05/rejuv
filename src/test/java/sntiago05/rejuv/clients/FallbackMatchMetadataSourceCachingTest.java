@@ -10,6 +10,7 @@ import static sntiago05.rejuv.clients.JsonMatchMetadataSourceTest.BASE_URL;
 import static sntiago05.rejuv.clients.JsonMatchMetadataSourceTest.MATCH_ID;
 import static sntiago05.rejuv.clients.JsonMatchMetadataSourceTest.METADATA_URL;
 import static sntiago05.rejuv.clients.JsonMatchMetadataSourceTest.fixture;
+import static sntiago05.rejuv.clients.RawMatchMetadataSourceTest.METADATA_RAW_URL;
 
 import java.time.Duration;
 
@@ -17,9 +18,11 @@ import com.github.benmanes.caffeine.cache.Policy;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.aop.support.AopUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.CacheManager;
 import org.springframework.cache.caffeine.CaffeineCache;
+import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
@@ -33,12 +36,17 @@ import sntiago05.rejuv.config.DeadlockApiConfig;
 import sntiago05.rejuv.config.DeadlockApiProperties;
 import sntiago05.rejuv.domain.MatchTelemetry;
 
-@SpringJUnitConfig(JsonMatchMetadataSourceCachingTest.TestConfig.class)
+@SpringJUnitConfig(FallbackMatchMetadataSourceCachingTest.TestConfig.class)
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
-class JsonMatchMetadataSourceCachingTest {
+class FallbackMatchMetadataSourceCachingTest {
 
     @Configuration
-    @Import({CacheConfig.class, JsonMatchMetadataSource.class})
+    @Import({
+            CacheConfig.class,
+            JsonMatchMetadataSource.class,
+            RawMatchMetadataSource.class,
+            FallbackMatchMetadataSource.class
+    })
     static class TestConfig {
 
         private final RestClient.Builder builder = DeadlockApiConfig.restClientBuilder(DeadlockApiClientTest.PROPERTIES);
@@ -73,6 +81,9 @@ class JsonMatchMetadataSourceCachingTest {
     @Autowired
     private MockRestServiceServer server;
 
+    @Autowired
+    private ApplicationContext context;
+
     @BeforeEach
     void resetServer() {
         server.reset();
@@ -87,6 +98,20 @@ class JsonMatchMetadataSourceCachingTest {
     void secondCallForSameMatchIsCached() {
         server.expect(once(), requestTo(METADATA_URL))
                 .andRespond(withSuccess(fixture("match-metadata.json"), MediaType.APPLICATION_JSON));
+
+        MatchTelemetry first = source.getMatch(MATCH_ID);
+        MatchTelemetry second = source.getMatch(MATCH_ID);
+
+        assertThat(first).isEqualTo(second);
+        assertThat(first.matchId()).isEqualTo(MATCH_ID);
+    }
+
+    @Test
+    void fallbackResultIsCached() {
+        byte[] compressed = RawMetadataTestData.compress(RawMetadataTestData.defaultValidPayload());
+        server.expect(once(), requestTo(METADATA_URL)).andRespond(withServerError());
+        server.expect(once(), requestTo(METADATA_RAW_URL))
+                .andRespond(withSuccess(compressed, MediaType.APPLICATION_OCTET_STREAM));
 
         MatchTelemetry first = source.getMatch(MATCH_ID);
         MatchTelemetry second = source.getMatch(MATCH_ID);
@@ -120,10 +145,12 @@ class JsonMatchMetadataSourceCachingTest {
     @Test
     void failuresAreNotCached() {
         server.expect(once(), requestTo(METADATA_URL)).andRespond(withServerError());
+        server.expect(once(), requestTo(METADATA_RAW_URL)).andRespond(withServerError());
         server.expect(once(), requestTo(METADATA_URL))
                 .andRespond(withSuccess(fixture("match-metadata.json"), MediaType.APPLICATION_JSON));
 
         assertThatThrownBy(() -> source.getMatch(MATCH_ID)).isInstanceOf(DeadlockApiException.class);
+
         assertThat(source.getMatch(MATCH_ID).matchId()).isEqualTo(MATCH_ID);
     }
 
@@ -137,5 +164,12 @@ class JsonMatchMetadataSourceCachingTest {
                 expiration -> assertThat(expiration.getExpiresAfter()).isEqualTo(Duration.ofHours(24)));
         assertThat(policy.eviction()).hasValueSatisfying(
                 eviction -> assertThat(eviction.getMaximum()).isEqualTo(300L));
+    }
+
+    @Test
+    void onlyTheFallbackIsPrimary() {
+        MatchMetadataSource bean = context.getBean(MatchMetadataSource.class);
+        assertThat(bean).isNotNull();
+        assertThat(AopUtils.getTargetClass(bean)).isEqualTo(FallbackMatchMetadataSource.class);
     }
 }

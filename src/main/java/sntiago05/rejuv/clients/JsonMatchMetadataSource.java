@@ -3,13 +3,11 @@ package sntiago05.rejuv.clients;
 import java.util.Comparator;
 import java.util.List;
 
-import org.springframework.cache.annotation.Cacheable;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import sntiago05.rejuv.clients.DeadlockApiRequests.BodyReader;
 import sntiago05.rejuv.clients.dto.MatchMetadataResponse;
-import sntiago05.rejuv.config.CacheConfig;
 import sntiago05.rejuv.config.DeadlockApiProperties;
 import sntiago05.rejuv.domain.ItemPurchase;
 import sntiago05.rejuv.domain.MatchTelemetry;
@@ -35,7 +33,6 @@ public class JsonMatchMetadataSource implements MatchMetadataSource {
     }
 
     @Override
-    @Cacheable(cacheNames = CacheConfig.DEADLOCK_MATCH_METADATA, sync = true)
     public MatchTelemetry getMatch(long matchId) {
         MatchMetadataResponse response = requests.get(METADATA_PATH,
                 uri -> uri.path(METADATA_PATH).build(matchId), METADATA_READER, false,
