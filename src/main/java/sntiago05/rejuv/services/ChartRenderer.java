@@ -16,6 +16,8 @@ import java.util.Locale;
 import java.util.Optional;
 
 import javax.imageio.ImageIO;
+import javax.imageio.stream.ImageOutputStream;
+import javax.imageio.stream.MemoryCacheImageOutputStream;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -31,6 +33,11 @@ public class ChartRenderer {
 
     private static final Logger log = LoggerFactory.getLogger(ChartRenderer.class);
 
+    // Must run before the AWT constants below are created (static initializers run in source order).
+    static {
+        System.setProperty("java.awt.headless", "true");
+    }
+
     private static final Color BACKGROUND = new Color(0x1E1F22);
     private static final Color GRID = new Color(255, 255, 255, 36);
     private static final Color AXIS = new Color(0x8E9297);
@@ -39,16 +46,23 @@ public class ChartRenderer {
     private static final Color NEGATIVE = new Color(0xF28C28);
     private static final Color PLAYER = new Color(0xFFC83D);
     private static final Color TEAM = new Color(0x9AA0A6);
+    private static final Color POSITIVE_FILL = withAlpha(POSITIVE, 90);
+    private static final Color NEGATIVE_FILL = withAlpha(NEGATIVE, 90);
+
+    // Fonts and strokes are immutable, so one instance serves every render (and every thread).
+    private static final Font BASE_FONT = new Font(Font.SANS_SERIF, Font.PLAIN, 12);
+    private static final Font TITLE_FONT = BASE_FONT.deriveFont(Font.BOLD, 15f);
+    private static final BasicStroke GRID_STROKE = new BasicStroke(1f);
+    private static final BasicStroke ZERO_LINE_STROKE = new BasicStroke(1.4f);
+    private static final BasicStroke LEAD_STROKE = new BasicStroke(2.2f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND);
+    private static final BasicStroke SERIES_STROKE = new BasicStroke(2.4f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND);
+    private static final BasicStroke LEGEND_STROKE = new BasicStroke(3f);
 
     private static final int LEFT = 70;
     private static final int RIGHT = 24;
     private static final int PANEL_TOP_1 = 44;
     private static final int PANEL_TOP_2 = 340;
     private static final int PANEL_H = 218;
-
-    static {
-        System.setProperty("java.awt.headless", "true");
-    }
 
     private final Messages messages;
 
@@ -75,14 +89,16 @@ public class ChartRenderer {
                 || (!chart.teammatesAvgNetWorth().isEmpty() && chart.teammatesAvgNetWorth().size() != n)) {
             throw new IllegalArgumentException("Chart series have different lengths");
         }
-        BufferedImage image = new BufferedImage(WIDTH, HEIGHT, BufferedImage.TYPE_INT_RGB);
+        // 3-byte BGR is the layout the PNG writer encodes from, so it skips a per-row conversion; the pixels and the
+        // PNG bytes are the same as with TYPE_INT_RGB (checked by CpuHotPathBenchmarkTest).
+        BufferedImage image = new BufferedImage(WIDTH, HEIGHT, BufferedImage.TYPE_3BYTE_BGR);
         Graphics2D g = image.createGraphics();
         try {
             g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
             g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
             g.setColor(BACKGROUND);
             g.fillRect(0, 0, WIDTH, HEIGHT);
-            g.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 12));
+            g.setFont(BASE_FONT);
 
             double t0 = chart.timesS().get(0);
             double t1 = chart.timesS().get(n - 1);
@@ -95,19 +111,22 @@ public class ChartRenderer {
         } finally {
             g.dispose();
         }
-        ByteArrayOutputStream out = new ByteArrayOutputStream(32 * 1024);
-        if (!ImageIO.write(image, "png", out)) {
-            throw new IOException("No PNG writer available");
+        ByteArrayOutputStream out = new ByteArrayOutputStream(64 * 1024);
+        // An explicit in-memory stream: ImageIO.write(image, format, OutputStream) buffers through a temp file
+        // whenever the ImageIO disk cache is enabled (the default), which costs disk I/O on every chart.
+        try (ImageOutputStream stream = new MemoryCacheImageOutputStream(out)) {
+            if (!ImageIO.write(image, "png", stream)) {
+                throw new IOException("No PNG writer available");
+            }
         }
         return out.toByteArray();
     }
 
     private void drawTitle(Graphics2D g, String title, int panelTop) {
-        Font previous = g.getFont();
         g.setColor(TEXT);
-        g.setFont(previous.deriveFont(Font.BOLD, 15f));
+        g.setFont(TITLE_FONT);
         g.drawString(title, LEFT, panelTop - 14);
-        g.setFont(previous);
+        g.setFont(BASE_FONT);
     }
 
     private void drawLead(Graphics2D g, List<Integer> times, double[] lead, double t0, double t1) {
@@ -136,7 +155,7 @@ public class ChartRenderer {
                 fillSegment(g, xc, 0, xb, vb, range, zeroY);
             }
         }
-        g.setStroke(new BasicStroke(2.2f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+        g.setStroke(LEAD_STROKE);
         for (int i = 0; i < lead.length - 1; i++) {
             g.setColor((lead[i] + lead[i + 1]) / 2 >= 0 ? POSITIVE : NEGATIVE);
             g.drawLine((int) Math.round(x(times.get(i), t0, t1, LEFT, right)),
@@ -144,14 +163,13 @@ public class ChartRenderer {
                     (int) Math.round(x(times.get(i + 1), t0, t1, LEFT, right)),
                     y(lead[i + 1], range[0], range[1], PANEL_TOP_1));
         }
-        g.setStroke(new BasicStroke(1.4f));
+        g.setStroke(ZERO_LINE_STROKE);
         g.setColor(AXIS);
         g.drawLine(LEFT, zeroY, right, zeroY);
     }
 
     private void fillSegment(Graphics2D g, double xa, double va, double xb, double vb, double[] range, int zeroY) {
-        Color base = (va + vb) / 2 >= 0 ? POSITIVE : NEGATIVE;
-        g.setColor(new Color(base.getRed(), base.getGreen(), base.getBlue(), 90));
+        g.setColor((va + vb) / 2 >= 0 ? POSITIVE_FILL : NEGATIVE_FILL);
         Polygon p = new Polygon();
         p.addPoint((int) Math.round(xa), zeroY);
         p.addPoint((int) Math.round(xa), y(va, range[0], range[1], PANEL_TOP_1));
@@ -184,7 +202,7 @@ public class ChartRenderer {
         String youLabel = messages.get("analyze.chart.legend_you");
         int lx = LEFT + 12;
         int ly = PANEL_TOP_2 + 18;
-        g.setStroke(new BasicStroke(3f));
+        g.setStroke(LEGEND_STROKE);
         g.setColor(PLAYER);
         g.drawLine(lx, ly - 4, lx + 22, ly - 4);
         g.setColor(TEXT);
@@ -201,7 +219,7 @@ public class ChartRenderer {
     private void drawSeries(Graphics2D g, List<Integer> times, double[] values, Color color,
                             double[] range, double t0, double t1) {
         g.setColor(color);
-        g.setStroke(new BasicStroke(2.4f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+        g.setStroke(SERIES_STROKE);
         for (int i = 0; i < values.length - 1; i++) {
             g.drawLine((int) Math.round(x(times.get(i), t0, t1, LEFT, WIDTH - RIGHT)),
                     y(values[i], range[0], range[1], PANEL_TOP_2),
@@ -214,7 +232,7 @@ public class ChartRenderer {
     private void drawFrame(Graphics2D g, int top, double minV, double maxV, double t0, double t1) {
         int right = WIDTH - RIGHT;
         FontMetrics fm = g.getFontMetrics();
-        g.setStroke(new BasicStroke(1f));
+        g.setStroke(GRID_STROKE);
         for (int i = 0; i <= 4; i++) {
             double v = minV + (maxV - minV) * i / 4.0;
             int yy = y(v, minV, maxV, top);
@@ -273,6 +291,10 @@ public class ChartRenderer {
 
     private static String formatMinutes(double m) {
         return m == Math.rint(m) ? String.valueOf((long) m) : String.format(Locale.ROOT, "%.1f", m);
+    }
+
+    private static Color withAlpha(Color color, int alpha) {
+        return new Color(color.getRed(), color.getGreen(), color.getBlue(), alpha);
     }
 
     private static double[] toDoubles(List<Long> values) {
