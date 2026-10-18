@@ -114,12 +114,12 @@ class ProfileServiceCachingTest {
     }
 
     @Test
-    void profileCacheIsRegisteredWithTenMinuteTtl() {
+    void profileCacheIsRegisteredWithFiveMinuteTtl() {
         assertThat(cacheManager.getCache("profileSummary")).isInstanceOf(CaffeineCache.class);
         Policy<Object, Object> policy = ((CaffeineCache) cacheManager.getCache(CacheConfig.PROFILE_SUMMARY))
                 .getNativeCache().policy();
         assertThat(policy.expireAfterWrite()).hasValueSatisfying(
-                expiration -> assertThat(expiration.getExpiresAfter()).isEqualTo(Duration.ofMinutes(10)));
+                expiration -> assertThat(expiration.getExpiresAfter()).isEqualTo(Duration.ofMinutes(5)));
         assertThat(policy.eviction()).hasValueSatisfying(
                 eviction -> assertThat(eviction.getMaximum()).isEqualTo(1000L));
     }

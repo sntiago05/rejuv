@@ -13,6 +13,8 @@ import java.util.Set;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.json.JsonMapper;
 
 /**
  * Aggregates coaching insights from all registered {@link CoachInsightProvider}s sequentially
@@ -22,6 +24,7 @@ import org.springframework.stereotype.Service;
 public class CoachContextService {
 
     private static final Logger log = LoggerFactory.getLogger(CoachContextService.class);
+    private static final JsonMapper JSON_MAPPER = new JsonMapper();
 
     private final List<CoachInsightProvider> providers;
 
@@ -81,6 +84,13 @@ public class CoachContextService {
                 if (insight.payload() == null) {
                     log.warn("Discarding coach insight with null payload from provider {}", provider.key());
                     continue;
+                }
+                JsonNode tree = JSON_MAPPER.convertValue(insight.payload(), JsonNode.class);
+                if (tree != null && tree.has("significance")) {
+                    JsonNode sigNode = tree.get("significance");
+                    if (sigNode != null && "none".equals(sigNode.asText())) {
+                        continue;
+                    }
                 }
                 result.put(insight.key(), insight.payload());
             } catch (RuntimeException ex) {

@@ -28,9 +28,9 @@ public record AnalysisInput(String hero, String rank, String result,
                 coach == null ? Map.of() : Map.copyOf(coach));
     }
 
-    /** p25/p50/p75 are null when no benchmark exists for the metric. */
+    /** p25/p50 are null when no benchmark exists for the metric. */
     @JsonInclude(JsonInclude.Include.NON_NULL)
-    public record MetricComparison(double value, Double p25, Double p50, Double p75) {
+    public record MetricComparison(double value, Double p25, Double p50) {
     }
 
     /** avgBoughtAtMin is null when no benchmark exists for the item. */

@@ -272,6 +272,31 @@ class AnalyzeServiceTest {
 
         assertThat(report.degraded()).isTrue();
         assertThat(report.visuals()).isNull();
+        assertThat(report.publicId()).isNull();
+        assertThat(report.analysis()).isNotNull();
+        verify(repository, never()).save(any());
+        verify(usageService, never()).recordAnalysis(anyLong(), anyLong());
+    }
+
+    @Test
+    void degradedRunIsNotStoredAndSecondCallCallsAiAgain() {
+        stubFresh();
+        when(matchMetadataSource.getMatch(MATCH_ID)).thenThrow(new DeadlockApiUnavailableException("down", null, null));
+        when(visualsService.build(ACCOUNT_ID, null)).thenReturn(Optional.empty());
+
+        AnalysisReport first = service.analyze(CALLER_ID, ACCOUNT_ID, MatchFilter.LATEST);
+        assertThat(first.degraded()).isTrue();
+        assertThat(first.analysis()).isNotNull();
+        assertThat(first.publicId()).isNull();
+
+        AnalysisReport second = service.analyze(CALLER_ID, ACCOUNT_ID, MatchFilter.LATEST);
+        assertThat(second.degraded()).isTrue();
+        assertThat(second.analysis()).isNotNull();
+        assertThat(second.publicId()).isNull();
+
+        verify(analysisClient, times(2)).analyze(any());
+        verify(repository, never()).save(any());
+        verify(usageService, never()).recordAnalysis(anyLong(), anyLong());
     }
 
     private void stubStored() throws Exception {
@@ -346,6 +371,9 @@ class AnalyzeServiceTest {
 
         assertThat(report.degraded()).isTrue();
         assertThat(report.analysis()).isEqualTo(AI_RESULT);
+        assertThat(report.publicId()).isNull();
+        verify(repository, never()).save(any());
+        verify(usageService, never()).recordAnalysis(anyLong(), anyLong());
         verify(deadlockApiClient, never()).getItemStats(anyInt(), anyInt());
         verify(deadlockApiClient, never()).getItems();
         verify(analysisClient).analyze(any());

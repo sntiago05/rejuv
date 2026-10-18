@@ -85,9 +85,9 @@ class AnalysisClientTest {
                 "win",
                 32.5,
                 Map.of(
-                        "souls_per_min", new AnalysisInput.MetricComparison(750.0, 600.0, 680.0, 780.0),
-                        "deaths", new AnalysisInput.MetricComparison(9.0, 4.0, 5.0, 7.0),
-                        "damage_per_min", new AnalysisInput.MetricComparison(1200.0, null, 1150.0, null)
+                        "souls_per_min", new AnalysisInput.MetricComparison(750.0, 600.0, 680.0),
+                        "deaths", new AnalysisInput.MetricComparison(9.0, 4.0, 5.0),
+                        "damage_per_min", new AnalysisInput.MetricComparison(1200.0, null, 1150.0)
                 ),
                 List.of(
                         new AnalysisInput.ItemTiming("Extra Health", 2.5, 3.0),
@@ -130,7 +130,22 @@ class AnalysisClientTest {
                     assertThat(parsedInput.durationMin()).isEqualTo(32.5);
                     assertThat(parsedInput.language()).isEqualTo("en");
                     assertThat(parsedInput.metrics().get("souls_per_min").p50()).isEqualTo(680.0);
-                    assertThat(parsedInput.items().get(0).name()).isEqualTo("Extra Health");
+                    JsonNode schema = root.path("output_config").path("format").path("schema");
+                    List<String> requiredFields = new ArrayList<>();
+                    schema.path("required").forEach(node -> requiredFields.add(node.asText()));
+                    assertThat(requiredFields).contains("focus_area", "severity");
+
+                    JsonNode focusAreaNode = schema.path("properties").path("focus_area");
+                    assertThat(focusAreaNode.path("type").asText()).isEqualTo("string");
+                    List<String> focusAreaEnums = new ArrayList<>();
+                    focusAreaNode.path("enum").forEach(node -> focusAreaEnums.add(node.asText()));
+                    assertThat(focusAreaEnums).containsExactlyInAnyOrderElementsOf(AnalysisResult.FOCUS_AREAS);
+
+                    JsonNode severityNode = schema.path("properties").path("severity");
+                    assertThat(severityNode.path("type").asText()).isEqualTo("string");
+                    List<String> severityEnums = new ArrayList<>();
+                    severityNode.path("enum").forEach(node -> severityEnums.add(node.asText()));
+                    assertThat(severityEnums).containsExactlyInAnyOrderElementsOf(AnalysisResult.SEVERITIES);
 
                     JsonNode contentTree = objectMapper.readTree(userContent);
                     JsonNode damageMetric = contentTree.path("metrics").path("damage_per_min");
@@ -469,8 +484,8 @@ class AnalysisClientTest {
                 "win",
                 32.5,
                 Map.of(
-                        "souls_per_min", new AnalysisInput.MetricComparison(750.0, 600.0, 680.0, 780.0),
-                        "damage_per_min", new AnalysisInput.MetricComparison(1200.0, null, 1150.0, null)
+                        "souls_per_min", new AnalysisInput.MetricComparison(750.0, 600.0, 680.0),
+                        "damage_per_min", new AnalysisInput.MetricComparison(1200.0, null, 1150.0)
                 ),
                 List.of(
                         new AnalysisInput.ItemTiming("Extra Health", 2.5, 3.0),
@@ -492,7 +507,7 @@ class AnalysisClientTest {
         assertThat(soulsMetric.path("value").asDouble()).isEqualTo(750.0);
         assertThat(soulsMetric.path("p25").asDouble()).isEqualTo(600.0);
         assertThat(soulsMetric.path("p50").asDouble()).isEqualTo(680.0);
-        assertThat(soulsMetric.path("p75").asDouble()).isEqualTo(780.0);
+        assertThat(soulsMetric.has("p75")).isFalse();
 
         JsonNode damageMetric = root.path("metrics").path("damage_per_min");
         assertThat(damageMetric.path("value").asDouble()).isEqualTo(1200.0);

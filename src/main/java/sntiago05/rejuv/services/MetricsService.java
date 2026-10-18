@@ -260,12 +260,11 @@ public class MetricsService {
     /** Missing benchmark → null percentiles; each percentile is divided by benchmarkDivisor (unit conversion). */
     private static MetricComparison compare(double value, MetricPercentiles benchmark, double benchmarkDivisor) {
         if (benchmark == null) {
-            return new MetricComparison(round(value), null, null, null);
+            return new MetricComparison(round(value), null, null);
         }
         return new MetricComparison(round(value),
                 round(benchmark.p25() / benchmarkDivisor),
-                round(benchmark.p50() / benchmarkDivisor),
-                round(benchmark.p75() / benchmarkDivisor));
+                round(benchmark.p50() / benchmarkDivisor));
     }
 
     /** One decimal, half up (values are non-negative). */

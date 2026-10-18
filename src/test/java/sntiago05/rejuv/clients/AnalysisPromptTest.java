@@ -39,5 +39,8 @@ class AnalysisPromptTest {
         assertThat(prompt).contains("severity");
         assertThat(prompt).contains("significance");
         assertThat(prompt).contains("language");
+        assertThat(prompt).contains("omitted");
+        assertThat(prompt).contains("nothing notable");
+        assertThat(prompt).doesNotContain("p75");
     }
 }

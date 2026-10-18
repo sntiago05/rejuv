@@ -291,10 +291,10 @@ class AnalyzeCommandTest {
         InteractionHook hook = hookFor(event);
 
         Map<String, MetricComparison> metrics = new LinkedHashMap<>();
-        metrics.put("kills", new MetricComparison(10.0, 3.0, 5.0, 8.0));
-        metrics.put("deaths", new MetricComparison(2.0, 1.0, 3.0, 5.0));
-        metrics.put("souls_per_min", new MetricComparison(750.5, 600.0, 700.0, 800.0));
-        metrics.put("player_damage_per_min", new MetricComparison(1200.0, null, null, null));
+        metrics.put("kills", new MetricComparison(10.0, 3.0, 5.0));
+        metrics.put("deaths", new MetricComparison(2.0, 1.0, 3.0));
+        metrics.put("souls_per_min", new MetricComparison(750.5, 600.0, 700.0));
+        metrics.put("player_damage_per_min", new MetricComparison(1200.0, null, null));
 
         AnalysisReport report = new AnalysisReport(1, "Infernus", "Archon 3", "loss", 25.4, null, metrics, false);
         when(analyzeService.analyze(eq(CALLER_ID), eq(ACCOUNT_ID), any())).thenReturn(report);
@@ -322,7 +322,7 @@ class AnalyzeCommandTest {
         InteractionHook hook = hookFor(event);
 
         Map<String, MetricComparison> metrics = Map.of(
-                "kills", new MetricComparison(10.0, null, null, null));
+                "kills", new MetricComparison(10.0, null, null));
         AnalysisReport report = new AnalysisReport(1, "Infernus", "Archon 3", "win", 30.0, null, metrics, true);
         when(analyzeService.analyze(eq(CALLER_ID), eq(ACCOUNT_ID), any())).thenReturn(report);
 
