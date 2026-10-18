@@ -77,6 +77,25 @@ public class ReportController {
                 .body(png.get());
     }
 
+    @GetMapping("/r/{publicId}/soul-curve.svg")
+    public ResponseEntity<String> soulCurveSvg(@PathVariable("publicId") String publicIdRaw) {
+        HttpHeaders headers = createSecurityHeaders();
+        Optional<UUID> uuid = parseUuid(publicIdRaw);
+        if (uuid.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).headers(headers).build();
+        }
+
+        Optional<String> svg = reportService.soulCurveSvg(uuid.get());
+        if (svg.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).headers(headers).build();
+        }
+
+        return ResponseEntity.ok()
+                .headers(headers)
+                .contentType(MediaType.parseMediaType("image/svg+xml;charset=UTF-8"))
+                .body(svg.get());
+    }
+
     private void applySecurityHeaders(HttpServletResponse response) {
         response.setHeader(HEADER_ROBOTS, VALUE_ROBOTS);
         response.setHeader(HEADER_CSP, VALUE_CSP);

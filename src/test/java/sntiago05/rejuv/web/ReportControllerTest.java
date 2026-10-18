@@ -161,4 +161,81 @@ class ReportControllerTest {
                 .andExpect(header().string("X-Content-Type-Options", "nosniff"))
                 .andExpect(header().string("Cache-Control", "private, max-age=300"));
     }
+
+    @Test
+    void soulCurveSvgReturns200WithSvgAndSecurityHeaders() throws Exception {
+        String svgContent = "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 640 360\" role=\"img\"><title>Soul Curve</title></svg>";
+        when(reportService.soulCurveSvg(KNOWN_ID)).thenReturn(Optional.of(svgContent));
+
+        mockMvc.perform(get("/r/" + KNOWN_ID + "/soul-curve.svg"))
+                .andExpect(status().isOk())
+                .andExpect(content().contentType("image/svg+xml;charset=UTF-8"))
+                .andExpect(content().string(svgContent))
+                .andExpect(header().string("X-Robots-Tag", "noindex, nofollow"))
+                .andExpect(header().string("Content-Security-Policy", "default-src 'none'; img-src 'self'; style-src 'self'; base-uri 'none'; frame-ancestors 'none'"))
+                .andExpect(header().string("Referrer-Policy", "no-referrer"))
+                .andExpect(header().string("X-Content-Type-Options", "nosniff"))
+                .andExpect(header().string("Cache-Control", "private, max-age=300"));
+    }
+
+    @Test
+    void soulCurveSvgReturns404WithEmptyBodyWhenEmptyOrMalformed() throws Exception {
+        when(reportService.soulCurveSvg(UNKNOWN_ID)).thenReturn(Optional.empty());
+
+        mockMvc.perform(get("/r/" + UNKNOWN_ID + "/soul-curve.svg"))
+                .andExpect(status().isNotFound())
+                .andExpect(content().string(""))
+                .andExpect(header().string("X-Robots-Tag", "noindex, nofollow"))
+                .andExpect(header().string("Content-Security-Policy", "default-src 'none'; img-src 'self'; style-src 'self'; base-uri 'none'; frame-ancestors 'none'"))
+                .andExpect(header().string("Referrer-Policy", "no-referrer"))
+                .andExpect(header().string("X-Content-Type-Options", "nosniff"))
+                .andExpect(header().string("Cache-Control", "private, max-age=300"));
+
+        mockMvc.perform(get("/r/not-a-uuid/soul-curve.svg"))
+                .andExpect(status().isNotFound())
+                .andExpect(content().string(""))
+                .andExpect(header().string("X-Robots-Tag", "noindex, nofollow"))
+                .andExpect(header().string("Content-Security-Policy", "default-src 'none'; img-src 'self'; style-src 'self'; base-uri 'none'; frame-ancestors 'none'"))
+                .andExpect(header().string("Referrer-Policy", "no-referrer"))
+                .andExpect(header().string("X-Content-Type-Options", "nosniff"))
+                .andExpect(header().string("Cache-Control", "private, max-age=300"));
+    }
+
+    @Test
+    void viewReportIncludesSoulCurveImgOnlyWhenHasSoulCurve() throws Exception {
+        AnalysisResult analysis = new AnalysisResult("Strength", "Leak", "Action", List.of());
+
+        // Report with hasSoulCurve = true
+        ReportView withCurve = new ReportView(KNOWN_ID, 987654321L, "Infernus", 1, null, null,
+                30.0, analysis, List.of(), false, Instant.now(), true);
+        when(reportService.find(KNOWN_ID)).thenReturn(Optional.of(withCurve));
+
+        mockMvc.perform(get("/r/" + KNOWN_ID))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("/r/" + KNOWN_ID + "/soul-curve.svg")))
+                .andExpect(content().string(containsString("soul-curve-img")));
+
+        // Report with hasSoulCurve = false
+        ReportView withoutCurve = new ReportView(KNOWN_ID, 987654321L, "Infernus", 1, null, null,
+                30.0, analysis, List.of(), false, Instant.now(), false);
+        when(reportService.find(KNOWN_ID)).thenReturn(Optional.of(withoutCurve));
+
+        mockMvc.perform(get("/r/" + KNOWN_ID))
+                .andExpect(status().isOk())
+                .andExpect(content().string(not(containsString("soul-curve.svg"))));
+    }
+
+    @Test
+    void viewReportPageStillHasNoScript() throws Exception {
+        AnalysisResult analysis = new AnalysisResult("Strength", "Leak", "Action", List.of());
+        ReportView report = new ReportView(KNOWN_ID, 987654321L, "Infernus", 1, null, null,
+                30.0, analysis, List.of(), true, Instant.now(), true);
+        when(reportService.find(KNOWN_ID)).thenReturn(Optional.of(report));
+
+        MvcResult result = mockMvc.perform(get("/r/" + KNOWN_ID))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        assertThat(result.getResponse().getContentAsString()).doesNotContain("<script");
+    }
 }
