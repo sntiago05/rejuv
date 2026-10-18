@@ -42,3 +42,8 @@ None. Existing stored-path test renamed (`...WithoutBenchmarksOrAiCall`) and now
 ## Merge Risks
 - Task 028 branch may touch `AnalyzeCommand.java` and `messages.properties` (keep both sides).
 - PROJECT_CONTEXT update pending integration. Facts to add: `AnalysisReport.visuals`, `MatchVisualsService`, `ChartRenderer` (JDK only, headless, 900 x 640 PNG), stored path reads cached telemetry, font/headless risk until a Dockerfile exists.
+
+## Review fix and integration
+- Fix: `AnalyzeService.storedVisuals` now catches `RuntimeException` (logs one WARN with the class name, returns null), so a visuals failure can never reach the catch that deletes a stored row as corrupted. New test `storedPathUnexpectedVisualsFailureKeepsStoredRowAndText` (never calls `repository.delete`, no AI call).
+- Merged `origin/main` (Tasks 027 and 028). One conflict in `messages.properties`, resolved by keeping both sides (`mates.teammate_named` and the 6 `analyze.*` keys).
+- `.\mvnw.cmd clean verify` after the merge: BUILD SUCCESS, 675 tests, 0 failures, 0 errors, 2 skipped (651 on main + 23 from this task + 1 for the fix).
