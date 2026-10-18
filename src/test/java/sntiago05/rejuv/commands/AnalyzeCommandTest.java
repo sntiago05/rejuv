@@ -21,6 +21,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.OptionalLong;
+import java.util.UUID;
 
 import net.dv8tion.jda.api.entities.Message;
 import net.dv8tion.jda.api.entities.MessageEmbed;
@@ -34,7 +35,10 @@ import net.dv8tion.jda.api.interactions.commands.OptionMapping;
 import net.dv8tion.jda.api.interactions.commands.OptionType;
 import net.dv8tion.jda.api.interactions.commands.build.OptionData;
 import net.dv8tion.jda.api.interactions.commands.build.SlashCommandData;
+import net.dv8tion.jda.api.interactions.components.ItemComponent;
+import net.dv8tion.jda.api.interactions.components.buttons.Button;
 import net.dv8tion.jda.api.requests.restaction.WebhookMessageEditAction;
+import sntiago05.rejuv.config.WebProperties;
 import net.dv8tion.jda.api.requests.restaction.interactions.AutoCompleteCallbackAction;
 import net.dv8tion.jda.api.requests.restaction.interactions.ReplyCallbackAction;
 import org.junit.jupiter.api.BeforeEach;
@@ -801,12 +805,101 @@ class AnalyzeCommandTest {
                 "analyze.match_not_found",
                 "analyze.match_invalid",
                 "analyze.autocomplete.match",
-                "analyze.limit_reached"
+                "analyze.limit_reached",
+                "analyze.report_button"
         );
 
         for (String key : requiredKeys) {
             assertThat(messages.get(key)).as("key %s should resolve", key).isNotBlank();
         }
+    }
+
+    @Test
+    void webEnabledWithPublicIdAttachesSingleLinkButtonWithProperUrl() {
+        UUID publicId = UUID.fromString("12345678-1234-1234-1234-123456789abc");
+        AnalyzeCommand cmd = new AnalyzeCommand(analyzeService, profileService, messages, assetImages,
+                matchSearchService, gameAssets, heroResolver, iconCatalog, chartRenderer,
+                new WebProperties("http://localhost:8080"));
+
+        SlashCommandInteractionEvent event = mockEvent();
+        when(profileService.findLinkedAccountId(CALLER_ID)).thenReturn(OptionalLong.of(ACCOUNT_ID));
+        deferFor(event);
+        InteractionHook hook = hookFor(event);
+
+        AnalysisResult aiResult = new AnalysisResult("Great farming", "Too many deaths", "Ward more", List.of("10 kills"));
+        AnalysisReport report = new AnalysisReport(1, "Infernus", "Archon 3", "win", 30.0, aiResult, Map.of(), false, null, publicId);
+        when(analyzeService.analyze(eq(CALLER_ID), eq(ACCOUNT_ID), any())).thenReturn(report);
+
+        cmd.handle(event);
+
+        ArgumentCaptor<ItemComponent[]> captor = ArgumentCaptor.forClass(ItemComponent[].class);
+        verify(edit).setActionRow(captor.capture());
+        ItemComponent[] components = captor.getValue();
+        assertThat(components).hasSize(1);
+        assertThat(components[0]).isInstanceOf(Button.class);
+        Button button = (Button) components[0];
+        assertThat(button.getUrl()).isEqualTo("http://localhost:8080/r/12345678-1234-1234-1234-123456789abc");
+        assertThat(button.getLabel()).isEqualTo(messages.get("analyze.report_button"));
+    }
+
+    @Test
+    void webEnabledStripsTrailingSlashFromBaseUrl() {
+        UUID publicId = UUID.fromString("12345678-1234-1234-1234-123456789abc");
+        AnalyzeCommand cmd = new AnalyzeCommand(analyzeService, profileService, messages, assetImages,
+                matchSearchService, gameAssets, heroResolver, iconCatalog, chartRenderer,
+                new WebProperties("https://rejuv.gg/"));
+
+        SlashCommandInteractionEvent event = mockEvent();
+        when(profileService.findLinkedAccountId(CALLER_ID)).thenReturn(OptionalLong.of(ACCOUNT_ID));
+        deferFor(event);
+        InteractionHook hook = hookFor(event);
+
+        AnalysisResult aiResult = new AnalysisResult("Great farming", "Too many deaths", "Ward more", List.of("10 kills"));
+        AnalysisReport report = new AnalysisReport(1, "Infernus", "Archon 3", "win", 30.0, aiResult, Map.of(), false, null, publicId);
+        when(analyzeService.analyze(eq(CALLER_ID), eq(ACCOUNT_ID), any())).thenReturn(report);
+
+        cmd.handle(event);
+
+        ArgumentCaptor<ItemComponent[]> captor = ArgumentCaptor.forClass(ItemComponent[].class);
+        verify(edit).setActionRow(captor.capture());
+        Button button = (Button) captor.getValue()[0];
+        assertThat(button.getUrl()).isEqualTo("https://rejuv.gg/r/12345678-1234-1234-1234-123456789abc");
+    }
+
+    @Test
+    void webDisabledOrNullPublicIdAttachesNoComponent() {
+        UUID publicId = UUID.fromString("12345678-1234-1234-1234-123456789abc");
+        AnalyzeCommand cmdDisabled = new AnalyzeCommand(analyzeService, profileService, messages, assetImages,
+                matchSearchService, gameAssets, heroResolver, iconCatalog, chartRenderer,
+                new WebProperties(""));
+
+        SlashCommandInteractionEvent event1 = mockEvent();
+        when(profileService.findLinkedAccountId(CALLER_ID)).thenReturn(OptionalLong.of(ACCOUNT_ID));
+        deferFor(event1);
+        InteractionHook hook1 = hookFor(event1);
+
+        AnalysisResult aiResult = new AnalysisResult("Great farming", "Too many deaths", "Ward more", List.of("10 kills"));
+        AnalysisReport reportWithId = new AnalysisReport(1, "Infernus", "Archon 3", "win", 30.0, aiResult, Map.of(), false, null, publicId);
+        when(analyzeService.analyze(eq(CALLER_ID), eq(ACCOUNT_ID), any())).thenReturn(reportWithId);
+
+        cmdDisabled.handle(event1);
+        verify(edit, never()).setActionRow((ItemComponent[]) any());
+
+        // Test with web enabled but publicId == null
+        AnalyzeCommand cmdEnabled = new AnalyzeCommand(analyzeService, profileService, messages, assetImages,
+                matchSearchService, gameAssets, heroResolver, iconCatalog, chartRenderer,
+                new WebProperties("http://localhost:8080"));
+
+        SlashCommandInteractionEvent event2 = mockEvent();
+        when(profileService.findLinkedAccountId(CALLER_ID)).thenReturn(OptionalLong.of(ACCOUNT_ID));
+        deferFor(event2);
+        InteractionHook hook2 = hookFor(event2);
+
+        AnalysisReport reportNullId = new AnalysisReport(1, "Infernus", "Archon 3", "win", 30.0, aiResult, Map.of(), false, null, null);
+        when(analyzeService.analyze(eq(CALLER_ID), eq(ACCOUNT_ID), any())).thenReturn(reportNullId);
+
+        cmdEnabled.handle(event2);
+        verify(edit, never()).setActionRow((ItemComponent[]) any());
     }
 
     private SlashCommandInteractionEvent mockEvent() {
@@ -834,6 +927,7 @@ class AnalyzeCommandTest {
         edit = mock(WebhookMessageEditAction.class);
         when(hook.editOriginal(anyString())).thenReturn(edit);
         when(hook.editOriginalEmbeds(any(MessageEmbed.class))).thenReturn(edit);
+        when(edit.setActionRow(any(ItemComponent[].class))).thenReturn(edit);
         when(event.getHook()).thenReturn(hook);
         return hook;
     }

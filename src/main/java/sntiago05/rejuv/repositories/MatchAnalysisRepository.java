@@ -3,6 +3,7 @@ package sntiago05.rejuv.repositories;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
@@ -14,6 +15,8 @@ import sntiago05.rejuv.domain.MatchAnalysis;
 public interface MatchAnalysisRepository extends JpaRepository<MatchAnalysis, Long> {
 
     Optional<MatchAnalysis> findByAccountIdAndMatchId(long accountId, long matchId);
+
+    Optional<MatchAnalysis> findByPublicId(UUID publicId);
 
     /** Ids among matchIds that already have a stored analysis for the account (one query). */
     @Query("select m.matchId from MatchAnalysis m where m.accountId = :accountId and m.matchId in :matchIds")

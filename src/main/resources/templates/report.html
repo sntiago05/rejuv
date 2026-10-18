@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="robots" content="noindex,nofollow">
+    <title th:text="#{report.title(${report.hero})}">Match Analysis</title>
+    <link rel="stylesheet" th:href="@{/report.css}" href="/report.css">
+</head>
+<body>
+    <main class="container">
+        <header class="report-header">
+            <h1 class="hero-name" th:text="${report.hero}">Hero</h1>
+            <p class="match-meta">
+                <span class="match-id" th:text="#{report.match(${#strings.toString(report.matchId)})}">Match 0</span>
+                <span th:if="${report.durationMin != null}" class="duration" th:text="|(${report.durationMin} min)|"></span>
+            </p>
+        </header>
+
+        <div th:if="${report.durationMin == null and (report.build == null or report.build.isEmpty()) and !report.hasChart}"
+             class="degraded-notice" th:text="#{report.degraded}">
+            Match details unavailable
+        </div>
+
+        <section th:if="${report.analysis != null}" class="coaching-sections">
+            <div class="card card-strength">
+                <h2 th:text="#{report.strength}">Key Strength</h2>
+                <p th:text="${report.analysis.strength}">Strength content</p>
+            </div>
+
+            <div class="card card-leak">
+                <h2 th:text="#{report.leak}">Biggest Leak</h2>
+                <p th:text="${report.analysis.biggestLeak}">Leak content</p>
+            </div>
+
+            <div class="card card-action">
+                <h2 th:text="#{report.next_action}">Next Game Focus</h2>
+                <p th:text="${report.analysis.nextGameAction}">Action content</p>
+            </div>
+
+            <div th:if="${report.analysis.keyNumbers != null and !report.analysis.keyNumbers.isEmpty()}" class="card card-numbers">
+                <h2 th:text="#{report.key_numbers}">Key Numbers</h2>
+                <ul>
+                    <li th:each="number : ${report.analysis.keyNumbers}" th:text="${number}">Number</li>
+                </ul>
+            </div>
+        </section>
+
+        <section th:if="${report.build != null and !report.build.isEmpty()}" class="card card-build">
+            <h2 th:text="#{report.build}">Final Build</h2>
+            <ul class="build-list">
+                <li th:each="item : ${report.build}"
+                    th:text="#{report.build_item(${item.name}, ${item.boughtAtS / 60})}">Item at minute 0</li>
+            </ul>
+        </section>
+
+        <section th:if="${report.hasChart}" class="card card-chart">
+            <img th:src="@{/r/{id}/chart.png(id=${report.publicId})}" alt="Match Chart" class="chart-img">
+        </section>
+
+        <footer class="report-footer">
+            <p th:if="${report.analyzedAt != null}" class="analyzed-date" th:text="#{report.analyzed_on(${report.analyzedAt})}">Analyzed on date</p>
+            <p class="brand-footer" th:text="#{report.footer}">Rejuv · AI coach for Deadlock</p>
+        </footer>
+    </main>
+</body>
+</html>

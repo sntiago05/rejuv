@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="robots" content="noindex,nofollow">
+    <title th:text="#{report.not_found.title}">Report Not Found</title>
+    <link rel="stylesheet" th:href="@{/report.css}" href="/report.css">
+</head>
+<body>
+    <main class="container">
+        <div class="card card-not-found">
+            <h1 th:text="#{report.not_found.title}">Report Not Found</h1>
+            <p th:text="#{report.not_found.body}">This report does not exist or has been removed.</p>
+        </div>
+        <footer class="report-footer">
+            <p class="brand-footer" th:text="#{report.footer}">Rejuv · AI coach for Deadlock</p>
+        </footer>
+    </main>
+</body>
+</html>

@@ -147,6 +147,7 @@ class AnalyzeServiceTest {
         assertThat(saved.getModel()).isEqualTo("claude-haiku-5-5");
         assertThat(saved.getInputTokens()).isEqualTo(1000);
         assertThat(saved.getOutputTokens()).isEqualTo(250);
+        assertThat(report.publicId()).isNotNull().isEqualTo(saved.getPublicId());
 
         verify(usageService).recordAnalysis(CALLER_ID, MATCH_ID);
 
@@ -189,6 +190,7 @@ class AnalyzeServiceTest {
         assertThat(report.analysis()).isEqualTo(AI_RESULT);
         assertThat(report.metrics()).isEmpty();
         assertThat(report.degraded()).isFalse();
+        assertThat(report.publicId()).isNotNull().isEqualTo(stored.getPublicId());
 
         verify(usageService, never()).checkAllowance(anyLong());
         verify(usageService, never()).recordAnalysis(anyLong(), anyLong());
@@ -415,6 +417,7 @@ class AnalyzeServiceTest {
 
         assertThat(report.analysis()).isNull();
         assertThat(report.metrics()).isNotEmpty();
+        assertThat(report.publicId()).isNull();
         verify(repository, never()).save(any());
         verify(usageService, never()).recordAnalysis(anyLong(), anyLong());
     }
@@ -447,6 +450,7 @@ class AnalyzeServiceTest {
 
         assertThat(report.analysis()).isEqualTo(AI_RESULT);
         assertThat(report.degraded()).isFalse();
+        assertThat(report.publicId()).isNotNull().isEqualTo(concurrent.getPublicId());
         verify(usageService, never()).recordAnalysis(anyLong(), anyLong());
     }
 

@@ -1,8 +1,8 @@
 spring:
   application:
     name: rejuv
-  main:
-    web-application-type: none
+  thymeleaf:
+    cache: true
   docker:
     compose:
       enabled: false
@@ -39,7 +39,15 @@ anthropic:
     input-usd-per-million: 0
     output-usd-per-million: 0
 
+server:
+  port: ${WEB_PORT:8080}
+  address: ${WEB_BIND_ADDRESS:127.0.0.1}
+  error:
+    include-stacktrace: never
+
 rejuv:
+  web:
+    base-url: ${WEB_BASE_URL:}
   usage:
     enabled: ${USAGE_LIMITS_ENABLED:false}
     weekly-free-analyses: ${USAGE_WEEKLY_FREE_ANALYSES:3}

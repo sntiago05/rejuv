@@ -5,7 +5,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -13,6 +15,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.jdbc.core.JdbcTemplate;
 import sntiago05.rejuv.TestcontainersConfiguration;
 import sntiago05.rejuv.domain.LinkedAccount;
 import sntiago05.rejuv.domain.MatchAnalysis;
@@ -34,6 +37,9 @@ class MatchAnalysisRepositoryTest {
 
     @Autowired
     private LinkedAccountRepository linkedAccountRepository;
+
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
 
     @BeforeEach
     void cleanTables() {
@@ -60,6 +66,7 @@ class MatchAnalysisRepositoryTest {
             assertThat(analysis.getInputTokens()).isEqualTo(INPUT_TOKENS);
             assertThat(analysis.getOutputTokens()).isEqualTo(OUTPUT_TOKENS);
             assertThat(analysis.getCreatedAt()).isEqualTo(createdAt);
+            assertThat(analysis.getPublicId()).isNotNull().isEqualTo(saved.getPublicId());
         });
     }
 
@@ -139,9 +146,46 @@ class MatchAnalysisRepositoryTest {
         matchAnalysisRepository.save(new MatchAnalysis(ACCOUNT_ID, 102L, 1, RESULT_JSON, MODEL, 100, 50, now));
         matchAnalysisRepository.save(new MatchAnalysis(999999L, 103L, 1, RESULT_JSON, MODEL, 100, 50, now));
 
-        java.util.List<Long> analyzed = matchAnalysisRepository.findAnalyzedMatchIds(
+        List<Long> analyzed = matchAnalysisRepository.findAnalyzedMatchIds(
                 ACCOUNT_ID, java.util.List.of(101L, 103L, 104L));
 
         assertThat(analyzed).containsExactly(101L);
+    }
+
+    @Test
+    void publicConstructorSetsNonNullPublicId() {
+        MatchAnalysis entity = new MatchAnalysis(
+                ACCOUNT_ID, MATCH_ID, HERO_ID, RESULT_JSON, MODEL, INPUT_TOKENS, OUTPUT_TOKENS, Instant.now());
+
+        assertThat(entity.getPublicId()).isNotNull();
+    }
+
+    @Test
+    void findByPublicIdFindsSavedEntityAndReturnsEmptyForUnknownId() {
+        Instant now = Instant.now().truncatedTo(ChronoUnit.MICROS);
+        MatchAnalysis saved = matchAnalysisRepository.save(new MatchAnalysis(
+                ACCOUNT_ID, MATCH_ID, HERO_ID, RESULT_JSON, MODEL, INPUT_TOKENS, OUTPUT_TOKENS, now));
+
+        Optional<MatchAnalysis> hit = matchAnalysisRepository.findByPublicId(saved.getPublicId());
+        assertThat(hit).isPresent();
+        assertThat(hit.get().getId()).isEqualTo(saved.getId());
+
+        Optional<MatchAnalysis> miss = matchAnalysisRepository.findByPublicId(UUID.randomUUID());
+        assertThat(miss).isEmpty();
+    }
+
+    @Test
+    void uniqueConstraintRejectsDuplicatePublicId() {
+        UUID duplicate = UUID.randomUUID();
+        jdbcTemplate.update("""
+                INSERT INTO match_analysis (account_id, match_id, hero_id, result_json, model, input_tokens, output_tokens, public_id)
+                VALUES (1, 101, 1, '{}', 'model', 10, 10, ?::uuid)
+                """, duplicate);
+
+        assertThatThrownBy(() -> jdbcTemplate.update("""
+                INSERT INTO match_analysis (account_id, match_id, hero_id, result_json, model, input_tokens, output_tokens, public_id)
+                VALUES (2, 102, 1, '{}', 'model', 10, 10, ?::uuid)
+                """, duplicate))
+                .isInstanceOf(DataIntegrityViolationException.class);
     }
 }
