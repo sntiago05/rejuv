@@ -18,7 +18,9 @@ public record MatchMetadataResponse(
     public record MatchInfo(
             @JsonProperty("match_id") Long matchId,
             @JsonProperty("duration_s") Integer durationS,
-            @JsonProperty("players") List<Player> players
+            @JsonProperty("players") List<Player> players,
+            @JsonProperty("average_badge_team0") Integer averageBadgeTeam0,
+            @JsonProperty("average_badge_team1") Integer averageBadgeTeam1
     ) { }
 
     @JsonIgnoreProperties(ignoreUnknown = true)

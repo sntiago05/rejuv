@@ -329,4 +329,66 @@ class JsonMatchMetadataSourceTest {
         assertThat(source.getMatch(MATCH_ID).players().get(0).items())
                 .containsExactly(new ItemPurchase(1001L, 200, null));
     }
+
+    @Test
+    void averageBadgeComputesMeanOfTwoNonZeroValues() {
+        String body = """
+                {"match_info":{"match_id":900000003,"duration_s":1952,
+                "average_badge_team0":45,"average_badge_team1":55,
+                "players":[{"account_id":1000001,"team":1,"hero_id":1}]}}""";
+        server.expect(once(), requestTo(METADATA_URL))
+                .andRespond(withSuccess(body, MediaType.APPLICATION_JSON));
+
+        MatchTelemetry telemetry = source.getMatch(MATCH_ID);
+        assertThat(telemetry.averageBadge()).isEqualTo(50);
+    }
+
+    @Test
+    void averageBadgeOneZeroValueUsesTheOther() {
+        String body1 = """
+                {"match_info":{"match_id":900000003,"duration_s":1952,
+                "average_badge_team0":0,"average_badge_team1":70,
+                "players":[{"account_id":1000001,"team":1,"hero_id":1}]}}""";
+        server.expect(once(), requestTo(METADATA_URL))
+                .andRespond(withSuccess(body1, MediaType.APPLICATION_JSON));
+
+        MatchTelemetry telemetry1 = source.getMatch(MATCH_ID);
+        assertThat(telemetry1.averageBadge()).isEqualTo(70);
+
+        server.reset();
+        String body2 = """
+                {"match_info":{"match_id":900000003,"duration_s":1952,
+                "average_badge_team0":60,"average_badge_team1":0,
+                "players":[{"account_id":1000001,"team":1,"hero_id":1}]}}""";
+        server.expect(once(), requestTo(METADATA_URL))
+                .andRespond(withSuccess(body2, MediaType.APPLICATION_JSON));
+
+        MatchTelemetry telemetry2 = source.getMatch(MATCH_ID);
+        assertThat(telemetry2.averageBadge()).isEqualTo(60);
+    }
+
+    @Test
+    void averageBadgeBothZeroOrAbsentGivesNull() {
+        // Both zero
+        String bodyZero = """
+                {"match_info":{"match_id":900000003,"duration_s":1952,
+                "average_badge_team0":0,"average_badge_team1":0,
+                "players":[{"account_id":1000001,"team":1,"hero_id":1}]}}""";
+        server.expect(once(), requestTo(METADATA_URL))
+                .andRespond(withSuccess(bodyZero, MediaType.APPLICATION_JSON));
+
+        MatchTelemetry telemetryZero = source.getMatch(MATCH_ID);
+        assertThat(telemetryZero.averageBadge()).isNull();
+
+        // Both absent
+        server.reset();
+        String bodyAbsent = """
+                {"match_info":{"match_id":900000003,"duration_s":1952,
+                "players":[{"account_id":1000001,"team":1,"hero_id":1}]}}""";
+        server.expect(once(), requestTo(METADATA_URL))
+                .andRespond(withSuccess(bodyAbsent, MediaType.APPLICATION_JSON));
+
+        MatchTelemetry telemetryAbsent = source.getMatch(MATCH_ID);
+        assertThat(telemetryAbsent.averageBadge()).isNull();
+    }
 }

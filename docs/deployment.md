@@ -91,8 +91,30 @@ Restore an existing database dump:
 gunzip -c backup_rejuv_YYYYMMDD_HHMMSS.sql.gz | docker compose -f compose.prod.yaml exec -T postgres psql -U rejuv -d rejuv
 ```
 
-## 8. Intentionally Out of Scope
+## 8. HTTPS with Caddy (Optional)
+
+When serving public web reports with automatic HTTPS once you have a domain:
+
+1. **DNS Configuration**: Create a DNS A record pointing your domain (e.g., `report.example.com`) to the public IP address of your Oracle Cloud instance.
+2. **Firewall / Security Lists**: Open inbound TCP ports 80 (HTTP) and 443 (HTTPS) in:
+   - Oracle Cloud Console: **Virtual Cloud Network (VCN)** > **Security Lists** > **Default Security List** > **Ingress Rules** (CIDR `0.0.0.0/0`, TCP ports `80, 443`).
+   - Server OS firewall:
+     ```bash
+     sudo ufw allow 80/tcp
+     sudo ufw allow 443/tcp
+     ```
+3. **Environment Configuration**: Set `DOMAIN` and `WEB_BASE_URL` in `.env`:
+   ```bash
+   DOMAIN=report.example.com
+   WEB_BASE_URL=https://report.example.com
+   ```
+4. **Start the Stack with HTTPS Profile**:
+   ```bash
+   docker compose -f compose.prod.yaml --profile https up -d --build
+   ```
+Caddy automatically provisions and renews TLS certificates via Let's Encrypt / ZeroSSL, terminates HTTPS on port 443, and reverse-proxies requests to `bot:8080` over the internal Docker network. The bot container does not publish any port directly to the host.
+
+## 9. Intentionally Out of Scope
 The following components are intentionally omitted from this task and deployment setup:
-- **HTTPS / Reverse Proxy / Caddy**: The bot operates via the Discord Gateway over outbound WebSockets and currently exposes no inbound web HTTP endpoints. A reverse proxy setup will be added alongside web report features.
-- **Custom Domain**: No public web domain is required for Discord bot gateway operations.
+- **Domain Purchase / DNS Management**: No domain is purchased or configured automatically.
 - **External Metrics and Alerting**: Operational observability relies on Docker daemon log rotation (`json-file`, max 10MB x 3) and container restart policies (`restart: unless-stopped`).
