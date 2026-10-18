@@ -9,10 +9,11 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.web.client.RestClient;
+import sntiago05.rejuv.clients.DeadlockApiGate;
 import sntiago05.rejuv.clients.Sleeper;
 
 @Configuration
-@EnableConfigurationProperties(DeadlockApiProperties.class)
+@EnableConfigurationProperties({DeadlockApiProperties.class, DeadlockApiGateProperties.class})
 public class DeadlockApiConfig {
 
     static final String USER_AGENT = "Rejuv-Discord-Bot";
@@ -36,8 +37,10 @@ public class DeadlockApiConfig {
     }
 
     @Bean
-    RestClient deadlockApiRestClient(DeadlockApiProperties properties) {
-        return restClientBuilder(properties).build();
+    RestClient deadlockApiRestClient(DeadlockApiProperties properties, DeadlockApiGateProperties gateProperties) {
+        return restClientBuilder(properties)
+                .requestInterceptor(new DeadlockApiGate(gateProperties))
+                .build();
     }
 
     @Bean

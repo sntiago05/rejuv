@@ -1,6 +1,8 @@
 package sntiago05.rejuv.config;
 
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 import net.dv8tion.jda.api.JDA;
 import net.dv8tion.jda.api.JDABuilder;
@@ -15,10 +17,15 @@ import sntiago05.rejuv.commands.CommandRouter;
 @EnableConfigurationProperties(BotProperties.class)
 public class JdaConfig {
 
+    static ExecutorService eventPool() {
+        return Executors.newVirtualThreadPerTaskExecutor();
+    }
+
     @Bean(destroyMethod = "shutdown")
     @ConditionalOnExpression("'${bot.token:}'.length() > 0 and '${bot.dev-guild-id:}'.length() > 0")
     JDA jda(BotProperties botProperties, CommandRouter commandRouter) {
         return JDABuilder.createLight(botProperties.token(), List.of(GatewayIntent.GUILD_MEMBERS))
+                .setEventPool(eventPool(), true)
                 .addEventListeners(commandRouter)
                 .build();
     }
