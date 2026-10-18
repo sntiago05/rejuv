@@ -806,12 +806,76 @@ class AnalyzeCommandTest {
                 "analyze.match_invalid",
                 "analyze.autocomplete.match",
                 "analyze.limit_reached",
-                "analyze.report_button"
+                "analyze.report_button",
+                "analyze.severity.major",
+                "analyze.severity.notable",
+                "analyze.severity.minor"
         );
 
         for (String key : requiredKeys) {
             assertThat(messages.get(key)).as("key %s should resolve", key).isNotBlank();
         }
+    }
+
+    @Test
+    void severityMajorPrefixesLeakFieldWithSeverityLabel() {
+        SlashCommandInteractionEvent event = mockEvent();
+        when(profileService.findLinkedAccountId(CALLER_ID)).thenReturn(OptionalLong.of(ACCOUNT_ID));
+        deferFor(event);
+        InteractionHook hook = hookFor(event);
+
+        AnalysisResult aiResult = new AnalysisResult(
+                "Great farming", "Too many deaths", "Ward more", List.of("10 kills"), "deaths", "major");
+        AnalysisReport report = new AnalysisReport(1, "Infernus", "Archon 3", "win", 30.0, aiResult, Map.of(), false);
+        when(analyzeService.analyze(eq(CALLER_ID), eq(ACCOUNT_ID), any())).thenReturn(report);
+
+        command.handle(event);
+
+        MessageEmbed embed = capturedEmbed(hook);
+        MessageEmbed.Field leakField = embed.getFields().get(1);
+        assertThat(leakField.getName()).isEqualTo(messages.get("analyze.field.leak"));
+        assertThat(leakField.getValue()).isEqualTo(messages.get("analyze.severity.major") + " Too many deaths");
+    }
+
+    @Test
+    void severityMajorWithLongLeakStaysWithinFieldLimit() {
+        SlashCommandInteractionEvent event = mockEvent();
+        when(profileService.findLinkedAccountId(CALLER_ID)).thenReturn(OptionalLong.of(ACCOUNT_ID));
+        deferFor(event);
+        InteractionHook hook = hookFor(event);
+
+        String longLeak = "a very long explanation of deaths in match ".repeat(30);
+        AnalysisResult aiResult = new AnalysisResult(
+                "Great farming", longLeak, "Ward more", List.of("10 kills"), "deaths", "major");
+        AnalysisReport report = new AnalysisReport(1, "Infernus", "Archon 3", "win", 30.0, aiResult, Map.of(), false);
+        when(analyzeService.analyze(eq(CALLER_ID), eq(ACCOUNT_ID), any())).thenReturn(report);
+
+        command.handle(event);
+
+        MessageEmbed embed = capturedEmbed(hook);
+        MessageEmbed.Field leakField = embed.getFields().get(1);
+        assertThat(leakField.getValue().length()).isLessThanOrEqualTo(1024);
+        assertThat(leakField.getValue()).startsWith(messages.get("analyze.severity.major") + " ");
+        assertThat(leakField.getValue()).endsWith("...");
+    }
+
+    @Test
+    void severityNullPreservesUnprefixedLeak() {
+        SlashCommandInteractionEvent event = mockEvent();
+        when(profileService.findLinkedAccountId(CALLER_ID)).thenReturn(OptionalLong.of(ACCOUNT_ID));
+        deferFor(event);
+        InteractionHook hook = hookFor(event);
+
+        AnalysisResult aiResult = new AnalysisResult(
+                "Great farming", "Too many deaths", "Ward more", List.of("10 kills"), "deaths", null);
+        AnalysisReport report = new AnalysisReport(1, "Infernus", "Archon 3", "win", 30.0, aiResult, Map.of(), false);
+        when(analyzeService.analyze(eq(CALLER_ID), eq(ACCOUNT_ID), any())).thenReturn(report);
+
+        command.handle(event);
+
+        MessageEmbed embed = capturedEmbed(hook);
+        MessageEmbed.Field leakField = embed.getFields().get(1);
+        assertThat(leakField.getValue()).isEqualTo("Too many deaths");
     }
 
     @Test

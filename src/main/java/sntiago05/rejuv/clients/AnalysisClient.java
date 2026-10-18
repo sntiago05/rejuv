@@ -226,7 +226,9 @@ public class AnalysisClient {
                 result.strength().trim(),
                 result.biggestLeak().trim(),
                 result.nextGameAction().trim(),
-                result.keyNumbers().stream().map(String::trim).toList()
+                result.keyNumbers().stream().map(String::trim).toList(),
+                result.focusArea(),
+                result.severity()
         );
 
         return AttemptResult.success(trimmedResult, responseModel, inputTokens, outputTokens);

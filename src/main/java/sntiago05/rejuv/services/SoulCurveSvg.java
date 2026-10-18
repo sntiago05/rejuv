@@ -43,6 +43,15 @@ public class SoulCurveSvg {
     public Optional<String> render(String heroName, String rankLabel,
                                    List<Integer> timesS, List<Long> playerNetWorth,
                                    List<Double> avgNetWorth, List<Double> stdNetWorth) {
+        return render(heroName, rankLabel, false, timesS, playerNetWorth, avgNetWorth, stdNetWorth);
+    }
+
+    /**
+     * Renders the soul curve SVG with ownRank flag selecting caption wording.
+     */
+    public Optional<String> render(String heroName, String rankLabel, boolean ownRank,
+                                   List<Integer> timesS, List<Long> playerNetWorth,
+                                   List<Double> avgNetWorth, List<Double> stdNetWorth) {
         if (timesS == null || playerNetWorth == null || avgNetWorth == null || stdNetWorth == null) {
             return Optional.empty();
         }
@@ -216,7 +225,8 @@ public class SoulCurveSvg {
         // Caption
         String hero = (heroName != null && !heroName.isBlank()) ? heroName : "Hero";
         String rank = (rankLabel != null && !rankLabel.isBlank()) ? rankLabel : "lobby";
-        String captionText = escapeXml(messages.get("report.curve.caption", hero, rank));
+        String captionKey = ownRank ? "report.curve.caption_own_rank" : "report.curve.caption";
+        String captionText = escapeXml(messages.get(captionKey, hero, rank));
         sb.append(String.format(Locale.ROOT,
                 "<text class=\"caption\" x=\"%.1f\" y=\"%.1f\" text-anchor=\"middle\">%s</text>\n",
                 WIDTH / 2.0, 24.0, captionText));

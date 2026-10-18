@@ -331,7 +331,11 @@ public class AnalyzeCommand implements SlashCommand {
         if (report.analysis() != null) {
             AnalysisResult analysis = report.analysis();
             builder.addField(messages.get("analyze.field.strength"), truncate(analysis.strength()), false);
-            builder.addField(messages.get("analyze.field.leak"), truncate(analysis.biggestLeak()), false);
+            String leak = analysis.biggestLeak();
+            if (analysis.severity() != null) {
+                leak = messages.get("analyze.severity." + analysis.severity()) + " " + (leak != null ? leak : "");
+            }
+            builder.addField(messages.get("analyze.field.leak"), truncate(leak), false);
             builder.addField(messages.get("analyze.field.next_action"), truncate(analysis.nextGameAction()), false);
             if (analysis.keyNumbers() != null && !analysis.keyNumbers().isEmpty()) {
                 builder.addField(messages.get("analyze.field.key_numbers"), truncate(String.join("\n", analysis.keyNumbers())), false);

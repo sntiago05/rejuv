@@ -2,8 +2,10 @@ package sntiago05.rejuv.services;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -22,6 +24,7 @@ import sntiago05.rejuv.clients.DeadlockApiUnavailableException;
 import sntiago05.rejuv.clients.MatchMetadataNotFoundException;
 import sntiago05.rejuv.clients.MatchMetadataSource;
 import sntiago05.rejuv.clients.dto.PerformanceCurvePoint;
+import sntiago05.rejuv.clients.dto.PlayerRank;
 import sntiago05.rejuv.clients.dto.RankAsset;
 import sntiago05.rejuv.domain.AnalysisResult;
 import sntiago05.rejuv.domain.ItemPurchase;
@@ -248,7 +251,7 @@ class ReportServiceTest {
         List<Double> expectedAvgNw = List.of(1400.0, 3000.0, 5000.0, 7200.0, 9800.0, 13500.0, 18000.0, 22500.0);
         List<Double> expectedStdNw = List.of(200.0, 400.0, 600.0, 800.0, 1000.0, 1300.0, 1600.0, 2000.0);
 
-        when(soulCurveSvg.render(eq("Infernus"), eq("Archon"),
+        when(soulCurveSvg.render(eq("Infernus"), eq("Archon"), eq(false),
                 eq(expectedTimes), eq(expectedPlayerNw), eq(expectedAvgNw), eq(expectedStdNw)))
                 .thenReturn(Optional.of("<svg>curve</svg>"));
 
@@ -258,10 +261,11 @@ class ReportServiceTest {
 
         Optional<String> svgOpt = reportService.soulCurveSvg(PUBLIC_ID);
         assertThat(svgOpt).contains("<svg>curve</svg>");
+        verify(deadlockApiClient, never()).getPlayerRank(anyLong());
     }
 
     @Test
-    void soulCurveSkippedWhenAverageBadgeNull() {
+    void badgeNullUnrankedPlayerBadgeZeroNoCurve() {
         MatchAnalysis stored = createStoredEntity(RESULT_JSON);
         when(repository.findByPublicId(PUBLIC_ID)).thenReturn(Optional.of(stored));
 
@@ -269,6 +273,7 @@ class ReportServiceTest {
                 List.of(new StatSnapshot(180, 1500L, 500L, 0L)), List.of());
         MatchTelemetry telemetry = new MatchTelemetry(MATCH_ID, 1800, List.of(player), null);
         when(matchMetadataSource.getMatch(MATCH_ID)).thenReturn(telemetry);
+        when(deadlockApiClient.getPlayerRank(ACCOUNT_ID)).thenReturn(new PlayerRank(0, 0, 0));
 
         Optional<ReportView> view = reportService.find(PUBLIC_ID);
         assertThat(view).isPresent();
@@ -277,8 +282,94 @@ class ReportServiceTest {
         Optional<String> svg = reportService.soulCurveSvg(PUBLIC_ID);
         assertThat(svg).isEmpty();
 
-        verifyNoInteractions(deadlockApiClient);
+        verify(deadlockApiClient, times(2)).getPlayerRank(ACCOUNT_ID);
+        verify(deadlockApiClient, never()).getPerformanceCurve(any(Integer.class), any(Integer.class));
         verifyNoInteractions(soulCurveSvg);
+    }
+
+    @Test
+    void badgeNullRankedPlayerBuildsCurveWithPlayerTierAndOwnRankTrue() {
+        MatchAnalysis stored = createStoredEntity(RESULT_JSON);
+        when(repository.findByPublicId(PUBLIC_ID)).thenReturn(Optional.of(stored));
+        when(gameAssets.heroNames()).thenReturn(Map.of(HERO_ID, "Infernus"));
+
+        PlayerTelemetry player = new PlayerTelemetry(ACCOUNT_ID, 0, HERO_ID, List.of(),
+                List.of(
+                        new StatSnapshot(180, 1500L, 500L, 0L),
+                        new StatSnapshot(360, 3200L, 1200L, 100L),
+                        new StatSnapshot(540, 5100L, 2200L, 200L)
+                ),
+                List.of());
+        MatchTelemetry telemetry = new MatchTelemetry(MATCH_ID, 1800, List.of(player), null);
+        when(matchMetadataSource.getMatch(MATCH_ID)).thenReturn(telemetry);
+
+        List<PerformanceCurvePoint> curve = List.of(
+                curvePoint(180, 1400.0, 200.0),
+                curvePoint(360, 3000.0, 400.0),
+                curvePoint(540, 5000.0, 600.0)
+        );
+        when(deadlockApiClient.getPlayerRank(ACCOUNT_ID)).thenReturn(new PlayerRank(42, 4, 2));
+        when(deadlockApiClient.getPerformanceCurve(HERO_ID, 4)).thenReturn(curve);
+        when(deadlockApiClient.getRanks()).thenReturn(List.of(new RankAsset(4, "Emissary")));
+
+        List<Integer> expectedTimes = List.of(180, 360, 540);
+        List<Long> expectedPlayerNw = List.of(1500L, 3200L, 5100L);
+        List<Double> expectedAvgNw = List.of(1400.0, 3000.0, 5000.0);
+        List<Double> expectedStdNw = List.of(200.0, 400.0, 600.0);
+
+        when(soulCurveSvg.render(eq("Infernus"), eq("Emissary"), eq(true),
+                eq(expectedTimes), eq(expectedPlayerNw), eq(expectedAvgNw), eq(expectedStdNw)))
+                .thenReturn(Optional.of("<svg>own-rank-curve</svg>"));
+
+        Optional<ReportView> viewOpt = reportService.find(PUBLIC_ID);
+        assertThat(viewOpt).isPresent();
+        assertThat(viewOpt.get().hasSoulCurve()).isTrue();
+
+        Optional<String> svgOpt = reportService.soulCurveSvg(PUBLIC_ID);
+        assertThat(svgOpt).contains("<svg>own-rank-curve</svg>");
+
+        verify(deadlockApiClient, times(2)).getPlayerRank(ACCOUNT_ID);
+        verify(deadlockApiClient, times(2)).getPerformanceCurve(HERO_ID, 4);
+    }
+
+    @Test
+    void badgeNullGetPlayerRankThrowsReturnsEmptyAndNoException() {
+        MatchAnalysis stored = createStoredEntity(RESULT_JSON);
+        when(repository.findByPublicId(PUBLIC_ID)).thenReturn(Optional.of(stored));
+
+        PlayerTelemetry player = new PlayerTelemetry(ACCOUNT_ID, 0, HERO_ID, List.of(),
+                List.of(new StatSnapshot(180, 1500L, 500L, 0L)), List.of());
+        MatchTelemetry telemetry = new MatchTelemetry(MATCH_ID, 1800, List.of(player), null);
+        when(matchMetadataSource.getMatch(MATCH_ID)).thenReturn(telemetry);
+        when(deadlockApiClient.getPlayerRank(ACCOUNT_ID))
+                .thenThrow(new DeadlockApiUnavailableException("API unavailable", null, null));
+
+        Optional<ReportView> view = reportService.find(PUBLIC_ID);
+        assertThat(view).isPresent();
+        assertThat(view.get().hasSoulCurve()).isFalse();
+
+        Optional<String> svg = reportService.soulCurveSvg(PUBLIC_ID);
+        assertThat(svg).isEmpty();
+
+        verifyNoInteractions(soulCurveSvg);
+    }
+
+    @Test
+    void badgeNullTierClampedForRank12() {
+        MatchAnalysis stored = createStoredEntity(RESULT_JSON);
+        when(repository.findByPublicId(PUBLIC_ID)).thenReturn(Optional.of(stored));
+
+        PlayerTelemetry player = new PlayerTelemetry(ACCOUNT_ID, 0, HERO_ID, List.of(),
+                List.of(new StatSnapshot(180, 1500L, 500L, 0L),
+                        new StatSnapshot(360, 3000L, 1000L, 0L),
+                        new StatSnapshot(540, 4500L, 1500L, 0L)), List.of());
+        MatchTelemetry telemetry = new MatchTelemetry(MATCH_ID, 1800, List.of(player), null);
+        when(matchMetadataSource.getMatch(MATCH_ID)).thenReturn(telemetry);
+        when(deadlockApiClient.getPlayerRank(ACCOUNT_ID)).thenReturn(new PlayerRank(120, 12, 0));
+        when(deadlockApiClient.getPerformanceCurve(HERO_ID, 11)).thenReturn(List.of());
+
+        reportService.find(PUBLIC_ID);
+        verify(deadlockApiClient).getPerformanceCurve(HERO_ID, 11);
     }
 
     @Test

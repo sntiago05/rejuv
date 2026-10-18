@@ -30,7 +30,7 @@
 
             <div class="card card-leak">
                 <h2 th:text="#{report.leak}">Biggest Leak</h2>
-                <p th:text="${report.analysis.biggestLeak}">Leak content</p>
+                <p><span th:if="${report.analysis.severity != null}" th:text="#{${'analyze.severity.' + report.analysis.severity}} + ' '"></span><span th:text="${report.analysis.biggestLeak}">Leak content</span></p>
             </div>
 
             <div class="card card-action">
