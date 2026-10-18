@@ -1,0 +1,94 @@
+{
+  "match_info": {
+    "match_id": 900000003,
+    "duration_s": 1800,
+    "average_badge_team0": 50,
+    "average_badge_team1": 60,
+    "mid_boss": [
+      {
+        "destroyed_time_s": 960,
+        "team_killed": 0,
+        "team_claimed": 0
+      },
+      {
+        "destroyed_time_s": 1500,
+        "team_killed": 1,
+        "team_claimed": 0
+      },
+      {
+        "destroyed_time_s": 1700,
+        "team_killed": null,
+        "team_claimed": 1
+      }
+    ],
+    "players": [
+      {
+        "account_id": 1000001,
+        "team": 0,
+        "hero_id": 1,
+        "player_slot": 0,
+        "stats": [
+          {
+            "time_stamp_s": 600,
+            "net_worth": 5000,
+            "player_damage": 2000,
+            "player_healing": 0,
+            "boss_damage": 3000
+          },
+          {
+            "time_stamp_s": 1800,
+            "net_worth": 18000,
+            "player_damage": 12000,
+            "player_healing": 0,
+            "boss_damage": 15000
+          }
+        ]
+      },
+      {
+        "account_id": 1000002,
+        "team": 0,
+        "hero_id": 2,
+        "player_slot": 1,
+        "stats": [
+          {
+            "time_stamp_s": 1800,
+            "net_worth": 16000,
+            "player_damage": 9000,
+            "player_healing": 0,
+            "boss_damage": 5000
+          }
+        ]
+      },
+      {
+        "account_id": 1000003,
+        "team": 1,
+        "hero_id": 3,
+        "player_slot": 6,
+        "stats": [
+          {
+            "time_stamp_s": 1800,
+            "net_worth": 14000,
+            "player_damage": 8000,
+            "player_healing": 0,
+            "boss_damage": 8000
+          }
+        ]
+      },
+      {
+        "account_id": 1000004,
+        "team": 1,
+        "hero_id": 4,
+        "player_slot": 7,
+        "stats": [
+          {
+            "time_stamp_s": 1800,
+            "net_worth": 13000,
+            "player_damage": 7000,
+            "player_healing": 0,
+            "boss_damage": 4000
+          }
+        ]
+      }
+    ]
+  }
+}

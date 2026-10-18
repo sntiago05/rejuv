@@ -15,6 +15,7 @@ import java.util.List;
  * @param playerSlot   player slot number (0..11, null if unknown)
  * @param assignedLane assigned lane number (1..4, null if unknown)
  * @param deaths       death events, ordered by {@code gameTimeS} ascending
+ * @param bossDamage   final cumulative boss damage (nullable)
  */
 public record PlayerTelemetry(long accountId, int team, int heroId,
                               List<ItemPurchase> items,
@@ -22,13 +23,24 @@ public record PlayerTelemetry(long accountId, int team, int heroId,
                               List<PowerUpBuff> powerUpBuffs,
                               Integer playerSlot,
                               Integer assignedLane,
-                              List<DeathEvent> deaths) {
+                              List<DeathEvent> deaths,
+                              Long bossDamage) {
+
+    public PlayerTelemetry(long accountId, int team, int heroId,
+                           List<ItemPurchase> items,
+                           List<StatSnapshot> snapshots,
+                           List<PowerUpBuff> powerUpBuffs,
+                           Integer playerSlot,
+                           Integer assignedLane,
+                           List<DeathEvent> deaths) {
+        this(accountId, team, heroId, items, snapshots, powerUpBuffs, playerSlot, assignedLane, deaths, null);
+    }
 
     public PlayerTelemetry(long accountId, int team, int heroId,
                            List<ItemPurchase> items,
                            List<StatSnapshot> snapshots,
                            List<PowerUpBuff> powerUpBuffs) {
-        this(accountId, team, heroId, items, snapshots, powerUpBuffs, null, null, List.of());
+        this(accountId, team, heroId, items, snapshots, powerUpBuffs, null, null, List.of(), null);
     }
 
     public PlayerTelemetry {

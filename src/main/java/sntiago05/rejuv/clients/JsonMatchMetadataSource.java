@@ -14,6 +14,7 @@ import sntiago05.rejuv.config.DeadlockApiProperties;
 import sntiago05.rejuv.domain.DeathEvent;
 import sntiago05.rejuv.domain.ItemPurchase;
 import sntiago05.rejuv.domain.MatchTelemetry;
+import sntiago05.rejuv.domain.MidBossEvent;
 import sntiago05.rejuv.domain.PlayerTelemetry;
 import sntiago05.rejuv.domain.PowerUpBuff;
 import sntiago05.rejuv.domain.SnapshotDetail;
@@ -64,8 +65,13 @@ public class JsonMatchMetadataSource implements MatchMetadataSource {
                 .map(JsonMatchMetadataSource::mapPlayer)
                 .toList();
 
+        List<MidBossEvent> midBossEvents = matchInfo.midBoss() == null ? List.of() : matchInfo.midBoss().stream()
+                .filter(mb -> mb != null && mb.destroyedTimeS() != null && mb.teamKilled() != null && mb.teamClaimed() != null)
+                .map(mb -> new MidBossEvent(mb.destroyedTimeS(), mb.teamKilled(), mb.teamClaimed()))
+                .toList();
+
         Integer averageBadge = computeAverageBadge(matchInfo.averageBadgeTeam0(), matchInfo.averageBadgeTeam1());
-        return new MatchTelemetry(matchInfo.matchId(), matchInfo.durationS(), playerTelemetries, averageBadge);
+        return new MatchTelemetry(matchInfo.matchId(), matchInfo.durationS(), playerTelemetries, averageBadge, midBossEvents);
     }
 
     static Integer computeAverageBadge(Integer team0, Integer team1) {
@@ -141,8 +147,17 @@ public class JsonMatchMetadataSource implements MatchMetadataSource {
                 })
                 .toList();
 
+        Long bossDamage = null;
+        if (player.stats() != null && !player.stats().isEmpty()) {
+            bossDamage = player.stats().stream()
+                    .filter(stat -> stat != null && stat.timeStampS() != null)
+                    .max(Comparator.comparingInt(MatchMetadataResponse.Stat::timeStampS))
+                    .map(MatchMetadataResponse.Stat::bossDamage)
+                    .orElse(null);
+        }
+
         return new PlayerTelemetry(accountId, team, heroId, items, snapshots, buffs,
-                player.playerSlot(), player.assignedLane(), deaths);
+                player.playerSlot(), player.assignedLane(), deaths, bossDamage);
     }
 
     private static int zeroIfNull(Integer value) {

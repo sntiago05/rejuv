@@ -20,8 +20,28 @@ public record MatchMetadataResponse(
             @JsonProperty("duration_s") Integer durationS,
             @JsonProperty("players") List<Player> players,
             @JsonProperty("average_badge_team0") Integer averageBadgeTeam0,
-            @JsonProperty("average_badge_team1") Integer averageBadgeTeam1
+            @JsonProperty("average_badge_team1") Integer averageBadgeTeam1,
+            @JsonProperty("mid_boss") List<MidBoss> midBoss
     ) { }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public record MidBoss(
+            @JsonProperty("team_killed") Integer teamKilled,
+            @JsonProperty("team_claimed") Integer teamClaimed,
+            @JsonProperty("destroyed_time_s") Integer destroyedTimeS
+    ) {
+        public Integer team_killed() {
+            return teamKilled;
+        }
+
+        public Integer team_claimed() {
+            return teamClaimed;
+        }
+
+        public Integer destroyed_time_s() {
+            return destroyedTimeS;
+        }
+    }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record Player(
@@ -69,7 +89,8 @@ public record MatchMetadataResponse(
             @JsonProperty("gold_lane_creep") Long goldLaneCreep,
             @JsonProperty("gold_neutral_creep") Long goldNeutralCreep,
             @JsonProperty("gold_denied") Long goldDenied,
-            @JsonProperty("gold_death_loss") Long goldDeathLoss
+            @JsonProperty("gold_death_loss") Long goldDeathLoss,
+            @JsonProperty("boss_damage") Long bossDamage
     ) { }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
