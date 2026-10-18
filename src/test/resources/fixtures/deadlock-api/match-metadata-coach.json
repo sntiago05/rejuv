@@ -1,0 +1,93 @@
+{
+  "match_info": {
+    "match_id": 900000003,
+    "duration_s": 1952,
+    "players": [
+      {
+        "account_id": 1000001,
+        "team": 1,
+        "hero_id": 1,
+        "player_slot": 2,
+        "assigned_lane": 3,
+        "items": [
+          {
+            "item_id": 1001,
+            "game_time_s": 200,
+            "sold_time_s": 600
+          }
+        ],
+        "stats": [
+          {
+            "time_stamp_s": 180,
+            "net_worth": 1500,
+            "player_damage": 500,
+            "player_healing": 0,
+            "kills": 1,
+            "deaths": 0,
+            "assists": 2,
+            "creep_kills": 20,
+            "possible_creeps": 25,
+            "shots_hit": 100,
+            "shots_missed": 20,
+            "denies": 3,
+            "player_damage_taken": 800,
+            "gold_lane_creep": 1200,
+            "gold_neutral_creep": 300,
+            "gold_denied": 150,
+            "gold_death_loss": 0
+          }
+        ],
+        "death_details": [
+          {
+            "game_time_s": 500,
+            "killer_player_slot": 8,
+            "time_to_kill_s": 15.5,
+            "death_duration_s": 25
+          },
+          {
+            "game_time_s": 250,
+            "killer_player_slot": 6,
+            "time_to_kill_s": 10.0,
+            "death_duration_s": 15
+          }
+        ],
+        "power_up_buffs": []
+      },
+      {
+        "account_id": 1000002,
+        "team": 0,
+        "hero_id": 13,
+        "player_slot": 8,
+        "items": [],
+        "stats": [
+          {
+            "time_stamp_s": 180,
+            "net_worth": 1200,
+            "player_damage": 300,
+            "player_healing": 50
+          }
+        ],
+        "power_up_buffs": []
+      },
+      {
+        "account_id": 1000003,
+        "team": 0,
+        "hero_id": 25,
+        "player_slot": null,
+        "assigned_lane": 1,
+        "items": [],
+        "stats": [
+          {
+            "time_stamp_s": 180,
+            "net_worth": 1100,
+            "player_damage": 200,
+            "player_healing": 0,
+            "kills": 4
+          }
+        ],
+        "death_details": [],
+        "power_up_buffs": []
+      }
+    ]
+  }
+}

@@ -24,4 +24,13 @@ public record MatchTelemetry(long matchId, int durationS, List<PlayerTelemetry> 
                 .filter(p -> p.accountId() == accountId)
                 .findFirst();
     }
+
+    /**
+     * The player in this slot (0..11), if present. Players with null slot are skipped.
+     */
+    public Optional<PlayerTelemetry> playerBySlot(int playerSlot) {
+        return players.stream()
+                .filter(p -> p.playerSlot() != null && p.playerSlot() == playerSlot)
+                .findFirst();
+    }
 }

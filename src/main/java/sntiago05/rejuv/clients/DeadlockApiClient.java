@@ -1,6 +1,7 @@
 package sntiago05.rejuv.clients;
 
 import java.net.URI;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -24,6 +25,7 @@ import sntiago05.rejuv.clients.dto.ItemStat;
 import sntiago05.rejuv.clients.dto.MatchHistoryEntry;
 import sntiago05.rejuv.clients.dto.MateStat;
 import sntiago05.rejuv.clients.dto.MetricPercentiles;
+import sntiago05.rejuv.clients.dto.PerformanceCurvePoint;
 import sntiago05.rejuv.clients.dto.PlayerHeroStat;
 import sntiago05.rejuv.clients.dto.PlayerItemStat;
 import sntiago05.rejuv.clients.dto.PlayerRank;
@@ -60,6 +62,7 @@ public class DeadlockApiClient {
     private static final String RANKS_PATH = "/v1/assets/ranks";
     private static final String HEROES_PATH = "/v1/assets/heroes";
     private static final String ITEMS_PATH = "/v1/assets/items";
+    private static final String PERFORMANCE_CURVE_PATH = "/v1/analytics/player-performance-curve";
 
     // Same mapper configuration as the RestClient's default JSON converter, so the DTOs are read identically.
     private static final BodyReader<List<MatchHistoryEntry>> HISTORY_READER = DeadlockApiRequests.jsonArrayPrefix(
@@ -79,6 +82,7 @@ public class DeadlockApiClient {
     private static final BodyReader<List<RankAsset>> RANKS_READER = DeadlockApiRequests.json(new ParameterizedTypeReference<>() { });
     private static final BodyReader<List<HeroAsset>> HEROES_READER = DeadlockApiRequests.json(new ParameterizedTypeReference<>() { });
     private static final BodyReader<List<ItemAsset>> ITEMS_READER = DeadlockApiRequests.json(new ParameterizedTypeReference<>() { });
+    private static final BodyReader<List<PerformanceCurvePoint>> PERFORMANCE_CURVE_READER = DeadlockApiRequests.json(new ParameterizedTypeReference<>() { });
 
     private final DeadlockApiRequests requests;
 
@@ -327,6 +331,25 @@ public class DeadlockApiClient {
                         .queryParam("min_unix_timestamp", minUnixTimestamp), rankTier),
                 ITEM_STATS_READER);
         return List.copyOf(stats);
+    }
+
+    /**
+     * Hero + rank performance curve over game time. Points are sorted ascending by gameTime.
+     * resolution=0 returns absolute game times in seconds.
+     *
+     * @throws IllegalArgumentException if rankTier is not in 0..11 (before any HTTP call)
+     */
+    @Cacheable(cacheNames = CacheConfig.DEADLOCK_PERFORMANCE_CURVE, sync = true, key = "#heroId + ':' + #rankTier")
+    public List<PerformanceCurvePoint> getPerformanceCurve(int heroId, int rankTier) {
+        requireRankTier(rankTier);
+        List<PerformanceCurvePoint> points = requests.get(PERFORMANCE_CURVE_PATH,
+                uri -> badgeRange(uri.path(PERFORMANCE_CURVE_PATH)
+                        .queryParam("hero_ids", heroId)
+                        .queryParam("resolution", 0), rankTier),
+                PERFORMANCE_CURVE_READER);
+        return points.stream()
+                .sorted(Comparator.comparingInt(PerformanceCurvePoint::gameTime))
+                .toList();
     }
 
     private static void requireRankTier(int rankTier) {

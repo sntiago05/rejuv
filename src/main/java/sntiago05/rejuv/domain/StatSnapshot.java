@@ -8,5 +8,9 @@ package sntiago05.rejuv.domain;
  * @param playerDamage  total damage dealt to enemy players
  * @param playerHealing total healing provided
  */
-public record StatSnapshot(int timeS, long netWorth, long playerDamage, long playerHealing) {
+public record StatSnapshot(int timeS, long netWorth, long playerDamage, long playerHealing, SnapshotDetail detail) {
+
+    public StatSnapshot(int timeS, long netWorth, long playerDamage, long playerHealing) {
+        this(timeS, netWorth, playerDamage, playerHealing, null);
+    }
 }
