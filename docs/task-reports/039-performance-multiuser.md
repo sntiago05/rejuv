@@ -1,7 +1,7 @@
 # Task 039: performance and multi-user readiness
 
 ## Status
-Implemented on `feature/039-performance-multiuser` (7 commits including this report, on top of `main` 55d8cba). `./mvnw -B verify` passes: 978 tests, 0 failures, 0 errors, 14 skipped (baseline on the same base: 958 tests, 2 skipped). Not pushed, not merged. The spec was given in the prompt (no `docs/tasks/039-*.md` file).
+Implemented on `feature/039-performance-multiuser` (8 commits including this report, on top of `main` 55d8cba). `./mvnw -B verify` passes: 978 tests, 0 failures, 0 errors, 14 skipped (baseline on the same base: 958 tests, 2 skipped). Not pushed, not merged. The spec was given in the prompt (no `docs/tasks/039-*.md` file).
 
 Observable behavior is unchanged: same Discord replies (same message keys and text), same chart PNG bytes, same web pages, same stored data. No existing test assertion was changed.
 

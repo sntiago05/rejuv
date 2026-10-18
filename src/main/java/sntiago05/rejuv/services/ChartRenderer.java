@@ -89,8 +89,8 @@ public class ChartRenderer {
                 || (!chart.teammatesAvgNetWorth().isEmpty() && chart.teammatesAvgNetWorth().size() != n)) {
             throw new IllegalArgumentException("Chart series have different lengths");
         }
-        // 3-byte BGR is the layout the PNG writer encodes from, so it skips a per-row conversion; the pixels and the
-        // PNG bytes are the same as with TYPE_INT_RGB (checked by CpuHotPathBenchmarkTest).
+        // 3-byte BGR is the layout the PNG writer encodes from, so it skips a per-row conversion; the PNG bytes are the
+        // same as with TYPE_INT_RGB (task 039 compared the SHA-256 printed by CpuHotPathBenchmarkTest before/after).
         BufferedImage image = new BufferedImage(WIDTH, HEIGHT, BufferedImage.TYPE_3BYTE_BGR);
         Graphics2D g = image.createGraphics();
         try {
