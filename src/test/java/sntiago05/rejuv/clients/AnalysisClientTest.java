@@ -175,6 +175,22 @@ class AnalysisClientTest {
     }
 
     @Test
+    void strayBraceInResponseTextIsCleanedAndCountsAsNormalSuccess() {
+        server.expect(once(), requestTo(BASE_URL + "/v1/messages"))
+                .andExpect(method(HttpMethod.POST))
+                .andRespond(withSuccess(fixture("messages-stray-brace.json"), MediaType.APPLICATION_JSON));
+
+        AnalysisOutcome outcome = client.analyze(sampleInput());
+
+        assertThat(outcome.isFallback()).isFalse();
+        assertThat(outcome.attempts()).isEqualTo(1);
+        AnalysisResult result = outcome.result();
+        assertThat(result).isNotNull();
+        assertThat(result.nextGameAction()).isEqualTo("Focus on positioning behind cover during mid-game teamfights.");
+        assertThat(result.nextGameAction()).doesNotEndWith("}");
+    }
+
+    @Test
     void invalidJsonThenSuccessRetriesOnce() {
         server.expect(once(), requestTo(BASE_URL + "/v1/messages"))
                 .andRespond(withSuccess(fixture("messages-invalid-json.json"), MediaType.APPLICATION_JSON));
