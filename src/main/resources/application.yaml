@@ -27,6 +27,9 @@ deadlock-api:
   read-timeout: 10s
   default-retry-after: 2s
   max-retry-after: 10s
+  gate:
+    max-concurrent: 1      # simultaneous in-flight deadlock-api requests, all adapters together
+    acquire-timeout: 20s   # how long a request waits for its turn before failing
 
 anthropic:
   base-url: https://api.anthropic.com
