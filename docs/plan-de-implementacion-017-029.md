@@ -3,7 +3,7 @@
 Guía operativa para el dueño del repo: qué ejecutar en paralelo, qué esperar y en qué orden mergear. Estado al 2026-10-18. Cubre las tareas pendientes 010, 017, 018, 020, 021 y las nuevas 029-037 (mejora del coach de `/analyze` y despliegue). Fuente de decisiones: `docs/PROJECT_CONTEXT.md`, `docs/implementation-plan.md`, `docs/features.md` y la evidencia `docs/evidence/029-coaching-analytics/`.
 
 ## Estado (2026-10-18)
-Ola 1 mergeada (PRs #59-#64). Ola 2: specs escritos y worktrees lanzados; reglas comunes de las capas del coach en `docs/coach-provider-rules.md`. Pendiente: 037 (depende de 031-035) y 010.
+Ola 1 mergeada (PRs #59-#64). Ola 2: specs escritos y worktrees lanzados; reglas comunes de las capas del coach en `docs/coach-provider-rules.md`. Mergeadas 031-034, 038 y 018; falta mergear 035 (rama local sin subir). Spec 037 lista (arranca cuando 035 esté en `main`). 010 sigue sin spec: es trabajo con testers, depende de 037 y de tener el bot desplegado.
 
 ## Tareas
 
@@ -22,7 +22,7 @@ Ola 1 mergeada (PRs #59-#64). Ola 2: specs escritos y worktrees lanzados; reglas
 | 034 | Coach: forma reciente (últimos N partidos del héroe) | 029 | `docs/tasks/034-form-coach.md` **lista** | Antigravity |
 | 035 | Coach: matchup y rival de lane (`assigned_lane`, `hero-counter-stats`) | 029, 012 | `docs/tasks/035-matchup-coach.md` **lista** | Antigravity |
 | 036 | Despliegue: Dockerfile, compose de producción, CI, fuentes para el gráfico | ninguna | `docs/tasks/036-deployment-ci.md` **lista** | Antigravity |
-| 037 | Prompt v2, esquema con prioridades y severidad, embed y web | 031-035 | Falta escribir | Claude Code |
+| 037 | Prompt v2 con insights del coach, `focus_area` y `severity` en el resultado, embed y web; incluye el fallback de rango propio para la curva de souls en partidas no ranked | 031-035 mergeadas | `docs/tasks/037-prompt-v2-priorities.md` **lista** | Claude Code |
 | 010 | Tuning del prompt con partidos reales de testers | 037, 036 | Falta escribir | Dueño + Claude |
 
 Nota: la 021 original se divide: `/items` conserva el número 021 y `/compare` pasa a ser la 038 (el skill `task-worktree` solo acepta números, no sufijos como 021a). Los números 031-037 son una propuesta mínima; el alcance exacto se fija al escribir cada spec.
