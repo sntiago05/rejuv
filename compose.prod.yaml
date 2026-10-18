@@ -1,0 +1,43 @@
+services:
+  postgres:
+    # Keep the image tag in sync with TestcontainersConfiguration.
+    image: postgres:17
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-rejuv}
+      POSTGRES_USER: ${POSTGRES_USER:-rejuv}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  bot:
+    build: .
+    image: rejuv:local
+    restart: unless-stopped
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+    depends_on:
+      postgres:
+        condition: service_healthy
+    mem_limit: 1g
+    stop_grace_period: 20s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    # Port mapping for web report arrives with web tasks:
+    # ports:
+    #   - "127.0.0.1:8080:8080"
+
+volumes:
+  postgres-data:
