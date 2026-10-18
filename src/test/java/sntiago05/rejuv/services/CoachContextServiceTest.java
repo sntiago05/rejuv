@@ -140,6 +140,27 @@ class CoachContextServiceTest {
         assertThat(executionOrder).containsExactly("alpha", "beta", "zeta");
     }
 
+    @Test
+    void significanceNoneSkippedWhileNotableMajorAndPayloadWithoutFieldKept() {
+        CoachInsightProvider noneProvider = new FakeProvider("deaths",
+                new CoachInsight("deaths", Map.of("significance", "none", "count", 5)));
+        CoachInsightProvider notableProvider = new FakeProvider("phases",
+                new CoachInsight("phases", Map.of("significance", "notable", "z", 1.5)));
+        CoachInsightProvider majorProvider = new FakeProvider("build",
+                new CoachInsight("build", Map.of("significance", "major", "item", "toxic")));
+        CoachInsightProvider noFieldProvider = new FakeProvider("recent_form",
+                new CoachInsight("recent_form", Map.of("games", 10)));
+
+        CoachContextService service = new CoachContextService(
+                List.of(noneProvider, notableProvider, majorProvider, noFieldProvider));
+        Map<String, Object> result = service.build(DUMMY_REQUEST);
+
+        assertThat(result.keySet()).containsExactly("build", "phases", "recent_form");
+        assertThat(result.get("build")).isEqualTo(Map.of("significance", "major", "item", "toxic"));
+        assertThat(result.get("phases")).isEqualTo(Map.of("significance", "notable", "z", 1.5));
+        assertThat(result.get("recent_form")).isEqualTo(Map.of("games", 10));
+    }
+
     private static class FakeProvider implements CoachInsightProvider {
         private final String key;
         private final CoachInsight insight;

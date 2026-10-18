@@ -162,13 +162,13 @@ class MetricsServiceTest {
 
         assertThat(input.durationMin()).isEqualTo(35.1);
         assertThat(input.metrics())
-                .containsEntry("souls_per_min", new MetricComparison(1176.3, 1043.3, 1153.1, 1274.4))
-                .containsEntry("kills", new MetricComparison(9.0, 5.0, 8.0, 11.0))
-                .containsEntry("deaths", new MetricComparison(4.0, 3.0, 5.0, 7.0))
-                .containsEntry("assists", new MetricComparison(12.0, 7.0, 10.0, 14.0))
-                .containsEntry("deaths_per_10_min", new MetricComparison(1.1, null, null, null))
-                .containsEntry("last_hits", new MetricComparison(233.0, 159.2, 194.4, 237.5))
-                .containsEntry("denies", new MetricComparison(21.0, 9.6, 14.2, 19.8));
+                .containsEntry("souls_per_min", new MetricComparison(1176.3, 1043.3, 1153.1))
+                .containsEntry("kills", new MetricComparison(9.0, 5.0, 8.0))
+                .containsEntry("deaths", new MetricComparison(4.0, 3.0, 5.0))
+                .containsEntry("assists", new MetricComparison(12.0, 7.0, 10.0))
+                .containsEntry("deaths_per_10_min", new MetricComparison(1.1, null, null))
+                .containsEntry("last_hits", new MetricComparison(233.0, 159.2, 194.4))
+                .containsEntry("denies", new MetricComparison(21.0, 9.6, 14.2));
         assertThat(input.language()).isEqualTo(MetricsService.LANGUAGE).isEqualTo("en");
     }
 
@@ -180,7 +180,7 @@ class MetricsServiceTest {
 
         AnalysisInput input = service.buildInput(request(defaultMatch(), null, RANK, withoutKills, ITEM_STATS));
 
-        assertThat(input.metrics()).containsEntry("kills", new MetricComparison(9.0, null, null, null));
+        assertThat(input.metrics()).containsEntry("kills", new MetricComparison(9.0, null, null));
         assertThat(input.metrics().get("deaths").p50()).isEqualTo(5.0);
     }
 
@@ -199,7 +199,7 @@ class MetricsServiceTest {
         AnalysisInput input = service.buildInput(historyOnly(defaultMatch()));
 
         assertThat(input.metrics().keySet()).containsExactlyElementsOf(HISTORY_KEYS);
-        assertThat(input.metrics().get("souls_per_min")).isEqualTo(new MetricComparison(1200.0, 1043.3, 1153.1, 1274.4));
+        assertThat(input.metrics().get("souls_per_min")).isEqualTo(new MetricComparison(1200.0, 1043.3, 1153.1));
         assertThat(input.items()).isEmpty();
     }
 
@@ -238,7 +238,7 @@ class MetricsServiceTest {
         AnalysisInput input = service.buildInput(full(defaultMatch(), player(List.of(), SNAPSHOTS, List.of())));
 
         assertThat(input.metrics()).containsEntry("player_damage_per_min",
-                new MetricComparison(900.0, 685.5, 854.2, 1064.4));
+                new MetricComparison(900.0, 685.5, 854.2));
 
         AnalysisInput noSnapshots = service.buildInput(full(defaultMatch(), player(List.of(), List.of(), List.of())));
         assertThat(noSnapshots.metrics()).doesNotContainKeys(
@@ -249,14 +249,14 @@ class MetricsServiceTest {
     void netWorthAt10MinIsInterpolatedBetween540And720() {
         AnalysisInput input = service.buildInput(full(defaultMatch(), player(List.of(), SNAPSHOTS, List.of())));
 
-        assertThat(input.metrics()).containsEntry("net_worth_at_10_min", new MetricComparison(7000.0, null, null, null));
+        assertThat(input.metrics()).containsEntry("net_worth_at_10_min", new MetricComparison(7000.0, null, null));
     }
 
     @Test
     void netWorthAt20MinUsesExactSnapshot() {
         AnalysisInput input = service.buildInput(full(defaultMatch(), player(List.of(), SNAPSHOTS, List.of())));
 
-        assertThat(input.metrics()).containsEntry("net_worth_at_20_min", new MetricComparison(18000.0, null, null, null));
+        assertThat(input.metrics()).containsEntry("net_worth_at_20_min", new MetricComparison(18000.0, null, null));
     }
 
     @Test
@@ -295,8 +295,8 @@ class MetricsServiceTest {
         AnalysisInput input = service.buildInput(full(defaultMatch(), player(List.of(), SNAPSHOTS, buffs)));
 
         assertThat(input.metrics())
-                .containsEntry("permanent_buffs", new MetricComparison(3.0, 1.0, 2.0, 4.0))
-                .containsEntry("first_permanent_buff_min", new MetricComparison(5.0, 4.5, 6.5, 9.0));
+                .containsEntry("permanent_buffs", new MetricComparison(3.0, 1.0, 2.0))
+                .containsEntry("first_permanent_buff_min", new MetricComparison(5.0, 4.5, 6.5));
     }
 
     @Test
@@ -306,7 +306,7 @@ class MetricsServiceTest {
         AnalysisInput input = service.buildInput(full(match(eraStart, DURATION_S, 36000, 1, 1),
                 player(List.of(), SNAPSHOTS, List.of())));
 
-        assertThat(input.metrics()).containsEntry("permanent_buffs", new MetricComparison(0.0, 1.0, 2.0, 4.0))
+        assertThat(input.metrics()).containsEntry("permanent_buffs", new MetricComparison(0.0, 1.0, 2.0))
                 .doesNotContainKey("first_permanent_buff_min");
     }
 
@@ -330,8 +330,8 @@ class MetricsServiceTest {
         AnalysisInput input = service.buildInput(full(defaultMatch(), player(List.of(), SNAPSHOTS, buffs)));
 
         assertThat(input.metrics())
-                .containsEntry("permanent_buffs", new MetricComparison(1.0, 1.0, 2.0, 4.0))
-                .containsEntry("first_permanent_buff_min", new MetricComparison(10.0, 4.5, 6.5, 9.0));
+                .containsEntry("permanent_buffs", new MetricComparison(1.0, 1.0, 2.0))
+                .containsEntry("first_permanent_buff_min", new MetricComparison(10.0, 4.5, 6.5));
     }
 
     // 14. items
@@ -451,7 +451,6 @@ class MetricsServiceTest {
             assertThat(metric).isNotNull();
             assertThat(metric.p25()).isNotNull();
             assertThat(metric.p50()).isNotNull();
-            assertThat(metric.p75()).isNotNull();
         });
         assertThat(input.items()).hasSizeLessThanOrEqualTo(4);
     }
@@ -471,6 +470,7 @@ class MetricsServiceTest {
         String json = new JsonMapper().writeValueAsString(input);
 
         assertThat(json).contains("\"duration_min\"", "\"avg_bought_at_min\"");
+        assertThat(json).doesNotContain("\"p75\"");
         assertThat(json.length()).isLessThan(6_000);
     }
 

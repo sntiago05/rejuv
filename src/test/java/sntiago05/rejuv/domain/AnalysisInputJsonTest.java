@@ -20,7 +20,7 @@ class AnalysisInputJsonTest {
                 "Archon 3",
                 "win",
                 30.0,
-                Map.of("kills", new AnalysisInput.MetricComparison(5.0, 3.0, 5.0, 8.0)),
+                Map.of("kills", new AnalysisInput.MetricComparison(5.0, 3.0, 5.0)),
                 List.of(new AnalysisInput.ItemTiming("Basic Magazine", 4.5, 4.0)),
                 "en"
         );
@@ -30,6 +30,9 @@ class AnalysisInputJsonTest {
         String jsonWithCoachNull = mapper.writeValueAsString(input.withCoach(null));
 
         assertThat(jsonFrom7Arg).doesNotContain("\"coach\"");
+        assertThat(jsonFrom7Arg).doesNotContain("\"p75\"");
+        assertThat(jsonFrom7Arg).contains("\"p25\":3.0");
+        assertThat(jsonFrom7Arg).contains("\"p50\":5.0");
         assertThat(jsonWithCoachEmpty).isEqualTo(jsonFrom7Arg);
         assertThat(jsonWithCoachNull).isEqualTo(jsonFrom7Arg);
     }
@@ -41,7 +44,7 @@ class AnalysisInputJsonTest {
                 "Archon 3",
                 "win",
                 30.0,
-                Map.of("kills", new AnalysisInput.MetricComparison(5.0, 3.0, 5.0, 8.0)),
+                Map.of("kills", new AnalysisInput.MetricComparison(5.0, 3.0, 5.0)),
                 List.of(new AnalysisInput.ItemTiming("Basic Magazine", 4.5, 4.0)),
                 "en"
         );

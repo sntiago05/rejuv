@@ -2,10 +2,8 @@ package sntiago05.rejuv.clients;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.cache.annotation.Cacheable;
 import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Component;
-import sntiago05.rejuv.config.CacheConfig;
 import sntiago05.rejuv.domain.MatchTelemetry;
 
 /**
@@ -27,7 +25,6 @@ public class FallbackMatchMetadataSource implements MatchMetadataSource {
     }
 
     @Override
-    @Cacheable(cacheNames = CacheConfig.DEADLOCK_MATCH_METADATA, sync = true)
     public MatchTelemetry getMatch(long matchId) {
         try {
             return json.getMatch(matchId);

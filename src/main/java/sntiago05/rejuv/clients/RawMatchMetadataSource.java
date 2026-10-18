@@ -7,8 +7,10 @@ import java.io.InputStream;
 
 import com.github.luben.zstd.ZstdInputStream;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
+import sntiago05.rejuv.config.CacheConfig;
 import sntiago05.rejuv.config.DeadlockApiProperties;
 import sntiago05.rejuv.domain.MatchTelemetry;
 
@@ -40,6 +42,7 @@ public class RawMatchMetadataSource {
         this.maxDecompressedBytes = maxDecompressedBytes;
     }
 
+    @Cacheable(cacheNames = CacheConfig.DEADLOCK_MATCH_METADATA_RAW, sync = true)
     public MatchTelemetry getMatch(long matchId) {
         byte[] compressed = requests.get(METADATA_RAW_PATH,
                 uri -> uri.path(METADATA_RAW_PATH).build(matchId),

@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.test.web.client.ExpectedCount.once;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
+import static org.springframework.test.web.client.response.MockRestResponseCreators.withResourceNotFound;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withServerError;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 import static sntiago05.rejuv.clients.JsonMatchMetadataSourceTest.BASE_URL;
@@ -104,20 +105,61 @@ class FallbackMatchMetadataSourceCachingTest {
 
         assertThat(first).isEqualTo(second);
         assertThat(first.matchId()).isEqualTo(MATCH_ID);
+        assertThat(cacheManager.getCache(CacheConfig.DEADLOCK_MATCH_METADATA).get(MATCH_ID)).isNotNull();
+        assertThat(cacheManager.getCache(CacheConfig.DEADLOCK_MATCH_METADATA_RAW).get(MATCH_ID)).isNull();
     }
 
     @Test
-    void fallbackResultIsCached() {
+    void fallbackResultIsCachedInRawCacheAndSecondCallRetriesJson() {
         byte[] compressed = RawMetadataTestData.compress(RawMetadataTestData.defaultValidPayload());
+        // First call: JSON fails, raw succeeds
         server.expect(once(), requestTo(METADATA_URL)).andRespond(withServerError());
         server.expect(once(), requestTo(METADATA_RAW_URL))
                 .andRespond(withSuccess(compressed, MediaType.APPLICATION_OCTET_STREAM));
+        // Second call: JSON is retried (fails again), but raw is served from cache (no HTTP call to raw)
+        server.expect(once(), requestTo(METADATA_URL)).andRespond(withServerError());
 
         MatchTelemetry first = source.getMatch(MATCH_ID);
+        assertThat(cacheManager.getCache(CacheConfig.DEADLOCK_MATCH_METADATA).get(MATCH_ID)).isNull();
+        assertThat(cacheManager.getCache(CacheConfig.DEADLOCK_MATCH_METADATA_RAW).get(MATCH_ID)).isNotNull();
+
         MatchTelemetry second = source.getMatch(MATCH_ID);
 
         assertThat(first).isEqualTo(second);
         assertThat(first.matchId()).isEqualTo(MATCH_ID);
+        assertThat(cacheManager.getCache(CacheConfig.DEADLOCK_MATCH_METADATA).get(MATCH_ID)).isNull();
+        assertThat(cacheManager.getCache(CacheConfig.DEADLOCK_MATCH_METADATA_RAW).get(MATCH_ID)).isNotNull();
+    }
+
+    @Test
+    void fallbackResultNotCachedInJsonCacheAndSecondCallRecoversWhenJsonSucceeds() {
+        byte[] compressed = RawMetadataTestData.compress(RawMetadataTestData.defaultValidPayload());
+        server.expect(once(), requestTo(METADATA_URL)).andRespond(withServerError());
+        server.expect(once(), requestTo(METADATA_RAW_URL))
+                .andRespond(withSuccess(compressed, MediaType.APPLICATION_OCTET_STREAM));
+        server.expect(once(), requestTo(METADATA_URL))
+                .andRespond(withSuccess(fixture("match-metadata.json"), MediaType.APPLICATION_JSON));
+
+        MatchTelemetry first = source.getMatch(MATCH_ID);
+        assertThat(first.durationS()).isEqualTo(1800);
+        assertThat(cacheManager.getCache(CacheConfig.DEADLOCK_MATCH_METADATA).get(MATCH_ID)).isNull();
+        assertThat(cacheManager.getCache(CacheConfig.DEADLOCK_MATCH_METADATA_RAW).get(MATCH_ID)).isNotNull();
+
+        MatchTelemetry second = source.getMatch(MATCH_ID);
+        assertThat(second.durationS()).isEqualTo(1952);
+        assertThat(cacheManager.getCache(CacheConfig.DEADLOCK_MATCH_METADATA).get(MATCH_ID)).isNotNull();
+    }
+
+    @Test
+    void notFoundNeverFallsBackAndNothingIsCached() {
+        server.expect(once(), requestTo(METADATA_URL))
+                .andRespond(withResourceNotFound());
+
+        assertThatThrownBy(() -> source.getMatch(MATCH_ID))
+                .isInstanceOf(MatchMetadataNotFoundException.class);
+
+        assertThat(cacheManager.getCache(CacheConfig.DEADLOCK_MATCH_METADATA).get(MATCH_ID)).isNull();
+        assertThat(cacheManager.getCache(CacheConfig.DEADLOCK_MATCH_METADATA_RAW).get(MATCH_ID)).isNull();
     }
 
     @Test
@@ -156,14 +198,23 @@ class FallbackMatchMetadataSourceCachingTest {
 
     @Test
     void cacheHasConfiguredTtlAndSize() {
-        CaffeineCache cache = (CaffeineCache) cacheManager.getCache(CacheConfig.DEADLOCK_MATCH_METADATA);
-        assertThat(cache).isNotNull();
+        CaffeineCache jsonCache = (CaffeineCache) cacheManager.getCache(CacheConfig.DEADLOCK_MATCH_METADATA);
+        assertThat(jsonCache).isNotNull();
 
-        Policy<Object, Object> policy = cache.getNativeCache().policy();
-        assertThat(policy.expireAfterWrite()).hasValueSatisfying(
+        Policy<Object, Object> jsonPolicy = jsonCache.getNativeCache().policy();
+        assertThat(jsonPolicy.expireAfterWrite()).hasValueSatisfying(
                 expiration -> assertThat(expiration.getExpiresAfter()).isEqualTo(Duration.ofHours(24)));
-        assertThat(policy.eviction()).hasValueSatisfying(
-                eviction -> assertThat(eviction.getMaximum()).isEqualTo(300L));
+        assertThat(jsonPolicy.eviction()).hasValueSatisfying(
+                eviction -> assertThat(eviction.getMaximum()).isEqualTo(1000L));
+
+        CaffeineCache rawCache = (CaffeineCache) cacheManager.getCache(CacheConfig.DEADLOCK_MATCH_METADATA_RAW);
+        assertThat(rawCache).isNotNull();
+
+        Policy<Object, Object> rawPolicy = rawCache.getNativeCache().policy();
+        assertThat(rawPolicy.expireAfterWrite()).hasValueSatisfying(
+                expiration -> assertThat(expiration.getExpiresAfter()).isEqualTo(Duration.ofMinutes(2)));
+        assertThat(rawPolicy.eviction()).hasValueSatisfying(
+                eviction -> assertThat(eviction.getMaximum()).isEqualTo(100L));
     }
 
     @Test

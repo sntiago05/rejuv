@@ -168,6 +168,14 @@ public class AnalyzeService {
                     null, input.metrics(), degraded, visuals(accountId, telemetry), null);
         }
 
+        if (degraded) {
+            log.info("Analyze accountId={} matchId={} source=ai degraded=true stored=false inputTokens={} outputTokens={} estimatedCostUsd={}",
+                    accountId, match.matchId(), outcome.inputTokens(), outcome.outputTokens(),
+                    estimatedCostUsd(outcome.inputTokens(), outcome.outputTokens()));
+            return new AnalysisReport(match.heroId(), input.hero(), input.rank(), input.result(), input.durationMin(),
+                    outcome.result(), Map.of(), true, visuals(accountId, telemetry), null);
+        }
+
         String json;
         try {
             json = JSON_MAPPER.writeValueAsString(outcome.result());
