@@ -1,0 +1,11 @@
+package sntiago05.rejuv.clients.dto;
+
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonProperty;
+
+@JsonIgnoreProperties(ignoreUnknown = true)
+public record PlayerItemStat(@JsonProperty("item_id") long itemId,
+                             @JsonProperty("matches") long matches,
+                             @JsonProperty("wins") long wins,
+                             @JsonProperty("avg_buy_time_s") Double avgBuyTimeS) {
+}
