@@ -32,6 +32,7 @@ import sntiago05.rejuv.config.DeadlockApiProperties;
 import sntiago05.rejuv.domain.DeathEvent;
 import sntiago05.rejuv.domain.ItemPurchase;
 import sntiago05.rejuv.domain.MatchTelemetry;
+import sntiago05.rejuv.domain.MidBossEvent;
 import sntiago05.rejuv.domain.PlayerTelemetry;
 import sntiago05.rejuv.domain.PowerUpBuff;
 import sntiago05.rejuv.domain.SnapshotDetail;
@@ -390,5 +391,55 @@ class JsonMatchMetadataSourceTest {
 
         MatchTelemetry telemetryAbsent = source.getMatch(MATCH_ID);
         assertThat(telemetryAbsent.averageBadge()).isNull();
+    }
+
+    @Test
+    void mapsObjectivesFixtureWithMidBossAndBossDamage() {
+        server.expect(once(), requestTo(METADATA_URL))
+                .andRespond(withSuccess(fixture("match-metadata-objectives.json"), MediaType.APPLICATION_JSON));
+
+        MatchTelemetry telemetry = source.getMatch(MATCH_ID);
+
+        assertThat(telemetry.midBoss()).containsExactly(
+                new MidBossEvent(960, 0, 0),
+                new MidBossEvent(1500, 1, 0)
+        );
+        assertThat(telemetry.players()).hasSize(4);
+
+        // Player 1: has two snapshots (600s: 3000, 1800s: 15000); final snapshot wins
+        PlayerTelemetry p1 = telemetry.player(1000001L).orElseThrow();
+        assertThat(p1.bossDamage()).isEqualTo(15000L);
+
+        PlayerTelemetry p2 = telemetry.player(1000002L).orElseThrow();
+        assertThat(p2.bossDamage()).isEqualTo(5000L);
+
+        PlayerTelemetry p3 = telemetry.player(1000003L).orElseThrow();
+        assertThat(p3.bossDamage()).isEqualTo(8000L);
+
+        PlayerTelemetry p4 = telemetry.player(1000004L).orElseThrow();
+        assertThat(p4.bossDamage()).isEqualTo(4000L);
+    }
+
+    @Test
+    void responseWithoutMidBossYieldsEmptyListNot() {
+        server.expect(once(), requestTo(METADATA_URL))
+                .andRespond(withSuccess(fixture("match-metadata.json"), MediaType.APPLICATION_JSON));
+
+        MatchTelemetry telemetry = source.getMatch(MATCH_ID);
+
+        // mid_boss absent in match-metadata.json -> empty list, not null
+        assertThat(telemetry.midBoss()).isNotNull().isEmpty();
+        // boss_damage absent in stats -> null
+        assertThat(telemetry.players().get(0).bossDamage()).isNull();
+    }
+
+    @Test
+    void rawMatchMetadataParserLeavesMidBossAndBossDamageNull() {
+        byte[] payload = RawMetadataTestData.defaultValidPayload();
+        MatchTelemetry rawTelemetry = RawMatchMetadataParser.parse(MATCH_ID, payload);
+
+        assertThat(rawTelemetry.midBoss()).isNull();
+        assertThat(rawTelemetry.players()).isNotEmpty();
+        assertThat(rawTelemetry.players()).allSatisfy(p -> assertThat(p.bossDamage()).isNull());
     }
 }
