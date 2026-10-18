@@ -1,5 +1,6 @@
 package sntiago05.rejuv.domain;
 
+import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 
@@ -10,15 +11,24 @@ import java.util.Optional;
  * @param durationS    total duration of the match in seconds
  * @param players      telemetry records for all players in the match
  * @param averageBadge average badge across teams (nullable)
+ * @param midBoss      mid boss events (nullable: null means unknown, empty means no kill)
  */
-public record MatchTelemetry(long matchId, int durationS, List<PlayerTelemetry> players, Integer averageBadge) {
+public record MatchTelemetry(long matchId, int durationS, List<PlayerTelemetry> players, Integer averageBadge,
+                             List<MidBossEvent> midBoss) {
 
     public MatchTelemetry {
         players = List.copyOf(players);
+        midBoss = midBoss == null
+                ? null
+                : List.copyOf(midBoss.stream().sorted(Comparator.comparingInt(MidBossEvent::timeS)).toList());
+    }
+
+    public MatchTelemetry(long matchId, int durationS, List<PlayerTelemetry> players, Integer averageBadge) {
+        this(matchId, durationS, players, averageBadge, null);
     }
 
     public MatchTelemetry(long matchId, int durationS, List<PlayerTelemetry> players) {
-        this(matchId, durationS, players, null);
+        this(matchId, durationS, players, null, null);
     }
 
     /**
