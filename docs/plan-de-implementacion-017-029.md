@@ -2,22 +2,25 @@
 
 Guía operativa para el dueño del repo: qué ejecutar en paralelo, qué esperar y en qué orden mergear. Estado al 2026-10-18. Cubre las tareas pendientes 010, 017, 018, 020, 021 y las nuevas 029-037 (mejora del coach de `/analyze` y despliegue). Fuente de decisiones: `docs/PROJECT_CONTEXT.md`, `docs/implementation-plan.md`, `docs/features.md` y la evidencia `docs/evidence/029-coaching-analytics/`.
 
+## Estado (2026-10-18)
+Ola 1 mergeada (PRs #59-#64). Ola 2: specs escritos y worktrees lanzados; reglas comunes de las capas del coach en `docs/coach-provider-rules.md`. Pendiente: 037 (depende de 031-035) y 010.
+
 ## Tareas
 
 | # | Tarea | Depende de | Spec | Implementa |
 |---|---|---|---|---|
 | 017 | Web report (Flyway V4, `/r/{publicId}`, botón en el embed) | 009, 019 (mergeadas); mergear después de 029 | `docs/tasks/017-web-report.md` **lista** | Antigravity |
-| 018 | Soul curve en la web, dominio y HTTPS | 017 | Falta escribir | Antigravity |
+| 018 | Soul curve (SVG) en la web + Caddy opcional para HTTPS | 017, 029, 036 | `docs/tasks/018-report-soul-curve.md` **lista** | Antigravity |
 | 020 | Check del rol de Patreon (reemplaza el `PremiumChecker` por defecto) | 019 | `docs/tasks/020-patreon-role-check.md` **lista** | Antigravity |
 | 021 | `/items` premium (primera mitad de la antigua 021; incluye `PremiumFeatureGate`) | 007, 019 | `docs/tasks/021-items-premium.md` **lista** (Paso 0: verificar el endpoint de items del jugador) | Antigravity |
-| 038 | `/compare` premium (segunda mitad de la antigua 021, reutiliza `PremiumFeatureGate`) | 021, 029 | Falta escribir | Claude Code |
+| 038 | `/compare` premium (segunda mitad de la antigua 021, reutiliza `PremiumFeatureGate`) | 021 | `docs/tasks/038-compare-premium.md` **lista** | Antigravity |
 | 029 | Base del coach: telemetría con muertes y detalle, curva de rendimiento, `CoachInsightProvider` | 009, 022, 023 | `docs/tasks/029-coach-foundation.md` **lista** | Antigravity |
 | 030 | Limpiar `}` y `,` sobrantes del texto de la IA | 008, 009 | `docs/tasks/030-analysis-text-cleanup.md` **lista** | Antigravity |
-| 031 | Coach: fases y z-score contra la curva | 029 | Falta escribir | Antigravity |
-| 032 | Coach: línea de muertes (fase, tiempo muerto, asesino, repetición) | 029 | Falta escribir | Antigravity |
-| 033 | Coach: build vs meta (`item-flow-stats`) | 029 | Falta escribir | Antigravity |
-| 034 | Coach: forma reciente (últimos N partidos del héroe) | 029 | Falta escribir | Antigravity |
-| 035 | Coach: matchup y rival de lane (`assigned_lane`, `hero-counter-stats`) | 029 | Falta escribir | Antigravity |
+| 031 | Coach: fases y z-score contra la curva | 029 | `docs/tasks/031-phases-coach.md` **lista** | Antigravity |
+| 032 | Coach: línea de muertes (fase, tiempo muerto, asesino, repetición) | 029 | `docs/tasks/032-deaths-coach.md` **lista** | Antigravity |
+| 033 | Coach: build vs meta (reutiliza `BuildService`) | 029, 011 | `docs/tasks/033-build-coach.md` **lista** | Antigravity |
+| 034 | Coach: forma reciente (últimos N partidos del héroe) | 029 | `docs/tasks/034-form-coach.md` **lista** | Antigravity |
+| 035 | Coach: matchup y rival de lane (`assigned_lane`, `hero-counter-stats`) | 029, 012 | `docs/tasks/035-matchup-coach.md` **lista** | Antigravity |
 | 036 | Despliegue: Dockerfile, compose de producción, CI, fuentes para el gráfico | ninguna | `docs/tasks/036-deployment-ci.md` **lista** | Antigravity |
 | 037 | Prompt v2, esquema con prioridades y severidad, embed y web | 031-035 | Falta escribir | Claude Code |
 | 010 | Tuning del prompt con partidos reales de testers | 037, 036 | Falta escribir | Dueño + Claude |
