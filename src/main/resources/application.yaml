@@ -13,6 +13,9 @@ spring:
   jpa:
     hibernate:
       ddl-auto: validate
+    # The web report reads entities only inside repository calls (no lazy associations), so the request does not
+    # need a session; with it on, a report view held a pooled connection while waiting on deadlock-api (task 039).
+    open-in-view: false
 
 bot:
   token: ${DISCORD_TOKEN:}
