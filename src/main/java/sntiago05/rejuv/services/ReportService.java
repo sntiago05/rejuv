@@ -1,18 +1,26 @@
 package sntiago05.rejuv.services;
 
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import sntiago05.rejuv.clients.DeadlockApiClient;
 import sntiago05.rejuv.clients.MatchMetadataSource;
+import sntiago05.rejuv.clients.dto.PerformanceCurvePoint;
+import sntiago05.rejuv.clients.dto.RankAsset;
 import sntiago05.rejuv.domain.AnalysisResult;
 import sntiago05.rejuv.domain.MatchAnalysis;
 import sntiago05.rejuv.domain.MatchTelemetry;
 import sntiago05.rejuv.domain.MatchVisuals;
+import sntiago05.rejuv.domain.PlayerTelemetry;
 import sntiago05.rejuv.domain.ReportView;
+import sntiago05.rejuv.domain.StatSnapshot;
 import sntiago05.rejuv.repositories.MatchAnalysisRepository;
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.json.JsonMapper;
@@ -28,17 +36,23 @@ public class ReportService {
     private final MatchVisualsService visualsService;
     private final GameAssets gameAssets;
     private final ChartRenderer chartRenderer;
+    private final DeadlockApiClient deadlockApiClient;
+    private final SoulCurveSvg soulCurveSvg;
 
     public ReportService(MatchAnalysisRepository repository,
                          MatchMetadataSource matchMetadataSource,
                          MatchVisualsService visualsService,
                          GameAssets gameAssets,
-                         ChartRenderer chartRenderer) {
+                         ChartRenderer chartRenderer,
+                         DeadlockApiClient deadlockApiClient,
+                         SoulCurveSvg soulCurveSvg) {
         this.repository = repository;
         this.matchMetadataSource = matchMetadataSource;
         this.visualsService = visualsService;
         this.gameAssets = gameAssets;
         this.chartRenderer = chartRenderer;
+        this.deadlockApiClient = deadlockApiClient;
+        this.soulCurveSvg = soulCurveSvg;
     }
 
     /**
@@ -61,19 +75,12 @@ public class ReportService {
             return Optional.empty();
         }
 
-        String heroName;
-        try {
-            heroName = gameAssets.heroNames().get(stored.getHeroId());
-        } catch (RuntimeException ex) {
-            heroName = null;
-        }
-        if (heroName == null || heroName.isBlank()) {
-            heroName = "hero_" + stored.getHeroId();
-        }
+        String heroName = resolveHeroName(stored.getHeroId());
 
         Double durationMin = null;
         List<MatchVisuals.PurchasedItem> build = List.of();
         boolean hasChart = false;
+        boolean hasSoulCurve = false;
 
         try {
             MatchTelemetry telemetry = matchMetadataSource.getMatch(stored.getMatchId());
@@ -84,12 +91,14 @@ public class ReportService {
                     build = visuals.get().items();
                     hasChart = visuals.get().chart() != null;
                 }
+                hasSoulCurve = computeSoulCurveData(stored, telemetry).isPresent();
             }
         } catch (RuntimeException ex) {
             log.warn("Match metadata unavailable for publicId={}: {}", publicId, ex.getClass().getSimpleName());
             durationMin = null;
             build = List.of();
             hasChart = false;
+            hasSoulCurve = false;
         }
 
         return Optional.of(new ReportView(
@@ -103,7 +112,8 @@ public class ReportService {
                 analysis,
                 build,
                 hasChart,
-                stored.getCreatedAt()
+                stored.getCreatedAt(),
+                hasSoulCurve
         ));
     }
 
@@ -142,5 +152,132 @@ public class ReportService {
             log.warn("Chart rendering failed for publicId={}: {}", publicId, ex.getClass().getSimpleName());
             return Optional.empty();
         }
+    }
+
+    /**
+     * Renders the soul curve as SVG. Empty when no report, no curve data, or rendering fails.
+     */
+    public Optional<String> soulCurveSvg(UUID publicId) {
+        if (publicId == null || soulCurveSvg == null) {
+            return Optional.empty();
+        }
+        Optional<MatchAnalysis> storedOpt = repository.findByPublicId(publicId);
+        if (storedOpt.isEmpty()) {
+            return Optional.empty();
+        }
+        MatchAnalysis stored = storedOpt.get();
+
+        MatchTelemetry telemetry;
+        try {
+            telemetry = matchMetadataSource.getMatch(stored.getMatchId());
+        } catch (RuntimeException ex) {
+            log.warn("Match metadata unavailable for soul curve publicId={}: {}", publicId, ex.getClass().getSimpleName());
+            return Optional.empty();
+        }
+        if (telemetry == null) {
+            return Optional.empty();
+        }
+
+        Optional<SoulCurveData> dataOpt = computeSoulCurveData(stored, telemetry);
+        if (dataOpt.isEmpty()) {
+            return Optional.empty();
+        }
+        SoulCurveData data = dataOpt.get();
+        return soulCurveSvg.render(data.heroName(), data.rankLabel(),
+                data.timesS(), data.playerNetWorth(), data.avgNetWorth(), data.stdNetWorth());
+    }
+
+    private record SoulCurveData(
+            String heroName,
+            String rankLabel,
+            List<Integer> timesS,
+            List<Long> playerNetWorth,
+            List<Double> avgNetWorth,
+            List<Double> stdNetWorth
+    ) { }
+
+    private Optional<SoulCurveData> computeSoulCurveData(MatchAnalysis stored, MatchTelemetry telemetry) {
+        if (deadlockApiClient == null || telemetry == null || telemetry.averageBadge() == null) {
+            return Optional.empty();
+        }
+        int tier = Math.clamp(telemetry.averageBadge() / 10, 1, 11);
+        Optional<PlayerTelemetry> playerOpt = telemetry.player(stored.getAccountId());
+        if (playerOpt.isEmpty()) {
+            return Optional.empty();
+        }
+        PlayerTelemetry player = playerOpt.get();
+        if (player.snapshots() == null || player.snapshots().isEmpty()) {
+            return Optional.empty();
+        }
+
+        Map<Integer, Long> playerNetWorthByTime = new HashMap<>();
+        for (StatSnapshot s : player.snapshots()) {
+            playerNetWorthByTime.putIfAbsent(s.timeS(), s.netWorth());
+        }
+
+        List<PerformanceCurvePoint> curve;
+        try {
+            curve = deadlockApiClient.getPerformanceCurve(stored.getHeroId(), tier);
+        } catch (RuntimeException ex) {
+            log.warn("Performance curve unavailable for heroId={}, tier={}: {}",
+                    stored.getHeroId(), tier, ex.getClass().getSimpleName());
+            return Optional.empty();
+        }
+        if (curve == null || curve.isEmpty()) {
+            return Optional.empty();
+        }
+
+        List<Integer> timesS = new ArrayList<>();
+        List<Long> playerNetWorth = new ArrayList<>();
+        List<Double> avgNetWorth = new ArrayList<>();
+        List<Double> stdNetWorth = new ArrayList<>();
+
+        for (PerformanceCurvePoint pt : curve) {
+            int t = pt.gameTime();
+            if (t <= telemetry.durationS() && pt.netWorthStd() > 0.0 && playerNetWorthByTime.containsKey(t)) {
+                timesS.add(t);
+                playerNetWorth.add(playerNetWorthByTime.get(t));
+                avgNetWorth.add(pt.netWorthAvg());
+                stdNetWorth.add(pt.netWorthStd());
+            }
+        }
+
+        if (timesS.size() < 3) {
+            return Optional.empty();
+        }
+
+        String heroName = resolveHeroName(stored.getHeroId());
+        String rankLabel = resolveRankLabel(tier);
+
+        return Optional.of(new SoulCurveData(heroName, rankLabel, timesS, playerNetWorth, avgNetWorth, stdNetWorth));
+    }
+
+    private String resolveRankLabel(int tier) {
+        try {
+            List<RankAsset> ranks = deadlockApiClient.getRanks();
+            if (ranks != null) {
+                for (RankAsset rank : ranks) {
+                    if (rank.tier() == tier && rank.name() != null && !rank.name().isBlank()) {
+                        return rank.name();
+                    }
+                }
+            }
+        } catch (RuntimeException ex) {
+            log.warn("Rank assets unavailable for soul curve: {}", ex.getClass().getSimpleName());
+        }
+        return "rank " + tier;
+    }
+
+    private String resolveHeroName(int heroId) {
+        String heroName;
+        try {
+            heroName = gameAssets.heroNames().get(heroId);
+        } catch (RuntimeException ex) {
+            heroName = null;
+        }
+        if (heroName == null || heroName.isBlank()) {
+            heroName = "hero_" + heroId;
+        }
+        return heroName;
     }
 }

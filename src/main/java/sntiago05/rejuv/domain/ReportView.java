@@ -14,9 +14,24 @@ public record ReportView(UUID publicId,
                          AnalysisResult analysis,
                          List<MatchVisuals.PurchasedItem> build,
                          boolean hasChart,
-                         Instant analyzedAt) {
+                         Instant analyzedAt,
+                         boolean hasSoulCurve) {
 
     public ReportView {
         build = build == null ? List.of() : List.copyOf(build);
+    }
+
+    public ReportView(UUID publicId,
+                      long matchId,
+                      String hero,
+                      int heroId,
+                      String rank,
+                      String result,
+                      Double durationMin,
+                      AnalysisResult analysis,
+                      List<MatchVisuals.PurchasedItem> build,
+                      boolean hasChart,
+                      Instant analyzedAt) {
+        this(publicId, matchId, hero, heroId, rank, result, durationMin, analysis, build, hasChart, analyzedAt, false);
     }
 }

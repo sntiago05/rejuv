@@ -58,6 +58,10 @@
             <img th:src="@{/r/{id}/chart.png(id=${report.publicId})}" alt="Match Chart" class="chart-img">
         </section>
 
+        <section th:if="${report.hasSoulCurve}" class="card card-soul-curve">
+            <img th:src="@{/r/{id}/soul-curve.svg(id=${report.publicId})}" th:alt="#{report.curve.alt}" class="soul-curve-img">
+        </section>
+
         <footer class="report-footer">
             <p th:if="${report.analyzedAt != null}" class="analyzed-date" th:text="#{report.analyzed_on(${report.analyzedAt})}">Analyzed on date</p>
             <p class="brand-footer" th:text="#{report.footer}">Rejuv · AI coach for Deadlock</p>

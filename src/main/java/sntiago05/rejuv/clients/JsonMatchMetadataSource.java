@@ -61,7 +61,22 @@ public class JsonMatchMetadataSource implements MatchMetadataSource {
                 .map(JsonMatchMetadataSource::mapPlayer)
                 .toList();
 
-        return new MatchTelemetry(matchInfo.matchId(), matchInfo.durationS(), playerTelemetries);
+        Integer averageBadge = computeAverageBadge(matchInfo.averageBadgeTeam0(), matchInfo.averageBadgeTeam1());
+        return new MatchTelemetry(matchInfo.matchId(), matchInfo.durationS(), playerTelemetries, averageBadge);
+    }
+
+    static Integer computeAverageBadge(Integer team0, Integer team1) {
+        boolean valid0 = team0 != null && team0 > 0;
+        boolean valid1 = team1 != null && team1 > 0;
+        if (valid0 && valid1) {
+            return (team0 + team1) / 2;
+        } else if (valid0) {
+            return team0;
+        } else if (valid1) {
+            return team1;
+        } else {
+            return null;
+        }
     }
 
     private static PlayerTelemetry mapPlayer(MatchMetadataResponse.Player player) {
