@@ -43,3 +43,7 @@ rejuv:
   usage:
     enabled: ${USAGE_LIMITS_ENABLED:false}
     weekly-free-analyses: ${USAGE_WEEKLY_FREE_ANALYSES:3}
+  premium:
+    enabled: ${PREMIUM_ROLE_CHECK_ENABLED:false}
+    guild-id: ${PREMIUM_GUILD_ID:}
+    role-id: ${PREMIUM_ROLE_ID:}
