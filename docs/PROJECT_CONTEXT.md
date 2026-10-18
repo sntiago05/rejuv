@@ -1,207 +1,95 @@
 # Project context: Rejuv, an AI coach for Deadlock
 
-Single source of truth for project state. Compact snapshot: product and decisions in the first half, verified progress in "Current status". Full detail lives in the other files in `docs/`. The same content is uploaded to the Claude Project knowledge base.
+Single source of truth for project state. Compact snapshot, not a log: per-task detail lives in `docs/task-reports/NNN-*.md`, the specs in `docs/tasks/`, decisions in `docs/adr/`. The same content is uploaded to the Claude Project knowledge base. Update it with verified facts only, and only after a batch of branches is merged (AGENTS.md).
 
-Legend used below: **Done** = implemented and verified in the repo. **Planned** = decided or specified, not built yet.
+Legend: **Done** = merged and verified in the repo. **Planned** = decided or specified, not built.
 
 ## Who
-Backend student (Spring Boot, Riwi Colombia, paused systems engineering degree), intermediate level, 15-30 h/week, budget under 100,000 COP. Plays Deadlock and LoL. Goals: earn online income, build a strong portfolio, learn AI-assisted development. Explain important decisions; chat explanations in Spanish; everything produced (code, docs, commits, bot UI) in English.
+Backend student (Spring Boot, Riwi Colombia), intermediate level, 15-30 h/week, budget under 100,000 COP. Plays Deadlock and LoL. Goals: online income, portfolio, learn AI-assisted development. Explain important decisions; chat explanations in Spanish; everything produced (code, docs, commits, bot UI) in English.
 
 ## Product
-Rejuv: English-language Discord bot that coaches Deadlock players with AI analysis of their matches. Differentiator vs stats sites: specific, personal, actionable AI advice + social server features. Built i18n-ready (Spanish can be added later).
-- MVP commands: `/link`, `/unlink`, `/profile`, `/analyze`, `/help` (full spec in `docs/mvp-spec.md`). `/analyze` = latest match vs p25/p50/p75 of same hero + rank tier, Haiku returns strict JSON (strength, biggest leak, next-game action, key numbers). Free limit 3/week starts in week 2, behind a feature flag.
-- Premium (~2 USD/month/user, week 2, behind a feature flag): unlimited analyses, progress tracking, builds, server rankings.
-- Feature catalog in `docs/features.md` (ADR-0014): free hero utilities without linking (`/build`, `/counter`, `/meta`), social (`/heroes`, `/mates`, `/leaderboard server`); premium personal insight (`/compare`, `/items`, soul curve, later heatmap/trends/alerts). AI only for interpretation.
-- Surfaces: Discord bot first; week 2 adds public web report pages linked from each analysis (ADR-0012). Premium `/compare` vs top-rank players on same hero (ADR-0013).
-- Monetization: Patreon assigns `Premium` role in official support server; bot checks role by user ID. Launch free first month to validate.
-- Competitor: Deadlock Assistant (600+ servers, stats/meta/counters/builds, no AI coaching). Our edge is coaching.
+Rejuv: English-language Discord bot that coaches Deadlock players with AI analysis of their matches. Differentiator vs stats sites (Deadlock Assistant has 600+ servers but no AI coaching): specific, personal, actionable advice plus social server features. Built i18n-ready.
+- Commands implemented: `/ping` (dev guild), `/help`, `/link`, `/unlink`, `/profile`, `/analyze`, `/matches`, `/usage`, `/meta`, `/build`, `/counter`, `/heroes`, `/mates`, `/leaderboard server`, `/items` (premium). Behavior spec: `docs/mvp-spec.md`; feature catalog: `docs/features.md` (ADR-0014).
+- `/analyze` = a match vs p25/p50/p75 of the same hero and rank tier; Haiku returns strict JSON (strength, biggest leak, next-game action, key numbers). Free limit 3/week behind a flag, premium (~2 USD/month via a Patreon role in the support server) planned behind the same flag. Launch free first month.
+- Surfaces: Discord bot first; public web report per analysis (ADR-0012, ADR-0018).
+- Costs: initial ~20,000 COP; ~2 COP per analysis; details in `docs/costs.md`.
 
-## Stack (ADRs 0001-0005)
-Java 21, Spring Boot 4.1 (no web server initially), JDA 5, Maven, PostgreSQL + Spring Data JPA (+ Flyway), Caffeine cache, deadlock-api.com (community, unofficial), Claude Haiku 5.5 `claude-haiku-5-5` (low effort, capped max_tokens, only metric summaries sent), Docker Compose on Oracle Cloud Always Free ARM.
-
-## Architecture
-Packages: `commands` (no logic) → `services` → `clients` (cached external APIs) / `repositories`; plus `domain`, `config`. Base package `sntiago05.rejuv`.
-`/analyze`: deferReply → usage check → fetch matches (cached) → compute metrics → Haiku → store → English embed.
-
-## Costs
-Initial ~20,000 COP (5 USD API credits). ~2 COP per analysis. Patreon fee assumed 12%. Spend limit set in Claude Console. Budget near zero, passion project; only spend is capped Claude API credits (+ domain in week 2). Details in `docs/costs.md`.
+## Stack and architecture
+Java 21, Spring Boot 4.1, JDA 5.6, Maven, PostgreSQL 17 + Spring Data JPA + Flyway, Caffeine, Spring `RestClient`, Spring MVC + Thymeleaf (web report), Claude Haiku 5.5 `claude-haiku-5-5`, Docker Compose (Oracle Cloud ARM64). ADRs 0001-0018.
+Packages (`sntiago05.rejuv`): `commands` (no logic) -> `services` -> `clients` (cached external APIs) / `repositories`; plus `domain`, `config`, `web`.
+`/analyze`: deferReply -> select match (history, cached) -> stored analysis? return it -> usage check -> metadata + benchmarks + item stats -> `CoachContextService` providers -> Haiku -> store -> embed with build field, PNG chart and optional "View full report" button.
 
 ## Workflow (ADR-0009)
-Claude Project = architect: designs, writes task specs in `docs/tasks/`, reviews diffs. Antigravity = main implementer, follows task specs and writes a report in `docs/task-reports/`. Claude Code = reserved for hard tasks (complex bugs, AI analysis service). One agent per branch, git worktrees, human review before merge. `AGENTS.md` single source of rules, `CLAUDE.md` imports it, skills mirrored in `.claude/skills/` and `.agents/skills`. Docs and ADRs in English, updated with code. herdr postponed.
-Rule from `AGENTS.md`: update this file after each task with verified facts only; with several worktrees active, defer the update until branches are integrated.
+Claude Project/Claude Code = architect: writes specs in `docs/tasks/`, reviews diffs. Antigravity (`agy`) = main implementer, one worktree per task under `../rejuv-wt/NNN`, branch `feature/NNN-slug`, report in `docs/task-reports/`. Human reviews and merges; agents never push or merge unasked. Skills: `create-task-spec`, `execute-task`, `task-worktree`, `review-task-diff`, `git-commit`, `new-discord-command`, `run-rejuv` (mirrored in `.claude/skills/` and `.agents/skills`). Operational merge/launch plan: `docs/plan-de-implementacion-017-029.md`.
 
-## Plan
-23 tasks in `docs/implementation-plan.md` (022-023 added for match metadata), ADRs 0001-0015 in `docs/adr/`. Fast track in `docs/roadmap.md`: week 1 = tasks 001-010 plus 022 before 007 (MVP, tester gate before public launch on day 5), week 2 = tasks 011-021 (hero utilities, social, web reports, premium behind a feature flag until ~30 weekly active users). `roadmap.md` has not been updated for 022 yet. Task 023 (raw protobuf fallback) is scheduled only if the JSON metadata endpoint fails often during testing.
+## Current status (2026-10-18)
+`main` contains tasks 001-009, 011-017, 019-030, 036 (see table). Last full build: `./mvnw clean verify` 790 tests, 0 failures, 2 skipped benchmark tests (observed on the 017 branch after merging `main`, which already had every other merged task; `main` itself was not rebuilt after the last merge). CI (`.github/workflows/ci.yml`) now runs `verify` and the image build on PRs.
+The bot has **not** been run end to end in public or deployed; no manual Discord check exists for most features.
 
-## Current status
-Last updated 2026-10-18 after Tasks 015 (PR #50), 025 (PR #51), 023 (PR #52), 019 (PR #53), 027 (PR #54), 028 (PR #55) and 026 (PR #56) were merged into `main`. Tasks 001-009, 011-016, 019, 022-028 are merged or verified. `./mvnw clean verify` on `main` after PR #56 (observed on the merged branch): 675 tests, 0 failures, 2 skipped benchmark tests.
+| Task | What | Report | PR |
+|---|---|---|---|
+| 001-003 | Skeleton + `/ping`; i18n `Messages` + `/help`; Postgres/Flyway `linked_account` (V1) | 001-003 | |
+| 004 | `DeadlockApiClient` (history, rank, benchmarks, item stats, assets), 503/429 rules, caches | 004 | #25 |
+| 005, 006 | `/link`, `/unlink`; `/profile` | 005, 006 | #27, #31 |
+| 007, 008 | `MetricsService` (pure); `AnalysisClient` (Haiku, retry, fallback) | 007, 008 | #33, #32 |
+| 009 | `/analyze` + `match_analysis` (V2), degraded mode, stored reuse | 009 | #41 |
+| 011-014, 016 | `/build`, `/counter`, `/meta`, `/heroes`, `/leaderboard server` | 011-014, 016 | #36-#43 |
+| 015, 025 | `/mates`; `/matches` + match selection/autocomplete | 015, 025 | #50, #51 |
+| 019 | Usage limits (V3 `analysis_usage`), `/usage`, `PremiumChecker` port | 019 | #53 |
+| 022, 023 | Match metadata port + JSON adapter; raw protobuf fallback (ADR-0017) | 022, 023 | #28, #52 |
+| 024 | Rich presentation: emojis, thumbnails, `EmbedStyle` (ADR-0016) | 024 | #40 |
+| 026-028 | Items + PNG chart in `/analyze`; typed match id; Steam names in `/mates` | 026-028 | #54-#56 |
+| 029 | Coach foundation: richer telemetry, performance curve client, `CoachInsightProvider` | 029 | #60 |
+| 030 | Strip stray `}` `,` from AI text (in `AnalysisResult` constructor) | 030 | #59 |
+| 017 | Web report `/r/{publicId}` + link button (V4 `public_id`, ADR-0018) | 017 | #63 |
+| 020 | Patreon role check (`PatreonRolePremiumChecker`, flag `rejuv.premium.enabled`) | 020 | #61 |
+| 021 | `/items` premium + `PremiumFeatureGate` | 021 | #62 |
+| 036 | Dockerfile, `compose.prod.yaml`, CI, `docs/deployment.md` | 036 | #64 |
+| refactor | `DeadlockApiRequests`, `GameAssets`, perf/dedup | refactor-perf-dedup | #39 |
 
-### Done (verified)
-- Setup: `AGENTS.md`, Antigravity rule, Claude Code settings and the `new-discord-command` skill. All planning docs and ADRs 0001-0015 written.
-- **Task 001** (project skeleton and `/ping`), report in `docs/task-reports/001-project-skeleton.md`:
-  - Java 21 / Spring Boot 4.1 / JDA 5 non-web bot skeleton. `.\mvnw.cmd clean verify` passes (4 tests, 0 failures).
-  - `/ping` is the only implemented slash command, registered in the configured dev guild. Routing via `SlashCommand`, `CommandRouter`, `PingCommand`; config in `BotProperties` and `JdaConfig`; `CommandRouterTest` covers known, unknown and failing handlers.
-  - Database dependencies are in the build, but database auto-configuration is disabled in `application.yaml` (TEMP exclusion, to be removed in task 003).
-- **Task 002** (i18n setup and `/help`), report in `docs/task-reports/002-i18n-and-help.md`:
-  - Message catalog `messages.properties` (UTF-8, English) with Discord-agnostic `Messages` helper (`sntiago05.rejuv.services`) over Spring `MessageSource`. Fail-fast on missing keys (`NoSuchMessageException`).
-  - `/help` ephemeral slash command (`HelpCommand`) registered alongside `/ping` in the dev guild.
-  - Sourced all user-facing text from the catalog in `CommandRouter` and `PingCommand` (`ping.description`, `ping.reply`, `error.unknown_command`, `error.generic`).
-  - Verified with `.\mvnw.cmd verify` (22 tests, 0 failures), covering unit behavior, catalog validation, and Spring context integration.
-- **Task 003** (PostgreSQL, Flyway, `linked_account`), report in `docs/task-reports/003-postgres-flyway-linked-account.md`:
-  - PostgreSQL 17 in `compose.yaml` (localhost-only port, healthcheck, volume `postgres-data`).
-  - Removed TEMP auto-configuration exclusions from `application.yaml`, configured datasource from `POSTGRES_*` variables with `ddl-auto: validate`.
-  - Flyway migration `V1__create_linked_account.sql`, `LinkedAccount` entity, `LinkedAccountRepository`.
-  - Testcontainers configuration with `postgres:17` and `@ServiceConnection`.
-  - Verified: `./mvnw clean verify` (31 tests, 0 failures); manual check with `docker compose up -d postgres`, `spring-boot:run` (initial migration + idempotent second run), and `psql` schema check confirming table `linked_account`.
-- **Task 004** (`DeadlockApiClient`), report in `docs/task-reports/004-deadlock-api-client.md`. Merged (PR #25):
-  - `clients/DeadlockApiClient` on Spring `RestClient` (`spring-boot-starter-restclient`, Jackson 3 with `com.fasterxml.jackson.annotation` annotations): `getMatchHistory` (max 200 entries, newest first; empty list = no data, the account check for Task 005), `getPlayerRank`, `getBenchmarks(heroId, rankTier)` (`player-stats/metrics`, p25/p50/p75), `getItemStats(heroId, rankTier)` (average buy times), `getRanks`, `getHeroes`, `getItems`. No match metadata (Task 022).
-  - Failures: `DeadlockApiException` (unexpected status, bad body) and `DeadlockApiUnavailableException` (503, 429, I/O, timeout; optional `retryAfter()`). One 503 retry when `Retry-After` <= 10 s (default 2 s); history 429 with an array body is a success.
-  - `config/CacheConfig`: static Caffeine caches `deadlockAssets` 24 h/10, `deadlockBenchmarks` 6 h/500, `deadlockItemStats` 6 h/500, `deadlockMatchHistory` 2 min/1000, `deadlockPlayerRank` 10 min/1000. `config/DeadlockApiConfig.restClientBuilder` and `clients/Sleeper` are reused by Task 022.
-  - Confirmed in OpenAPI: `item-stats` filters by `hero_ids` (`hero_id` is deprecated) and `min/max_average_badge`; metric keys are `percentile25/50/75`.
-  - Verified: `driver.sh verify` (62 tests, 0 failures) and a live check of assets, benchmarks and item stats.
-- **Task 005** (`/link`, `/unlink`), report in `docs/task-reports/005-link-unlink.md`. Merged (PR #27):
-  - `services/AccountIdParser.parse` (pure static): SteamID64 (17 digits, prefix `7656119`), `steamcommunity.com/profiles/<SteamID64>` URL, or account ID 1..4294967295; `account_id = steamId64 - 76561197960265728`. Vanity URLs (`/id/<name>`) rejected with reason `VANITY_URL`, everything else `UNRECOGNIZED` (`InvalidAccountInputException`).
-  - `services/LinkService`: `link(discordUserId, accountId)` requires non-empty cached match history (else `NoMatchHistoryException`), then upserts `linked_account`; `unlink(discordUserId)` returns whether a row was deleted. Re-linking replaces the account; the same account may be linked by several users.
-  - `LinkCommand` parses before deferring, then `deferReply(true)` and handles its own errors (the router cannot reply after a deferral). `UnlinkCommand` replies directly. All replies ephemeral.
-  - Shared catalog key `error.data_source_busy` for `DeadlockApiUnavailableException`; later commands reuse it.
-  - Verified: `./mvnw clean verify` (102 tests, 0 failures). Manual Discord check by the owner in the dev guild (2026-10-16): `/link` with a real account id, `/link` again with the same id (one row, upsert), `/unlink` (`unlink.success`), `/unlink` again (`unlink.not_linked`), invalid input and vanity URL; all replies ephemeral.
-- **Task 022** (match metadata port and JSON adapter), report in `docs/task-reports/022-match-metadata.md`. Merged (PR #28):
-  - Port `clients/MatchMetadataSource.getMatch(long matchId)` returns the own model `domain/MatchTelemetry` (`PlayerTelemetry`, `ItemPurchase`, `StatSnapshot`, `PowerUpBuff`; immutable lists). All players of the match are kept; items, snapshots and pickup times are sorted ascending; `sold_time_s` 0 becomes `null`; item ids are `long`. Only item purchases, three snapshot values (net worth, player damage, player healing) and power-up buffs are mapped.
-  - Adapter `clients/JsonMatchMetadataSource` (only bean of the port) calls `GET /v1/matches/{match_id}/metadata` with no query parameters, with its own copy of the Task 004 request rules (one 503 retry when `Retry-After` <= 10 s). Errors: 404 → `MatchMetadataNotFoundException`; 503/429/I/O/timeout → `DeadlockApiUnavailableException`; other statuses and invalid bodies (missing `match_info`, players or a required field, other match id, malformed JSON) → `DeadlockApiException`.
-  - Cache `deadlockMatchMetadata` 24 h/300 holds the mapped model; failures are not cached.
-  - Verified: `./mvnw clean verify` (135 tests, 0 failures) after merging `main` with Task 005.
-- **Task 006** (`/profile [user]`), report in `docs/task-reports/006-profile.md`. Merged (PR #31):
-  - `services/ProfileService`: `findLinkedAccountId` (database only) and `getProfile(accountId)` cached in `profileSummary` (10 min/1000, failures not cached). Sequential calls: history, rank, ranks, heroes; empty history → `NoMatchHistoryException`. Rank (badge 0 = unranked), last `min(10, n)` matches (wins, win rate, average K/D/A; win = `matchResult == playerTeam`), top 3 heroes by games in the last 30 days (ties by hero id). Records `domain/ProfileSummary`, `domain/HeroUsage`. Two-constructor `Clock` pattern, no `Clock` bean.
-  - `commands/ProfileCommand`: not-linked check before deferring (ephemeral `profile.not_linked_self` / `profile.not_linked_other`), then public `deferReply()` and an embed; distinct messages for no matches, busy source and unexpected errors (error id logged, no rethrow).
-  - Verified on its branch: `./mvnw clean verify` (166 tests, 0 failures). Manual Discord check by the owner in the dev guild: OK.
-- **Task 008** (`AnalysisClient` for Claude Haiku 5.5), report in `docs/task-reports/008-analysis-client.md`. Merged (PR #32):
-  - Records `domain/AnalysisInput` (snake_case JSON of the `docs/mvp-spec.md` contract, null benchmarks omitted; nested `MetricComparison`, `ItemTiming`), `domain/AnalysisResult`, `domain/AnalysisOutcome` (result or fallback via `isFallback()`, model, attempts, summed tokens).
-  - `clients/AnalysisClient` over `RestClient` (no Anthropic SDK): `claude-haiku-5-5`, effort low, `max_tokens` 1500, JSON-schema structured output, at most 2 attempts (retry on 429/529 with `retry-after` <= 10 s, 5xx, I/O, `max_tokens`, invalid output; no retry on other 4xx or refusal). Never throws: returns a fallback outcome. Blank API key → fallback without HTTP call; the app starts without a key.
-  - Config `config/AnthropicProperties` (`anthropic.*` in `application.yaml`, key masked in `toString()`), `config/AnthropicConfig`; system prompt `prompts/analysis-system.txt`; `.env.example` has `ANTHROPIC_API_KEY=`.
-  - Verified on its branch: `./mvnw clean verify` (152 tests, 0 failures). Live check (owner-approved, 2026-10-17): one call succeeded, 1 attempt, 872 input / 275 output tokens, 4.7 s.
-- **Task 007** (`MetricsService`), report in `docs/task-reports/007-metrics-service.md`. Merged (PR #33):
-  - Pure `services/MetricsService` (`@Service`, stateless, no dependencies, no I/O): `latestMatch(history)` (newest by `startTime`), `benchmarkRank(match, currentRank)` (tier 0..11 or empty), `buildInput(request)` -> `domain/AnalysisInput` (12 metrics in table order, rounded to 1 decimal; net worth at 10/20 min with linear interpolation; item timings for first 3 upgrades plus first tier-3 upgrade; buff metrics only since 2026-09-29).
-  - Degraded mode without telemetry logs `WARN` (matchId, accountId) and computes history metrics without item benchmarks.
-  - Records `domain/MatchRank(tier, subrank)` and `services/MetricsRequest`.
-  - Verified on its branch: `./mvnw clean verify` (214 tests, 0 failures).
-- **Task 013** (`/meta [rank]`), report in `docs/task-reports/013-meta.md`:
-  - Public slash command `/meta [rank]` displaying hero tier list (S to D) by win rate over the last 30 days (start of current UTC day minus 30 days, min 100 matches). Tier thresholds: S >= 53%, A >= 51%, B >= 49%, C >= 47%, D below. Embed fields only for non-empty tiers in S..D order; heroes sorted by win rate desc, then hero id asc.
-  - `services/MetaService`: validates rank tier (null or 1..11), fetches hero stats then heroes sequentially, filters, maps tiers and sorts.
-  - `clients/DeadlockApiClient.getHeroStats(Integer rankTier, long minUnixTimestamp)`: cached in `deadlockHeroStats` (6 h, max 50); filters by `min_unix_timestamp` and `rankTier*10` .. `rankTier*10+9` badges.
-  - Records `domain/HeroTier`, `domain/MetaHero`, `domain/MetaTierList`, `clients/dto/HeroStat`.
-  - Verified: `./mvnw clean verify` (243 tests, 0 failures on merged branch).
-- **Task 011** (`/build hero [rank]`), report in `docs/task-reports/011-build.md`. Merged (PR #36):
-  - Public slash command: popular item flow by phase (column order, max 4 items/phase, 6 phases, items with >= 20 matches, pick and win rate) plus the most played ability order. Works without a linked account.
-  - `DeadlockApiClient.getItemFlowStats(heroId, rankTier, minUnixTimestamp)` (`item-flow-stats`, `hero_ids`) and `getAbilityOrderStats(...)` (`ability-order-stats`, `hero_id`), cached in `deadlockItemFlow` / `deadlockAbilityOrder` (6 h/200 each).
-  - Reusable `services/HeroResolver` (exact name ignoring case, then unique prefix, else empty) and `HeroNotFoundException`; `services/BuildService`; records `HeroBuild`, `BuildPhase`, `BuildItem`.
-  - Verified: `./mvnw clean verify` (295 tests, 0 failures). No manual Discord check.
-- **Task 012** (`/counter hero [rank]`), report in `docs/task-reports/012-counter.md`. Merged (PR #37):
-  - Public slash command: top 5 heroes that counter the target, top 5 it is favorable against (>= 50 matches each), top 5 upgrade items against it (>= 100 matches, named upgrades only). Works without a linked account.
-  - `DeadlockApiClient.getHeroCounterStats(rankTier, minUnixTimestamp)` (global pair table, `hero-counter-stats`) and `getItemStatsAgainst(enemyHeroId, rankTier, minUnixTimestamp)` (`item-stats?enemy_hero_ids`), cached in `deadlockHeroCounters` (6 h/50) and `deadlockCounterItems` (6 h/200). `CacheConfig` now has 12 caches.
-  - `services/CounterService`; records `CounterGuide`, `CounterMatchup`, `CounterItem`. Shared helpers `commands/CommandSupport` (hero/rank options, rank labels, percent format, unexpected-error handling) and `services/ServiceSupport` (rank validation, 30-day UTC window), also used by `/build`.
-  - Verified: `./mvnw clean verify` (332 tests, 0 failures). No manual Discord check.
-- **Performance and deduplication refactor** (owner request, no task spec), report in `docs/task-reports/refactor-perf-dedup.md`. Merged (PR #39):
-  - `clients/DeadlockApiRequests` (package-private) holds the shared GET/503/429/404 rules used by `DeadlockApiClient` and `JsonMatchMetadataSource` (Task 022 follow-up (b) resolved; Task 023 must reuse it). Public client constructors unchanged.
-  - `getMatchHistory` streams the array and stops after 200 entries (parse of a 6,842-entry body: about 24 ms → 1 ms in the benchmark).
-  - `services/GameAssets`: hero/item lookup maps rebuilt only when the cached asset list changes; used by `HeroResolver`, `/build`, `/counter`, `/meta`, `/profile` services. `ServiceSupport.top(...)` for sort-and-limit.
-  - `CommandSupport.handleUnexpectedError(hook, messages, log, title, callerId, context, ex)` and `CommandSupport.oneDecimal` are used by all embed commands.
-  - Verified: `./mvnw -B verify` (344 tests, 0 failures, 2 skipped benchmark tests).
-- **Task 009** (`/analyze` and `match_analysis`), report in `docs/task-reports/009-analyze.md`. Merged (PR #41):
-  - Flyway `V2__create_match_analysis.sql`: table `match_analysis` (`result_json`, `model`, token counts) with unique `(account_id, match_id)`; entity `domain/MatchAnalysis`, record `domain/AnalysisReport`, `repositories/MatchAnalysisRepository` (`findByAccountIdAndMatchId`, `deleteByAccountIdIfNotLinked`).
-  - `services/AnalyzeService`: sequential calls with no transaction around HTTP (history, latest match, rank, benchmarks, assets, metadata, item stats, AI). A stored analysis is returned with no AI call (a corrupted row is deleted and redone). Metadata failure → degraded mode (history metrics only, WARN). Item stats failure → empty item stats. A fallback AI outcome is not stored. A concurrent duplicate save is handled. One INFO log per analysis (source stored/ai/fallback, degraded, tokens).
-  - `commands/AnalyzeCommand`: public `/analyze` embed (strength, leak, action, key numbers), fields truncated at 1024 chars, distinct error messages. `LinkService.unlink` is `@Transactional` and deletes stored analyses when the account is no longer linked by anyone.
-  - Verified on its branch: `./mvnw clean verify` (376 tests, 0 failures, 2 skipped). No manual Discord check and no live Claude call through `/analyze`.
-- **Task 014** (`/heroes [user]`), report in `docs/task-reports/014-heroes.md`. Merged (PR #42):
-  - Public embed of the player's hero pool over the last 90 days: matches, win rate vs the rank 30-day average, KDA with hero average, pool tips (up to 5 heroes).
-  - `DeadlockApiClient.getPlayerHeroStats(accountId, minUnixTimestamp)` (`/v1/players/hero-stats`), cached in `deadlockPlayerHeroStats` (10 min/200). `HeroStat` gained `total_kills/deaths/assists` (4-argument constructor kept, `/meta` unchanged). `services/HeroPoolService`, `commands/HeroesCommand`, records `HeroPoolSummary`, `HeroPerformance`, `PlayerHeroStat`.
-  - Verified on its branch with `./mvnw verify`. No manual Discord check.
-- **Task 016** (`/leaderboard server`), report in `docs/task-reports/016-leaderboard-server.md`. Merged (PR #43):
-  - Public embed ranking the linked members of the current server by rank (top 10; unranked or missing accounts are counted in the footer, not listed). `services/LeaderboardService` takes the 500 most recently linked accounts as candidates; `commands/LeaderboardCommand`; records `LeaderboardEntry`, `LinkedMember`, `ServerLeaderboard`, `AccountRank`.
-  - `DeadlockApiClient.getPlayerRanks(List<Long>)` (`/v1/players/rank`, batch), cached in `deadlockPlayerRanks` (10 min/100, key is the sorted id list). `JdaConfig` enables `GatewayIntent.GUILD_MEMBERS`.
-  - Verified: `./mvnw clean verify` on the branch after merging `main` with 009 and 014 (452 tests, 0 failures, 2 skipped). One conflict in `DeadlockApiClientCachingTest` (both sides added tests) was resolved keeping both. No manual Discord check.
+### Key facts per area (what future tasks must know)
+- **Telemetry model:** `MatchTelemetry`/`PlayerTelemetry` (own model, not API DTOs). Since 029 players carry `playerSlot`, `assignedLane`, `deaths` (`DeathEvent`: time, killer slot, respawn seconds) and each `StatSnapshot` has an optional `SnapshotDetail` (kills/deaths/assists, creep kills, possible creeps, shots hit/missed, denies, damage taken, lane/neutral gold, gold lost on death). **Only the JSON adapter fills them**; the raw fallback leaves `detail`, slot and lane `null` and no deaths, so consumers must treat that as "no data".
+- **Coach extension point (029):** implement `CoachInsightProvider` (`key()`, `provide(CoachRequest)`) as a `@Component`; `CoachContextService` runs providers sequentially in key order, isolates failures, and the result goes to `AnalysisInput.coach` (omitted from the JSON when empty). Runs only on the fresh-AI path. The prompt does not mention `coach` yet (task 037).
+- **Performance curve:** `DeadlockApiClient.getPerformanceCurve(heroId, rankTier)` -> `PerformanceCurvePoint` list (time in seconds from `resolution=0`; `_avg` and `_std` of net worth, kills, deaths, assists, player damage, denies, creep kills), cache `deadlockPerformanceCurve` 6 h/500. Only mean and std exist (no percentiles).
+- **Player item stats (021):** the endpoint is `GET /v1/analytics/item-stats` with `account_id`, `hero_ids`, `min_unix_timestamp` (there is no `/v1/players/{id}/item-stats`). Cache `deadlockPlayerItemStats` 10 min/200.
+- **Premium gate:** `PremiumFeatureGate.allowed(userId)` = limits disabled OR `PremiumChecker.isPremium`. `PremiumChecker` default says nobody; with `rejuv.premium.enabled=true` the Patreon role checker (JDA REST lookup in `PREMIUM_GUILD_ID`/`PREMIUM_ROLE_ID`, cached 2 min, fail closed) is `@Primary`.
+- **Usage limits:** off by default (`USAGE_LIMITS_ENABLED=false`); a usage row is written only after a fresh, stored, non-fallback AI analysis; stored/fallback/duplicate results never count. To test: `USAGE_LIMITS_ENABLED=true USAGE_WEEKLY_FREE_ANALYSES=1`.
+- **Web (017):** `rejuv.web.base-url` (`WEB_BASE_URL`, blank = no button), server binds `127.0.0.1:${WEB_PORT:8080}` by default, page headers set `noindex` and a strict CSP, no JavaScript. Page shows analysis text, final build and the PNG chart; `rank`/`result` are not stored. No HTTPS/Caddy/domain yet (task 018 and a later deploy step).
+- **Metadata fallback (023):** `FallbackMatchMetadataSource` (`@Primary`) tries JSON then raw (Zstandard + hand-written protobuf reader) on 503/429/I-O/invalid body; 404 never falls back. Real payload is Zstandard although the OpenAPI text says bz2. Needs a glibc base image for `zstd-jni`.
+- **Presentation convention (every embed command):** `EmbedStyle.COLOR`, hero/item names through `IconCatalog` + `EmbedStyle.withIcon`, thumbnail via `AssetImages`, every field through `EmbedStyle.fitField`, must work text-only (mandatory test).
+- **Caches:** `CacheConfig` registers 18 Caffeine caches (including `deadlockPlayerNames`, `deadlockPlayerItemStats`, `deadlockPerformanceCurve`). Any new cache must be added to `DeadlockApiClientCachingTest.cacheTtlsAndSizesMatchTheDesign` (exact set of names, TTLs, sizes); parallel tasks conflict there, resolve by keeping all entries.
+- **Flyway:** V1 `linked_account`, V2 `match_analysis`, V3 `analysis_usage`, V4 `match_analysis.public_id`. Next is V5; check open branches for a clashing number.
 
-- **Task 015** (`/mates [user]`), report in `docs/task-reports/015-mates.md`. Merged (PR #50): public embed of the top 5 teammates of the last 90 days (>= 5 matches together, ordered by win rate), via `DeadlockApiClient.getMateStats` (`/v1/players/{account_id}/mate-stats`, cache `deadlockMateStats` 10 min/200), `services/MatesService`, `commands/MatesCommand`.
-- **Task 025** (`/matches` and match selection), report in `docs/task-reports/025-matches.md`. Merged (PR #51): `/matches [hero] [result] [user]` lists the latest 10 matches and marks analyzed ones; `/analyze [match] [hero] [result]` with autocomplete (`commands/SlashCommand.autocomplete`, routed by `CommandRouter`). `domain/MatchFilter`, `domain/MatchSummary`, `services/MatchSearchService` (`find`, `select`; searches only the 200-entry cached history), `MatchNotFoundException`; estimated cost log per fresh analysis (`anthropic.pricing.*`, default 0 = unknown).
-- **Task 023** (raw metadata fallback), report in `docs/task-reports/023-raw-metadata-fallback.md`, ADR-0017. Merged (PR #52): `FallbackMatchMetadataSource` (`@Primary`, carries the `deadlockMatchMetadata` cache) calls the JSON source first and, on 503, 429, I/O or invalid body, `RawMatchMetadataSource` (`/metadata/raw`, Zstandard, hand-written protobuf reader in `RawMatchMetadataParser`). 404 never falls back. New dependencies: `protobuf-java` (Boot BOM, 4.35.1) and `zstd-jni` 1.5.7-23. Live check by the implementer: match 114238834 decoded (12 players). The real payload is Zstandard, not bz2 as the OpenAPI text says.
-- **Task 019** (weekly usage limits), report in `docs/task-reports/019-usage-limits.md`. Merged (PR #53): Flyway `V3__create_analysis_usage.sql`; flag `rejuv.usage.enabled` (`USAGE_LIMITS_ENABLED`, default `false`) and `rejuv.usage.weekly-free-analyses` (`USAGE_WEEKLY_FREE_ANALYSES`, default 3); `services/UsageService` (UTC calendar week, Monday 00:00 to Monday 00:00), `PremiumChecker` port with a default "nobody is premium" bean in `config/UsageConfig` (Task 020 replaces it), `UsageLimitExceededException`, ephemeral `/usage`. `AnalyzeService.analyze(long discordUserId, long accountId, MatchFilter filter)`: the limit is checked after the stored-analysis lookup and before metadata, benchmark and AI calls; a usage row is written only after a fresh AI analysis is saved (never for stored, fallback or duplicate results). Verified by the owner in Discord on 2026-10-18: `/usage` 0 of 1 then 1 of 1, a fresh match counted, a second fresh match refused with `analyze.limit_reached`.
-- **Task 027** (typed match id), report in `docs/task-reports/027-match-id-input.md`. Merged (PR #54): `/analyze` option `match` is a STRING with autocomplete (choice value = id as text); only 1-18 ASCII digits above 0 are accepted, anything else (for example a pasted autocomplete label) gets the ephemeral `analyze.match_invalid` before any lookup. A pasted label into the former INTEGER option made `/analyze` analyze the latest match (observed 2026-10-18). Manual Discord check of the new behavior not done.
-- **Task 028** (Steam names in `/mates`), report in `docs/task-reports/028-mates-names.md`. Merged (PR #55): `DeadlockApiClient.getPlayerNames(List<Long>)` (`GET /v1/players/steam?account_ids=`, never `refresh`, cache `deadlockPlayerNames` 1 h/500), `MatesSummary.names`, label `Name (#id)` with `Player #id` fallback; names are best effort (a failing call is logged and ignored) and sanitized (32 code points, one line, markdown escaped). Live check: a known id returned its `personaname`; an unknown id returned 200 `[]` (not 404). Whether private profiles omit `personaname` is not verified. `MarkdownSanitizer` does not neutralize `@everyone` (embed fields do not ping).
-- **Task 026** (items and chart in `/analyze`), report in `docs/task-reports/026-analyze-items-charts.md`. Merged (PR #56): `AnalysisReport` has a `visuals` component (`MatchVisuals`: final build items and `ChartData`); `services/MatchVisualsService` builds them from the telemetry (items not sold, `type` upgrade, max 12; chart on the snapshot times common to all players); `services/ChartRenderer` draws one 900 x 640 PNG with Java2D (team soul lead, player net worth vs teammates average) attached as `match.png`. Stored analyses also read the cached telemetry (no AI call, no usage); an unexpected visuals failure there is caught and never deletes the stored row. No new dependency, prompt unchanged. Manual Discord check not done; font availability in a production image is not verified (no Dockerfile yet), and a rendering failure only drops the image.
-- **Task 024** (rich presentation), report in `docs/task-reports/024-rich-presentation.md`. Merged (PR #40):
-  - JDA bumped from 5.0.0 to 5.6.1 (application emojis). Asset DTOs gained image fields (`HeroImages`, `ItemAsset.image`, `RankAsset.images`) with backward-compatible constructors.
-  - Emoji sync: `services/EmojiSyncService` uploads hero and shop-upgrade emojis as Discord application emojis in a background thread (`config/EmojiSyncStarter`, `config/JdaEmojiGateway` behind `services/EmojiGateway`), capped at 400 new emojis; failures are logged WARN and skipped. `services/IconCatalog` holds the emoji mentions; until it fills, embeds are text-only. The first sync uploads about 315 emojis (1-3 minutes).
-  - `clients/AssetImageClient` (uncached, HTTPS only, hosts `assets-bucket.deadlock-api.com` and `api.deadlock-api.com`, body <= 256 KB); `services/AssetImages` resolves hero card and rank badge URLs from cached assets.
-  - `commands/EmbedStyle` (brand color `0xE5A93C`, `withIcon`, `fitField` for the 1024-char field limit). Restyled: `/profile`, `/meta`, `/build`, `/counter`, `/help` (ephemeral embed, key `help.title`). A later change (no task spec) applied the same style to `/analyze` (brand color, hero card thumbnail; `AnalysisReport` gained `heroId`), `/heroes` (brand color, hero icons per entry, top hero card thumbnail, `fitField`) and `/leaderboard` (brand color, rank badge thumbnail of the first place). Verified with `./mvnw verify` (498 tests, 0 failures, 2 skipped); no manual Discord check.
-  - Verified: on its branch 388 tests; after merging `main` with 009, 014 and 016, `./mvnw verify` passed with 496 tests, 0 failures, 2 skipped. No manual Discord check.
-- The test count on `main` after merging Tasks 009, 014, 016 and 024 is 496 (2 skipped benchmark tests); 498 with the `/analyze`, `/heroes` and `/leaderboard` styling change.
-
-### In progress
-Nothing.
-
-### Not started (planned only)
-Tasks 010, 017, 018, 020, 021. Nothing beyond `/ping`, `/help`, `/link`, `/unlink`, `/profile`, `/analyze`, `/meta`, `/build`, `/counter`, `/heroes`, `/leaderboard server`, `/mates`, `/matches`, `/usage`, the database baseline, the Deadlock API client, the match metadata port, the AI client, and `MetricsService` exists yet: no web server, premium or Patreon check. The MVP code is merged but has not been run end to end in Discord, launched or deployed. `/help` lists every implemented command except `/ping`.
-
-### Next
-Task 010 (prompt tuning with testers) and the manual Discord check of `/analyze` (build field and chart from 026, typed id from 027), `/mates` (names) and `/heroes`. Task 017 (web report, Flyway V4) is eligible now that 019 is merged; Task 020 (Patreon role check) depends on 019 and replaces the default `PremiumChecker`. Check the first emoji sync in the dev guild.
-
-### Deadlock API facts observed in real responses (2026-10-16, evidence collected by the owner)
-- Host `https://api.deadlock-api.com`. `GET /v1/players/{account_id}/match-history` returns an array, newest first. An account without data returns 200 `[]` (not 404). The payload is large (about 5 MB for 6,842 matches), so a client must cap what it keeps.
-- In the history, `player_match_outcome` is 0 (invalid) for matches before about 2026-07-30; win = outcome 1, and `match_result == player_team` matched every scored match (inference, not documented). `ranked_display_badge` is non-null only when `match_mode == 4` (inferred to be ranked); it is null for unranked matches.
-- `GET /v1/analytics/player-stats/metrics` filters by `hero_ids`, `min_average_badge`, `max_average_badge` (average of both teams); it defaults to the last 30 days and to normal ranked/unranked matches. It returned 29 metrics (32 with `include_buff_metrics=true`), for example `net_worth_per_min`, `player_damage_per_min`, `last_hits`, `denies`, `deaths`, `kda`, `permanent_buffs`, `first_permanent_buff_time_s`. There is no benchmark for net worth at 10/20 min or for item purchase times.
-- `GET /v1/players/{account_id}/rank` returns `badge`, `rank`, `subrank`, `last_match`; an unranked player returns 200 with zeros (no 404 observed).
-- Assets: ranks have tiers 0-11; heroes expose `id`, `class_name`, `name`; `/v1/assets/items` has 764 entries (about 8 MB; types upgrade/ability/weapon; upgrades carry `item_tier` 1-5, `item_slot_type`, `cost`).
-- `GET /v1/matches/{match_id}/metadata` returns JSON wrapped in `match_info` with 12 players: items (`game_time_s`, `sold_time_s`), stat snapshots at 180, 360, 540, 720, 900, 1200, 1500, 1800, 2100 s plus a final one (net worth, damage, healing), `power_up_buffs` with pickup times, and `player_rank_data.initial_display_rank`. `average_badge_team0/1` can be 0. Item ids resolve in `/v1/assets/items`. It once returned 503 "Steam is busy" (`Retry-After` 1265 s) and worked later for the same match; the Steam fallback is limited to 3 requests per hour per IP. `GET /v1/matches/{match_id}/metadata/raw` (bz2 protobuf) worked while the JSON endpoint failed. A non-existent match returned 503 ("recently failed to fetch from upstream"), not 404, so callers cannot tell "never exists" from "try later". `item_id` is unsigned 32-bit and needs a `long`.
-- `GET /v1/analytics/hero-stats` filters by `min_average_badge`, `max_average_badge` (0..116) and `min_unix_timestamp` (default 30 days ago); returns array of per-hero stats (`hero_id`, `matches`, `wins`, `losses`, etc.).
+## Deadlock API facts (observed in real responses)
+- Host `https://api.deadlock-api.com`. Analytics limit 200 req/min per IP; 503 with `Retry-After` under load; never fire parallel uncached analytics calls.
+- `match-history`: array newest first, 200 entries kept; `[]` for accounts without data; `player_match_outcome` 0 before ~2026-07-30; win = `match_result == player_team` (inference); `ranked_display_badge` non-null only for ranked, 80% of one account's recent 200 matches.
+- `player-stats/metrics`: filters `hero_ids`, `min/max_average_badge`; keys `percentile25/50/75`; no benchmark for net worth at 10/20 min or item timing (use the performance curve and `item-stats` `avg_buy_time_s`).
+- `matches/{id}/metadata`: JSON in `match_info`, 12 players; per player `hero_id`, `team`, `player_slot`, `assigned_lane` (values 1, 4, 6 seen, 2 players per team per lane), `death_details[]` (`game_time_s`, `killer_player_slot`, `time_to_kill_s`, `death_duration_s`, positions), `items`, `stats[]` snapshots at 180, 360, 540, 720, 900, 1200, 1500, 1800, 2100 s plus final (net worth, damage, healing, creep kills, possible creeps, shots, damage taken, gold sources), `power_up_buffs` (since 2026-09-29). Also `damage_matrix`, `objectives`, `mid_boss` (shape not inspected). May return 503 "Steam is busy"; a non-existent match returns 503, not 404. `item_id` is unsigned 32-bit (use `long`). `player-performance-curve` and `hero-counter-stats` (42 rows for hero 31) confirmed in `docs/evidence/029-coaching-analytics/` (local only, not committed: contains real account data).
+- `players/{id}/rank`: zeros for unranked. `players/steam?account_ids=` returns 200 `[]` for unknown ids. Ranks tiers 0-11; `/v1/assets/items` is ~8 MB.
 
 ## Constraints
-- User-facing behavior is English-only (ADR-0008); all user-facing text lives in `messages.properties` and is accessed via `Messages`.
-- Discord credentials come from environment variables (`.env`, see `.env.example`) and must never be committed. Manual Discord checks need `DISCORD_TOKEN` and `DEV_GUILD_ID`.
-- After Task 003: the app needs a reachable PostgreSQL at startup (`POSTGRES_*` variables, no default password), Flyway is the only schema authority (`ddl-auto: validate`), and `verify` needs Docker running for Testcontainers.
-- `/meta`, `/build`, `/counter`, `/heroes`, `/leaderboard` and `/analyze` call the API synchronously on the JDA event thread after a public deferral (same risk as `/profile`).
-- The bot needs the **Server Members Intent** enabled in the Discord Developer Portal (Bot > Privileged Gateway Intents) since Task 016; without it the gateway closes with "Disallowed intents" and the bot fails to start. Above 100 guilds Discord requires verification and approval for it.
-- Flyway has V1, V2 (`match_analysis`) and V3 (`analysis_usage`). Any new migration starts at V4 (Task 017); check open branches for a clashing number.
-- Usage limits are off by default (`USAGE_LIMITS_ENABLED=false`); to test them set `USAGE_LIMITS_ENABLED=true USAGE_WEEKLY_FREE_ANALYSES=1` and restart the bot.
-- `CacheConfig` has 16 caches now (including `deadlockPlayerNames`). Adding a cache requires updating `DeadlockApiClientCachingTest.cacheTtlsAndSizesMatchTheDesign`, which asserts the exact set of cache names, TTLs and sizes.
-- `KEY_PATTERN` in `MessagesIntegrationTest` permits numeric dot segments (`(\\.[a-z0-9_]+)+`) for catalog keys like `meta.rank.1`.
-- The Claude API key comes only from `ANTHROPIC_API_KEY`; it is never logged.
+- English-only user text in `messages.properties` via `Messages` (ADR-0008). No hardcoded text, including Thymeleaf templates (`#{...}`).
+- Secrets only in `.env`/environment (never read or commit `.env`). The deny rule in Claude Code settings also blocks `.env.example` for the assistant; edit it by hand if needed.
+- Needs Docker for `verify` (Testcontainers) and a reachable PostgreSQL at startup. Server Members Intent must be enabled in the Discord Developer Portal.
+- On this Windows machine use `.\mvnw.cmd`; it may need `MAVEN_USER_HOME` pointed at a junction. `.claude/skills/run-rejuv/driver.sh list/cmd/eval` fail on Windows (`;` classpath issue).
+- Claude API key only from `ANTHROPIC_API_KEY`, never logged. `agy` launched from scripts needs a `.ps1` launcher (quoting); one worktree per task.
 
 ## Known limitations and risks
-- `/link` and `/profile` block the JDA event thread during their API calls (up to the client's 10 s retry wait; `/profile` makes up to four sequential calls). `/analyze` makes more sequential calls (history, rank, benchmarks, assets, metadata, item stats, items, AI) and has the same risk.
-- `/analyze`: a match with duration <= 0 makes `MetricsService.buildInput` throw `IllegalArgumentException`, shown as the generic error with an error id. Re-linking to a different account leaves the old account's stored analyses (out of scope in the spec).
-- `/leaderboard server` considers only the 500 most recently linked accounts; a per-guild member streaming approach is needed for large deployments (owner decision pending).
-- `/profile`: no cache eviction on `/link` or `/unlink` (old profile visible up to 10 min); top heroes count only the 200 history entries the client keeps.
-- `AnalysisClient` live check: the model ended `next_game_action` with a stray `}` (passed validation); input for Task 010 prompt tuning. `max_tokens` 1500 is configurable in `application.yaml`.
-- `.claude/skills/run-rejuv/driver.sh` `list`/`cmd`/`eval` fail on Windows (`Driver.java` compile error, `:` classpath separator); `build` and `db-down` work. Workaround used in Task 008: launch `java` with the driver directly using a `;` classpath.
-- On this Windows machine the Maven wrapper may need `MAVEN_USER_HOME` pointed at a temporary junction to the existing Maven home (null-target issue in PowerShell).
-- deadlock-api data coverage gaps; many competing tracker sites.
-- Match metadata can be unavailable (503 while Steam is busy, strict Steam fallback quota). `/analyze` needs a degraded mode based on history data only (Task 009); a raw protobuf fallback is planned as Task 023.
-- The item-timing benchmark is the `item-stats` average buy time (`avg_buy_time_s`, no percentiles, verified live in Task 004). Owner decision 2026-10-16: the AI input field is `avg_bought_at_min`; `docs/mvp-spec.md` and `docs/implementation-plan.md` were updated. Net worth at 10 min has no exact snapshot (540 s and 720 s exist), so it must be interpolated; 20 min is exact (1200 s).
-- Claude Pro usage limits on heavy days: keep implementation in Antigravity.
+- Commands call the API synchronously on the JDA event thread after a deferral (`/analyze` makes many sequential calls).
+- `/analyze` quality (audit of 4 real analyses): numbers are grounded, but reasoning errors (compares a value with the wrong median), "leaks" in dominant games (0 denies) and no priority by impact. Coach upgrade planned: tasks 031-035 (data layers), 037 (prompt/schema v2), 010 (tuning). `max_tokens` is 1500 (raise in 037 if needed).
+- `/analyze` with duration <= 0 throws `IllegalArgumentException` (generic error). Re-linking to another account keeps the old account's stored analyses. `/profile` has no cache eviction on link (10 min stale). `/leaderboard server` considers only the 500 most recently linked accounts.
+- Web report: `rank` and `result` not stored; the page needs the cached metadata (24 h) for duration/build/chart and degrades without it; `spring.jpa.open-in-view` is on (default) and could be turned off.
+- Fonts for the chart are installed in the Docker image (task 036) but a real container render check on the server is still pending; a render failure only drops the image.
+- First emoji sync uploads ~315 application emojis (1-3 min); `MarkdownSanitizer` does not neutralize `@everyone` (embeds do not ping); private profiles without `personaname` unverified.
+- Data coverage gaps in deadlock-api; match metadata can be unavailable (degraded mode: history metrics only). Death positions have no map-zone data (do not claim "died in enemy territory").
+
+## Next
+1. Wave 2 (needs 029, merged): tasks 031 phases, 032 deaths, 033 build vs meta, 034 recent form, 035 matchup, 038 `/compare` (premium, reuses `PremiumFeatureGate`), 018 soul curve on the web report. Then 037 (prompt/schema v2, embed, web) and 010 (tuning with testers).
+2. Manual Discord checks pending: `/analyze` (chart, typed id, report button), `/items`, `/mates` names, `/heroes`, Patreon role, emoji sync.
+3. Deployment to Oracle (guide in `docs/deployment.md`); HTTPS/domain not done.
 
 ## References
-- Specs: `docs/mvp-spec.md`, `docs/features.md`, `docs/architecture.md`, `docs/product.md`
-- Process: `docs/implementation-plan.md`, `docs/roadmap.md`, `docs/agent-workflow.md`, `docs/getting-started.md`
-- Task 001: `docs/tasks/001-project-skeleton.md`, `docs/task-reports/001-project-skeleton.md`
-- Task 002: `docs/tasks/002-i18n-and-help.md`, `docs/task-reports/002-i18n-and-help.md`
-- Task 003: `docs/tasks/003-postgres-flyway-linked-account.md`, `docs/task-reports/003-postgres-flyway-linked-account.md`
-- Task 004: `docs/tasks/004-deadlock-api-client.md`, `docs/task-reports/004-deadlock-api-client.md`
-- Task 005: `docs/tasks/005-link-unlink.md`, `docs/task-reports/005-link-unlink.md`
-- Task 006: `docs/tasks/006-profile.md`, `docs/task-reports/006-profile.md`
-- Task 007: `docs/tasks/007-metrics-service.md`, `docs/task-reports/007-metrics-service.md`
-- Task 008: `docs/tasks/008-analysis-client.md`, `docs/task-reports/008-analysis-client.md`
-- Task 009: `docs/tasks/009-analyze.md`, `docs/task-reports/009-analyze.md`
-- Task 011: `docs/tasks/011-build.md`, `docs/task-reports/011-build.md`
-- Task 012: `docs/tasks/012-counter.md`, `docs/task-reports/012-counter.md`
-- Task 013: `docs/tasks/013-meta.md`, `docs/task-reports/013-meta.md`
-- Task 014: `docs/tasks/014-heroes.md`, `docs/task-reports/014-heroes.md`
-- Task 016: `docs/tasks/016-leaderboard-server.md`, `docs/task-reports/016-leaderboard-server.md`
-- Task 022: `docs/tasks/022-match-metadata.md`, `docs/task-reports/022-match-metadata.md`
-- Task 015: `docs/tasks/015-mates.md`, `docs/task-reports/015-mates.md`
-- Task 019: `docs/tasks/019-usage-limits.md`, `docs/task-reports/019-usage-limits.md`
-- Task 023: `docs/tasks/023-raw-metadata-fallback.md`, `docs/task-reports/023-raw-metadata-fallback.md`
-- Task 025: `docs/tasks/025-matches.md`, `docs/task-reports/025-matches.md`
-- Task 026: `docs/tasks/026-analyze-items-charts.md`, `docs/task-reports/026-analyze-items-charts.md`
-- Task 027: `docs/tasks/027-match-id-input.md`, `docs/task-reports/027-match-id-input.md`
-- Task 028: `docs/tasks/028-mates-names.md`, `docs/task-reports/028-mates-names.md`
-- Task 024: `docs/tasks/024-rich-presentation.md`, `docs/task-reports/024-rich-presentation.md`
-- ADRs most relevant so far: `0001-java21-spring-boot-jda.md`, `0002-postgresql-and-caffeine.md`, `0005-oracle-cloud-docker-compose.md`, `0008-english-only-i18n-ready.md`, `0009-claude-plans-antigravity-implements.md`
+- Specs: `docs/mvp-spec.md`, `docs/features.md`, `docs/architecture.md`, `docs/product.md`, `docs/costs.md`, `docs/deployment.md`
+- Process: `docs/implementation-plan.md`, `docs/plan-de-implementacion-017-029.md`, `docs/roadmap.md` (not updated for 022+), `docs/agent-workflow.md`
+- ADRs: `docs/adr/0001`-`0018` (most relevant: 0001, 0002, 0005, 0006, 0008, 0009, 0010, 0011, 0012, 0016, 0017, 0018)
+- Task specs and reports: `docs/tasks/NNN-*.md`, `docs/task-reports/NNN-*.md`
