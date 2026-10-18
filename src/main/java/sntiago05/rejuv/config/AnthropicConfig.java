@@ -11,7 +11,7 @@ import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.web.client.RestClient;
 
 @Configuration
-@EnableConfigurationProperties(AnthropicProperties.class)
+@EnableConfigurationProperties({AnthropicProperties.class, AnthropicPricingProperties.class})
 public class AnthropicConfig {
 
     public static final String ANTHROPIC_VERSION = "2023-06-01";

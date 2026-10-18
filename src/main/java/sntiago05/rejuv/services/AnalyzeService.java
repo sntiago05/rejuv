@@ -2,6 +2,7 @@ package sntiago05.rejuv.services;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 
@@ -20,11 +21,13 @@ import sntiago05.rejuv.clients.dto.MatchHistoryEntry;
 import sntiago05.rejuv.clients.dto.MetricPercentiles;
 import sntiago05.rejuv.clients.dto.PlayerRank;
 import sntiago05.rejuv.clients.dto.RankAsset;
+import sntiago05.rejuv.config.AnthropicPricingProperties;
 import sntiago05.rejuv.domain.AnalysisInput;
 import sntiago05.rejuv.domain.AnalysisOutcome;
 import sntiago05.rejuv.domain.AnalysisReport;
 import sntiago05.rejuv.domain.AnalysisResult;
 import sntiago05.rejuv.domain.MatchAnalysis;
+import sntiago05.rejuv.domain.MatchFilter;
 import sntiago05.rejuv.domain.MatchRank;
 import sntiago05.rejuv.domain.MatchTelemetry;
 import sntiago05.rejuv.repositories.MatchAnalysisRepository;
@@ -42,31 +45,40 @@ public class AnalyzeService {
     private final MetricsService metricsService;
     private final AnalysisClient analysisClient;
     private final MatchAnalysisRepository repository;
+    private final MatchSearchService matchSearchService;
+    private final AnthropicPricingProperties pricingProperties;
 
     public AnalyzeService(DeadlockApiClient deadlockApiClient,
                           MatchMetadataSource matchMetadataSource,
                           MetricsService metricsService,
                           AnalysisClient analysisClient,
-                          MatchAnalysisRepository repository) {
+                          MatchAnalysisRepository repository,
+                          MatchSearchService matchSearchService,
+                          AnthropicPricingProperties pricingProperties) {
         this.deadlockApiClient = deadlockApiClient;
         this.matchMetadataSource = matchMetadataSource;
         this.metricsService = metricsService;
         this.analysisClient = analysisClient;
         this.repository = repository;
+        this.matchSearchService = matchSearchService;
+        this.pricingProperties = pricingProperties;
     }
 
     /**
      * @throws NoMatchHistoryException when the account has no match history
+     * @throws MatchNotFoundException when nothing passes the filter
      * @throws sntiago05.rejuv.clients.DeadlockApiException (including DeadlockApiUnavailableException) when history,
      *         rank, benchmarks or assets cannot be read
      */
-    public AnalysisReport analyze(long accountId) {
-        List<MatchHistoryEntry> history = deadlockApiClient.getMatchHistory(accountId);
-        if (history.isEmpty()) {
-            throw new NoMatchHistoryException(accountId);
-        }
-        MatchHistoryEntry match = metricsService.latestMatch(history)
-                .orElseThrow(() -> new NoMatchHistoryException(accountId));
+    public AnalysisReport analyze(long accountId, MatchFilter filter) {
+        MatchHistoryEntry match = matchSearchService.select(accountId, filter != null ? filter : MatchFilter.LATEST)
+                .orElseGet(() -> {
+                    List<MatchHistoryEntry> history = deadlockApiClient.getMatchHistory(accountId);
+                    if (history.isEmpty()) {
+                        throw new NoMatchHistoryException(accountId);
+                    }
+                    throw new MatchNotFoundException("No match found for account " + accountId + " with filter " + filter);
+                });
 
         PlayerRank currentRank = deadlockApiClient.getPlayerRank(accountId);
         Optional<MatchRank> rank = metricsService.benchmarkRank(match, currentRank);
@@ -143,8 +155,9 @@ public class AnalyzeService {
                 json, outcome.model(), outcome.inputTokens(), outcome.outputTokens(), Instant.now());
         try {
             repository.save(entity);
-            log.info("Analyze accountId={} matchId={} source=ai degraded={} inputTokens={} outputTokens={}",
-                    accountId, match.matchId(), degraded, outcome.inputTokens(), outcome.outputTokens());
+            log.info("Analyze accountId={} matchId={} source=ai degraded={} inputTokens={} outputTokens={} estimatedCostUsd={}",
+                    accountId, match.matchId(), degraded, outcome.inputTokens(), outcome.outputTokens(),
+                    estimatedCostUsd(outcome.inputTokens(), outcome.outputTokens()));
             return new AnalysisReport(match.heroId(), input.hero(), input.rank(), input.result(), input.durationMin(),
                     outcome.result(), Map.of(), degraded);
         } catch (DataIntegrityViolationException ex) {
@@ -163,5 +176,16 @@ public class AnalyzeService {
             return new AnalysisReport(match.heroId(), input.hero(), input.rank(), input.result(), input.durationMin(),
                     outcome.result(), Map.of(), degraded);
         }
+    }
+
+    String estimatedCostUsd(int inputTokens, int outputTokens) {
+        if (pricingProperties == null
+                || pricingProperties.inputUsdPerMillion() <= 0.0
+                || pricingProperties.outputUsdPerMillion() <= 0.0) {
+            return "unknown";
+        }
+        double cost = (inputTokens / 1_000_000.0) * pricingProperties.inputUsdPerMillion()
+                + (outputTokens / 1_000_000.0) * pricingProperties.outputUsdPerMillion();
+        return String.format(Locale.ROOT, "%.6f", cost);
     }
 }

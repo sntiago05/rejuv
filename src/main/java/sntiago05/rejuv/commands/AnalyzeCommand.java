@@ -1,28 +1,44 @@
 package sntiago05.rejuv.commands;
 
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.OptionalLong;
 
 import net.dv8tion.jda.api.EmbedBuilder;
 import net.dv8tion.jda.api.entities.MessageEmbed;
 import net.dv8tion.jda.api.entities.User;
+import net.dv8tion.jda.api.events.interaction.command.CommandAutoCompleteInteractionEvent;
 import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEvent;
 import net.dv8tion.jda.api.interactions.InteractionHook;
+import net.dv8tion.jda.api.interactions.commands.Command;
+import net.dv8tion.jda.api.interactions.commands.OptionMapping;
+import net.dv8tion.jda.api.interactions.commands.OptionType;
 import net.dv8tion.jda.api.interactions.commands.build.Commands;
+import net.dv8tion.jda.api.interactions.commands.build.OptionData;
 import net.dv8tion.jda.api.interactions.commands.build.SlashCommandData;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.NoSuchMessageException;
 import org.springframework.stereotype.Component;
 import sntiago05.rejuv.clients.DeadlockApiUnavailableException;
+import sntiago05.rejuv.clients.dto.HeroAsset;
 import sntiago05.rejuv.domain.AnalysisInput;
 import sntiago05.rejuv.domain.AnalysisReport;
 import sntiago05.rejuv.domain.AnalysisResult;
+import sntiago05.rejuv.domain.MatchFilter;
+import sntiago05.rejuv.domain.MatchSummary;
 import sntiago05.rejuv.services.AnalyzeService;
 import sntiago05.rejuv.services.AssetImages;
+import sntiago05.rejuv.services.GameAssets;
+import sntiago05.rejuv.services.HeroResolver;
+import sntiago05.rejuv.services.MatchNotFoundException;
+import sntiago05.rejuv.services.MatchSearchService;
 import sntiago05.rejuv.services.Messages;
 import sntiago05.rejuv.services.NoMatchHistoryException;
 import sntiago05.rejuv.services.ProfileService;
@@ -39,13 +55,20 @@ public class AnalyzeCommand implements SlashCommand {
     private final ProfileService profileService;
     private final Messages messages;
     private final AssetImages assetImages;
+    private final MatchSearchService matchSearchService;
+    private final GameAssets gameAssets;
+    private final HeroResolver heroResolver;
 
     public AnalyzeCommand(AnalyzeService analyzeService, ProfileService profileService, Messages messages,
-                          AssetImages assetImages) {
+                          AssetImages assetImages, MatchSearchService matchSearchService, GameAssets gameAssets,
+                          HeroResolver heroResolver) {
         this.analyzeService = analyzeService;
         this.profileService = profileService;
         this.messages = messages;
         this.assetImages = assetImages;
+        this.matchSearchService = matchSearchService;
+        this.gameAssets = gameAssets;
+        this.heroResolver = heroResolver;
     }
 
     @Override
@@ -55,11 +78,48 @@ public class AnalyzeCommand implements SlashCommand {
 
     @Override
     public SlashCommandData data() {
-        return Commands.slash(name(), messages.get("analyze.description"));
+        OptionData matchOption = new OptionData(OptionType.INTEGER, "match", messages.get("analyze.option.match"), false)
+                .setAutoComplete(true);
+        OptionData heroOption = new OptionData(OptionType.STRING, "hero", messages.get("analyze.option.hero"), false)
+                .setAutoComplete(true);
+        OptionData resultOption = new OptionData(OptionType.STRING, "result", messages.get("analyze.option.result"), false)
+                .addChoice(messages.get("analyze.result.choice.win"), "win")
+                .addChoice(messages.get("analyze.result.choice.loss"), "loss");
+
+        return Commands.slash(name(), messages.get("analyze.description"))
+                .addOptions(matchOption, heroOption, resultOption);
     }
 
     @Override
     public void handle(SlashCommandInteractionEvent event) {
+        MatchFilter filter;
+        OptionMapping matchOpt = event.getOption("match");
+        if (matchOpt != null) {
+            filter = new MatchFilter(matchOpt.getAsLong(), null, null);
+        } else {
+            Integer heroId = null;
+            OptionMapping heroOpt = event.getOption("hero");
+            if (heroOpt != null && !heroOpt.getAsString().isBlank()) {
+                Optional<HeroAsset> hero = heroResolver.resolve(heroOpt.getAsString());
+                if (hero.isEmpty()) {
+                    event.reply(messages.get("analyze.hero_not_found")).setEphemeral(true).queue();
+                    return;
+                }
+                heroId = hero.get().id();
+            }
+
+            Boolean win = null;
+            OptionMapping resultOpt = event.getOption("result");
+            if (resultOpt != null) {
+                if ("win".equalsIgnoreCase(resultOpt.getAsString())) {
+                    win = Boolean.TRUE;
+                } else if ("loss".equalsIgnoreCase(resultOpt.getAsString())) {
+                    win = Boolean.FALSE;
+                }
+            }
+            filter = (heroId == null && win == null) ? MatchFilter.LATEST : new MatchFilter(null, heroId, win);
+        }
+
         User caller = event.getUser();
         OptionalLong accountId = profileService.findLinkedAccountId(caller.getIdLong());
         if (accountId.isEmpty()) {
@@ -68,15 +128,114 @@ public class AnalyzeCommand implements SlashCommand {
         }
 
         event.deferReply().queue();
-        answer(event.getHook(), caller.getIdLong(), accountId.getAsLong());
+        answer(event.getHook(), caller.getIdLong(), accountId.getAsLong(), filter);
     }
 
-    private void answer(InteractionHook hook, long callerId, long accountId) {
+    @Override
+    public void autocomplete(CommandAutoCompleteInteractionEvent event) {
         try {
-            AnalysisReport report = analyzeService.analyze(accountId);
+            String focused = event.getFocusedOption().getName();
+            if ("hero".equals(focused)) {
+                autocompleteHero(event);
+            } else if ("match".equals(focused)) {
+                autocompleteMatch(event);
+            } else {
+                event.replyChoices(List.of()).queue();
+            }
+        } catch (RuntimeException ex) {
+            event.replyChoices(List.of()).queue();
+        }
+    }
+
+    private void autocompleteHero(CommandAutoCompleteInteractionEvent event) {
+        String query = event.getFocusedOption().getValue().toLowerCase(Locale.ROOT);
+        List<Command.Choice> choices = gameAssets.heroNames().values().stream()
+                .filter(name -> name.toLowerCase(Locale.ROOT).contains(query))
+                .distinct()
+                .sorted(String.CASE_INSENSITIVE_ORDER)
+                .limit(25)
+                .map(name -> new Command.Choice(name, name))
+                .toList();
+        event.replyChoices(choices).queue();
+    }
+
+    private void autocompleteMatch(CommandAutoCompleteInteractionEvent event) {
+        long userId = event.getUser().getIdLong();
+        OptionalLong accountIdOpt = profileService.findLinkedAccountId(userId);
+        if (accountIdOpt.isEmpty()) {
+            event.replyChoices(List.of()).queue();
+            return;
+        }
+        long accountId = accountIdOpt.getAsLong();
+
+        Integer heroId = null;
+        OptionMapping heroOpt = event.getOption("hero");
+        if (heroOpt != null && !heroOpt.getAsString().isBlank()) {
+            Optional<HeroAsset> hero = heroResolver.resolve(heroOpt.getAsString());
+            if (hero.isPresent()) {
+                heroId = hero.get().id();
+            } else {
+                event.replyChoices(List.of()).queue();
+                return;
+            }
+        }
+
+        Boolean win = null;
+        OptionMapping resultOpt = event.getOption("result");
+        if (resultOpt != null) {
+            if ("win".equalsIgnoreCase(resultOpt.getAsString())) {
+                win = Boolean.TRUE;
+            } else if ("loss".equalsIgnoreCase(resultOpt.getAsString())) {
+                win = Boolean.FALSE;
+            }
+        }
+
+        MatchFilter filter = new MatchFilter(null, heroId, win);
+        List<MatchSummary> matches = matchSearchService.find(accountId, filter, 10);
+        if (matches.isEmpty()) {
+            event.replyChoices(List.of()).queue();
+            return;
+        }
+
+        List<Command.Choice> choices = new ArrayList<>(matches.size());
+        for (MatchSummary m : matches) {
+            String heroName = m.heroName() != null ? m.heroName() : "#" + m.heroId();
+            String resultText = m.win() ? "Win" : "Loss";
+            String date = Instant.ofEpochSecond(m.startTimeEpochS())
+                    .atZone(ZoneOffset.UTC)
+                    .format(DateTimeFormatter.ISO_LOCAL_DATE);
+            String kda = m.kills() + "/" + m.deaths() + "/" + m.assists();
+
+            String choiceName = formatMatchChoiceName(heroName, resultText, date, kda);
+            choices.add(new Command.Choice(choiceName, m.matchId()));
+        }
+        event.replyChoices(choices).queue();
+    }
+
+    private String formatMatchChoiceName(String heroName, String resultText, String date, String kda) {
+        String text = messages.get("analyze.autocomplete.match", heroName, resultText, date, kda);
+        if (text.length() <= Command.Choice.MAX_NAME_LENGTH) {
+            return text;
+        }
+        int overflow = text.length() - Command.Choice.MAX_NAME_LENGTH;
+        if (heroName.length() > overflow) {
+            String truncatedHero = heroName.substring(0, heroName.length() - overflow);
+            text = messages.get("analyze.autocomplete.match", truncatedHero, resultText, date, kda);
+        }
+        if (text.length() > Command.Choice.MAX_NAME_LENGTH) {
+            return text.substring(0, Command.Choice.MAX_NAME_LENGTH);
+        }
+        return text;
+    }
+
+    private void answer(InteractionHook hook, long callerId, long accountId, MatchFilter filter) {
+        try {
+            AnalysisReport report = analyzeService.analyze(accountId, filter);
             hook.editOriginalEmbeds(buildEmbed(report)).queue();
         } catch (NoMatchHistoryException ex) {
             hook.editOriginal(messages.get("analyze.no_matches")).queue();
+        } catch (MatchNotFoundException ex) {
+            hook.editOriginal(messages.get("analyze.match_not_found")).queue();
         } catch (DeadlockApiUnavailableException ex) {
             hook.editOriginal(messages.get("error.data_source_busy")).queue();
         } catch (RuntimeException ex) {

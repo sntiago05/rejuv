@@ -9,6 +9,7 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -19,10 +20,13 @@ import java.util.Optional;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.dao.DataIntegrityViolationException;
 import sntiago05.rejuv.clients.AnalysisClient;
 import sntiago05.rejuv.clients.DeadlockApiClient;
@@ -37,12 +41,14 @@ import sntiago05.rejuv.clients.dto.MatchHistoryEntry;
 import sntiago05.rejuv.clients.dto.MetricPercentiles;
 import sntiago05.rejuv.clients.dto.PlayerRank;
 import sntiago05.rejuv.clients.dto.RankAsset;
+import sntiago05.rejuv.config.AnthropicPricingProperties;
 import sntiago05.rejuv.domain.AnalysisInput;
 import sntiago05.rejuv.domain.AnalysisOutcome;
 import sntiago05.rejuv.domain.AnalysisReport;
 import sntiago05.rejuv.domain.AnalysisResult;
 import sntiago05.rejuv.domain.ItemPurchase;
 import sntiago05.rejuv.domain.MatchAnalysis;
+import sntiago05.rejuv.domain.MatchFilter;
 import sntiago05.rejuv.domain.MatchTelemetry;
 import sntiago05.rejuv.domain.PlayerTelemetry;
 import sntiago05.rejuv.domain.StatSnapshot;
@@ -50,6 +56,7 @@ import sntiago05.rejuv.repositories.MatchAnalysisRepository;
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.json.JsonMapper;
 
+@ExtendWith(OutputCaptureExtension.class)
 class AnalyzeServiceTest {
 
     private static final long ACCOUNT_ID = 1000001L;
@@ -90,7 +97,11 @@ class AnalyzeServiceTest {
         metricsService = new MetricsService();
         analysisClient = mock(AnalysisClient.class);
         repository = mock(MatchAnalysisRepository.class);
-        service = new AnalyzeService(deadlockApiClient, matchMetadataSource, metricsService, analysisClient, repository);
+        GameAssets gameAssets = mock(GameAssets.class);
+        when(gameAssets.heroNames()).thenReturn(Map.of(HERO_ID, "Infernus", 2, "Seven"));
+        MatchSearchService matchSearchService = new MatchSearchService(deadlockApiClient, gameAssets);
+        AnthropicPricingProperties pricing = new AnthropicPricingProperties(0, 0);
+        service = new AnalyzeService(deadlockApiClient, matchMetadataSource, metricsService, analysisClient, repository, matchSearchService, pricing);
     }
 
     @Test
@@ -108,7 +119,7 @@ class AnalyzeServiceTest {
         AnalysisOutcome outcome = new AnalysisOutcome(AI_RESULT, "claude-haiku-5-5", 1, 1000, 250);
         when(analysisClient.analyze(any())).thenReturn(outcome);
 
-        AnalysisReport report = service.analyze(ACCOUNT_ID);
+        AnalysisReport report = service.analyze(ACCOUNT_ID, MatchFilter.LATEST);
 
         assertThat(report.hero()).isEqualTo("Infernus");
         assertThat(report.rank()).isEqualTo("Archon 3");
@@ -157,7 +168,7 @@ class AnalyzeServiceTest {
         when(deadlockApiClient.getRanks()).thenReturn(RANKS);
         when(repository.findByAccountIdAndMatchId(ACCOUNT_ID, MATCH_ID)).thenReturn(Optional.of(stored));
 
-        AnalysisReport report = service.analyze(ACCOUNT_ID);
+        AnalysisReport report = service.analyze(ACCOUNT_ID, MatchFilter.LATEST);
 
         assertThat(report.hero()).isEqualTo("Infernus");
         assertThat(report.rank()).isEqualTo("Archon 3");
@@ -191,7 +202,7 @@ class AnalyzeServiceTest {
         when(deadlockApiClient.getItems()).thenReturn(ITEMS);
         when(analysisClient.analyze(any())).thenReturn(new AnalysisOutcome(AI_RESULT, "claude-haiku-5-5", 1, 1000, 250));
 
-        AnalysisReport report = service.analyze(ACCOUNT_ID);
+        AnalysisReport report = service.analyze(ACCOUNT_ID, MatchFilter.LATEST);
 
         verify(repository).delete(corrupted);
         assertThat(report.analysis()).isEqualTo(AI_RESULT);
@@ -219,7 +230,7 @@ class AnalyzeServiceTest {
         when(deadlockApiClient.getBenchmarks(HERO_ID, 7)).thenReturn(BENCHMARKS);
         when(analysisClient.analyze(any())).thenReturn(new AnalysisOutcome(AI_RESULT, "claude-haiku-5-5", 1, 1000, 250));
 
-        AnalysisReport report = service.analyze(ACCOUNT_ID);
+        AnalysisReport report = service.analyze(ACCOUNT_ID, MatchFilter.LATEST);
 
         assertThat(report.degraded()).isTrue();
         assertThat(report.analysis()).isEqualTo(AI_RESULT);
@@ -242,7 +253,7 @@ class AnalyzeServiceTest {
 
         when(analysisClient.analyze(any())).thenReturn(new AnalysisOutcome(AI_RESULT, "claude-haiku-5-5", 1, 1000, 250));
 
-        AnalysisReport report = service.analyze(ACCOUNT_ID);
+        AnalysisReport report = service.analyze(ACCOUNT_ID, MatchFilter.LATEST);
 
         assertThat(report.degraded()).isFalse();
         assertThat(report.analysis()).isEqualTo(AI_RESULT);
@@ -267,7 +278,7 @@ class AnalyzeServiceTest {
         when(matchMetadataSource.getMatch(MATCH_ID)).thenReturn(TELEMETRY);
         when(analysisClient.analyze(any())).thenReturn(new AnalysisOutcome(AI_RESULT, "claude-haiku-5-5", 1, 1000, 250));
 
-        AnalysisReport report = service.analyze(ACCOUNT_ID);
+        AnalysisReport report = service.analyze(ACCOUNT_ID, MatchFilter.LATEST);
 
         assertThat(report.rank()).isNull();
         verify(deadlockApiClient, never()).getBenchmarks(anyInt(), anyInt());
@@ -290,7 +301,7 @@ class AnalyzeServiceTest {
         AnalysisOutcome fallbackOutcome = new AnalysisOutcome(null, "claude-haiku-5-5", 2, 500, 0);
         when(analysisClient.analyze(any())).thenReturn(fallbackOutcome);
 
-        AnalysisReport report = service.analyze(ACCOUNT_ID);
+        AnalysisReport report = service.analyze(ACCOUNT_ID, MatchFilter.LATEST);
 
         assertThat(report.analysis()).isNull();
         assertThat(report.metrics()).isNotEmpty();
@@ -321,7 +332,7 @@ class AnalyzeServiceTest {
 
         doThrow(new DataIntegrityViolationException("duplicate")).when(repository).save(any());
 
-        AnalysisReport report = service.analyze(ACCOUNT_ID);
+        AnalysisReport report = service.analyze(ACCOUNT_ID, MatchFilter.LATEST);
 
         assertThat(report.analysis()).isEqualTo(AI_RESULT);
         assertThat(report.degraded()).isFalse();
@@ -331,7 +342,7 @@ class AnalyzeServiceTest {
     void emptyHistoryThrowsNoMatchHistoryExceptionWithoutFurtherCalls() {
         when(deadlockApiClient.getMatchHistory(ACCOUNT_ID)).thenReturn(List.of());
 
-        assertThatThrownBy(() -> service.analyze(ACCOUNT_ID))
+        assertThatThrownBy(() -> service.analyze(ACCOUNT_ID, MatchFilter.LATEST))
                 .isInstanceOf(NoMatchHistoryException.class);
 
         verify(deadlockApiClient, never()).getPlayerRank(anyLong());
@@ -344,7 +355,7 @@ class AnalyzeServiceTest {
         DeadlockApiUnavailableException unavailable = new DeadlockApiUnavailableException("busy", null, null);
         when(deadlockApiClient.getPlayerRank(ACCOUNT_ID)).thenThrow(unavailable);
 
-        assertThatThrownBy(() -> service.analyze(ACCOUNT_ID)).isSameAs(unavailable);
+        assertThatThrownBy(() -> service.analyze(ACCOUNT_ID, MatchFilter.LATEST)).isSameAs(unavailable);
         verify(repository, never()).save(any());
     }
 
@@ -360,7 +371,7 @@ class AnalyzeServiceTest {
         DeadlockApiUnavailableException unavailable = new DeadlockApiUnavailableException("busy", null, null);
         when(deadlockApiClient.getBenchmarks(HERO_ID, 7)).thenThrow(unavailable);
 
-        assertThatThrownBy(() -> service.analyze(ACCOUNT_ID)).isSameAs(unavailable);
+        assertThatThrownBy(() -> service.analyze(ACCOUNT_ID, MatchFilter.LATEST)).isSameAs(unavailable);
         verify(repository, never()).save(any());
     }
 
@@ -381,5 +392,134 @@ class AnalyzeServiceTest {
 
         AnalysisResult deserialized = mapper.readValue(json, AnalysisResult.class);
         assertThat(deserialized).isEqualTo(original);
+    }
+
+    @Test
+    void heroAndResultFilterPicksRightMatch() {
+        MatchHistoryEntry loss = new MatchHistoryEntry(
+                900000002L, 1, HERO_ID, 1700000100L, 1800, 4, 1, 0, 1, 2, 5, 3, 20000L, 100, 5, 73);
+        when(deadlockApiClient.getMatchHistory(ACCOUNT_ID)).thenReturn(List.of(loss, MATCH));
+        when(deadlockApiClient.getPlayerRank(ACCOUNT_ID)).thenReturn(RANK);
+        when(deadlockApiClient.getHeroes()).thenReturn(HEROES);
+        when(deadlockApiClient.getRanks()).thenReturn(RANKS);
+        when(repository.findByAccountIdAndMatchId(ACCOUNT_ID, MATCH_ID)).thenReturn(Optional.empty());
+        when(matchMetadataSource.getMatch(MATCH_ID)).thenReturn(TELEMETRY);
+        when(deadlockApiClient.getBenchmarks(HERO_ID, 7)).thenReturn(BENCHMARKS);
+        when(deadlockApiClient.getItemStats(HERO_ID, 7)).thenReturn(ITEM_STATS);
+        when(deadlockApiClient.getItems()).thenReturn(ITEMS);
+        when(analysisClient.analyze(any())).thenReturn(new AnalysisOutcome(AI_RESULT, "claude-haiku-5-5", 1, 1000, 250));
+
+        AnalysisReport report = service.analyze(ACCOUNT_ID, new MatchFilter(null, HERO_ID, true));
+
+        assertThat(report.result()).isEqualTo("win");
+        ArgumentCaptor<MatchAnalysis> captor = ArgumentCaptor.forClass(MatchAnalysis.class);
+        verify(repository).save(captor.capture());
+        assertThat(captor.getValue().getMatchId()).isEqualTo(MATCH_ID);
+    }
+
+    @Test
+    void matchIdFilterAnalyzesExactlyThatMatch() {
+        MatchHistoryEntry other = new MatchHistoryEntry(
+                900000002L, 1, 2, 1700000100L, 1800, 4, 0, 0, 1, 5, 3, 7, 30000L, 150, 10, 73);
+        when(deadlockApiClient.getMatchHistory(ACCOUNT_ID)).thenReturn(List.of(other, MATCH));
+        when(deadlockApiClient.getPlayerRank(ACCOUNT_ID)).thenReturn(RANK);
+        when(deadlockApiClient.getHeroes()).thenReturn(HEROES);
+        when(deadlockApiClient.getRanks()).thenReturn(RANKS);
+        when(repository.findByAccountIdAndMatchId(ACCOUNT_ID, MATCH_ID)).thenReturn(Optional.empty());
+        when(matchMetadataSource.getMatch(MATCH_ID)).thenReturn(TELEMETRY);
+        when(deadlockApiClient.getBenchmarks(HERO_ID, 7)).thenReturn(BENCHMARKS);
+        when(deadlockApiClient.getItemStats(HERO_ID, 7)).thenReturn(ITEM_STATS);
+        when(deadlockApiClient.getItems()).thenReturn(ITEMS);
+        when(analysisClient.analyze(any())).thenReturn(new AnalysisOutcome(AI_RESULT, "claude-haiku-5-5", 1, 1000, 250));
+
+        AnalysisReport report = service.analyze(ACCOUNT_ID, new MatchFilter(MATCH_ID, null, null));
+
+        assertThat(report.hero()).isEqualTo("Infernus");
+        ArgumentCaptor<MatchAnalysis> captor = ArgumentCaptor.forClass(MatchAnalysis.class);
+        verify(repository).save(captor.capture());
+        assertThat(captor.getValue().getMatchId()).isEqualTo(MATCH_ID);
+    }
+
+    @Test
+    void nothingPassesFilterThrowsMatchNotFoundException() {
+        when(deadlockApiClient.getMatchHistory(ACCOUNT_ID)).thenReturn(List.of(MATCH));
+
+        assertThatThrownBy(() -> service.analyze(ACCOUNT_ID, new MatchFilter(null, 999, null)))
+                .isInstanceOf(MatchNotFoundException.class);
+        verify(analysisClient, never()).analyze(any());
+        verify(repository, never()).save(any());
+    }
+
+    @Test
+    void sameMatchSelectedThreeWaysMakesExactlyOneAiCallAndOneStoredRow() {
+        when(deadlockApiClient.getMatchHistory(ACCOUNT_ID)).thenReturn(List.of(MATCH));
+        when(deadlockApiClient.getPlayerRank(ACCOUNT_ID)).thenReturn(RANK);
+        when(deadlockApiClient.getHeroes()).thenReturn(HEROES);
+        when(deadlockApiClient.getRanks()).thenReturn(RANKS);
+        when(matchMetadataSource.getMatch(MATCH_ID)).thenReturn(TELEMETRY);
+        when(deadlockApiClient.getBenchmarks(HERO_ID, 7)).thenReturn(BENCHMARKS);
+        when(deadlockApiClient.getItemStats(HERO_ID, 7)).thenReturn(ITEM_STATS);
+        when(deadlockApiClient.getItems()).thenReturn(ITEMS);
+
+        AnalysisOutcome outcome = new AnalysisOutcome(AI_RESULT, "claude-haiku-5-5", 1, 1000, 250);
+        when(analysisClient.analyze(any())).thenReturn(outcome);
+
+        // First call: default (LATEST) -> triggers AI and saves
+        when(repository.findByAccountIdAndMatchId(ACCOUNT_ID, MATCH_ID)).thenReturn(Optional.empty());
+        AnalysisReport report1 = service.analyze(ACCOUNT_ID, MatchFilter.LATEST);
+        assertThat(report1.analysis()).isEqualTo(AI_RESULT);
+
+        // Simulate repository now holding the stored row
+        MatchAnalysis storedEntity = new MatchAnalysis(
+                ACCOUNT_ID, MATCH_ID, HERO_ID,
+                "{\"strength\":\"Great farming\",\"biggest_leak\":\"Too many deaths\",\"next_game_action\":\"Ward more\",\"key_numbers\":[\"10 kills\",\"20k souls\"]}",
+                "claude-haiku-5-5", 1000, 250, Instant.now());
+        when(repository.findByAccountIdAndMatchId(ACCOUNT_ID, MATCH_ID)).thenReturn(Optional.of(storedEntity));
+
+        // Second call: by matchId
+        AnalysisReport report2 = service.analyze(ACCOUNT_ID, new MatchFilter(MATCH_ID, null, null));
+        assertThat(report2.analysis()).isEqualTo(AI_RESULT);
+
+        // Third call: by filter (hero and win)
+        AnalysisReport report3 = service.analyze(ACCOUNT_ID, new MatchFilter(null, HERO_ID, true));
+        assertThat(report3.analysis()).isEqualTo(AI_RESULT);
+
+        // Verification: exactly one AI call, exactly one save
+        verify(analysisClient, times(1)).analyze(any());
+        verify(repository, times(1)).save(any());
+    }
+
+    @Test
+    void estimatedCostUsdIsUnknownWithZeroPricingAndExactValueWithConfiguredPricing(CapturedOutput output) {
+        GameAssets gameAssets = mock(GameAssets.class);
+        MatchSearchService searchService = new MatchSearchService(deadlockApiClient, gameAssets);
+
+        // Zero pricing
+        AnalyzeService zeroService = new AnalyzeService(
+                deadlockApiClient, matchMetadataSource, metricsService, analysisClient, repository,
+                searchService, new AnthropicPricingProperties(0, 0));
+        assertThat(zeroService.estimatedCostUsd(1000, 250)).isEqualTo("unknown");
+
+        // Configured pricing: e.g. input $0.80 / 1M, output $4.00 / 1M
+        // 1000 / 1e6 * 0.80 + 250 / 1e6 * 4.00 = 0.0008 + 0.0010 = 0.001800
+        AnalyzeService pricedService = new AnalyzeService(
+                deadlockApiClient, matchMetadataSource, metricsService, analysisClient, repository,
+                searchService, new AnthropicPricingProperties(0.80, 4.00));
+        assertThat(pricedService.estimatedCostUsd(1000, 250)).isEqualTo("0.001800");
+
+        // Trigger AI analysis with pricedService and check log output
+        when(deadlockApiClient.getMatchHistory(ACCOUNT_ID)).thenReturn(List.of(MATCH));
+        when(deadlockApiClient.getPlayerRank(ACCOUNT_ID)).thenReturn(RANK);
+        when(deadlockApiClient.getHeroes()).thenReturn(HEROES);
+        when(deadlockApiClient.getRanks()).thenReturn(RANKS);
+        when(repository.findByAccountIdAndMatchId(ACCOUNT_ID, MATCH_ID)).thenReturn(Optional.empty());
+        when(matchMetadataSource.getMatch(MATCH_ID)).thenReturn(TELEMETRY);
+        when(deadlockApiClient.getBenchmarks(HERO_ID, 7)).thenReturn(BENCHMARKS);
+        when(deadlockApiClient.getItemStats(HERO_ID, 7)).thenReturn(ITEM_STATS);
+        when(deadlockApiClient.getItems()).thenReturn(ITEMS);
+        when(analysisClient.analyze(any())).thenReturn(new AnalysisOutcome(AI_RESULT, "claude-haiku-5-5", 1, 1000, 250));
+
+        pricedService.analyze(ACCOUNT_ID, MatchFilter.LATEST);
+        assertThat(output.getOut()).contains("estimatedCostUsd=0.001800");
     }
 }

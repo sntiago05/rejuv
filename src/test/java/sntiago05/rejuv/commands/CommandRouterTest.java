@@ -1,6 +1,8 @@
 package sntiago05.rejuv.commands;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -10,9 +12,11 @@ import static org.mockito.Mockito.when;
 import java.util.List;
 
 import net.dv8tion.jda.api.entities.User;
+import net.dv8tion.jda.api.events.interaction.command.CommandAutoCompleteInteractionEvent;
 import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEvent;
 import net.dv8tion.jda.api.interactions.commands.build.Commands;
 import net.dv8tion.jda.api.interactions.commands.build.SlashCommandData;
+import net.dv8tion.jda.api.requests.restaction.interactions.AutoCompleteCallbackAction;
 import net.dv8tion.jda.api.requests.restaction.interactions.ReplyCallbackAction;
 import org.junit.jupiter.api.Test;
 import sntiago05.rejuv.config.BotProperties;
@@ -59,12 +63,58 @@ class CommandRouterTest {
         verify(reply).queue();
     }
 
+    @Test
+    void autocompleteRoutedToRightCommand() {
+        TestSlashCommand analyze = new TestSlashCommand("analyze");
+        CommandRouter router = new CommandRouter(new BotProperties("token", "123"), List.of(analyze), MessagesFixture.english());
+        CommandAutoCompleteInteractionEvent event = autocompleteEventNamed("analyze");
+
+        router.onCommandAutoCompleteInteraction(event);
+
+        assertThat(analyze.handledAutocompleteEvent).isSameAs(event);
+        verify(event, never()).replyChoices(anyList());
+    }
+
+    @Test
+    void autocompleteUnknownCommandRepliesEmptyChoices() {
+        CommandRouter router = new CommandRouter(new BotProperties("token", "123"), List.of(new TestSlashCommand("analyze")), MessagesFixture.english());
+        CommandAutoCompleteInteractionEvent event = autocompleteEventNamed("missing");
+        AutoCompleteCallbackAction reply = mock(AutoCompleteCallbackAction.class);
+        when(event.replyChoices(List.of())).thenReturn(reply);
+
+        router.onCommandAutoCompleteInteraction(event);
+
+        verify(event).replyChoices(List.of());
+        verify(reply).queue();
+    }
+
+    @Test
+    void throwingAutocompleteAnswersEmptyChoicesAndIsNotRethrown() {
+        SlashCommand failing = new FailingSlashCommand("analyze");
+        CommandRouter router = new CommandRouter(new BotProperties("token", "123"), List.of(failing), MessagesFixture.english());
+        CommandAutoCompleteInteractionEvent event = autocompleteEventNamed("analyze");
+        AutoCompleteCallbackAction reply = mock(AutoCompleteCallbackAction.class);
+        when(event.replyChoices(List.of())).thenReturn(reply);
+
+        assertThatCode(() -> router.onCommandAutoCompleteInteraction(event))
+                .doesNotThrowAnyException();
+
+        verify(event).replyChoices(List.of());
+        verify(reply).queue();
+    }
+
     private SlashCommandInteractionEvent eventNamed(String name) {
         SlashCommandInteractionEvent event = mock(SlashCommandInteractionEvent.class);
         User user = mock(User.class);
         when(event.getName()).thenReturn(name);
         when(event.getUser()).thenReturn(user);
         when(user.getId()).thenReturn("user-1");
+        return event;
+    }
+
+    private CommandAutoCompleteInteractionEvent autocompleteEventNamed(String name) {
+        CommandAutoCompleteInteractionEvent event = mock(CommandAutoCompleteInteractionEvent.class);
+        when(event.getName()).thenReturn(name);
         return event;
     }
 
@@ -79,6 +129,7 @@ class CommandRouterTest {
 
         private final String name;
         private SlashCommandInteractionEvent handledEvent;
+        private CommandAutoCompleteInteractionEvent handledAutocompleteEvent;
 
         private TestSlashCommand(String name) {
             this.name = name;
@@ -97,6 +148,11 @@ class CommandRouterTest {
         @Override
         public void handle(SlashCommandInteractionEvent event) {
             this.handledEvent = event;
+        }
+
+        @Override
+        public void autocomplete(CommandAutoCompleteInteractionEvent event) {
+            this.handledAutocompleteEvent = event;
         }
     }
 
@@ -121,6 +177,11 @@ class CommandRouterTest {
         @Override
         public void handle(SlashCommandInteractionEvent event) {
             throw new IllegalStateException("boom");
+        }
+
+        @Override
+        public void autocomplete(CommandAutoCompleteInteractionEvent event) {
+            throw new IllegalStateException("autocomplete boom");
         }
     }
 }

@@ -1,5 +1,7 @@
 package sntiago05.rejuv.repositories;
 
+import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -12,6 +14,10 @@ import sntiago05.rejuv.domain.MatchAnalysis;
 public interface MatchAnalysisRepository extends JpaRepository<MatchAnalysis, Long> {
 
     Optional<MatchAnalysis> findByAccountIdAndMatchId(long accountId, long matchId);
+
+    /** Ids among matchIds that already have a stored analysis for the account (one query). */
+    @Query("select m.matchId from MatchAnalysis m where m.accountId = :accountId and m.matchId in :matchIds")
+    List<Long> findAnalyzedMatchIds(@Param("accountId") long accountId, @Param("matchIds") Collection<Long> matchIds);
 
     /** Deletes the analyses of the account unless some linked_account row still references the account. Returns the deleted row count. */
     @Transactional

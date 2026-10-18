@@ -35,3 +35,6 @@ anthropic:
   read-timeout: 30s
   default-retry-after: 1s
   max-retry-after: 10s
+  pricing:
+    input-usd-per-million: 0
+    output-usd-per-million: 0
