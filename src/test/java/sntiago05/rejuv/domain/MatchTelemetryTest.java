@@ -70,4 +70,14 @@ class MatchTelemetryTest {
         assertThatThrownBy(() -> match.players().add(player))
                 .isInstanceOf(UnsupportedOperationException.class);
     }
+
+    @Test
+    void averageBadgeStoredAndNullableWithConstructors() {
+        PlayerTelemetry p1 = new PlayerTelemetry(1000001L, 1, 1, List.of(), List.of(), List.of());
+        MatchTelemetry matchWithBadge = new MatchTelemetry(900000003L, 1952, List.of(p1), 75);
+        assertThat(matchWithBadge.averageBadge()).isEqualTo(75);
+
+        MatchTelemetry matchDefault = new MatchTelemetry(900000003L, 1952, List.of(p1));
+        assertThat(matchDefault.averageBadge()).isNull();
+    }
 }

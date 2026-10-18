@@ -25,6 +25,8 @@ services:
     environment:
       POSTGRES_HOST: postgres
       POSTGRES_PORT: 5432
+      WEB_BIND_ADDRESS: "0.0.0.0"
+      WEB_BASE_URL: ${WEB_BASE_URL:-}
     depends_on:
       postgres:
         condition: service_healthy
@@ -35,9 +37,22 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
-    # Port mapping for web report arrives with web tasks:
-    # ports:
-    #   - "127.0.0.1:8080:8080"
+
+  caddy:
+    image: caddy:2.9
+    profiles: ["https"]
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      - bot
 
 volumes:
   postgres-data:
+  caddy-data:
+  caddy-config:
