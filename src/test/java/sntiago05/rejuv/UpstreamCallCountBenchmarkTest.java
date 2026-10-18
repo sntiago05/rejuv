@@ -14,6 +14,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -205,6 +206,20 @@ class UpstreamCallCountBenchmarkTest {
             assetImages.heroCardUrl(report.heroId());
         };
         measure("/analyze (fresh, then stored)", command);
+
+        // CPU-bound part of a fresh analysis: every upstream answer cached, AI mocked, nothing stored yet.
+        double[] millis = new double[60];
+        for (int i = -20; i < millis.length; i++) {
+            STORED.set(null);
+            long start = System.nanoTime();
+            command.run();
+            if (i >= 0) {
+                millis[i] = (System.nanoTime() - start) / 1_000_000.0;
+            }
+        }
+        Arrays.sort(millis);
+        System.out.printf("[benchmark] /analyze fresh path with warm caches and mocked AI (service + coach layers, "
+                + "no chart): median %.3f ms%n", millis[millis.length / 2]);
     }
 
     @Test
