@@ -10,6 +10,7 @@ import org.springframework.http.MediaType;
 import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.web.client.RestClient;
 import sntiago05.rejuv.clients.DeadlockApiGate;
+import sntiago05.rejuv.clients.GzipInterceptor;
 import sntiago05.rejuv.clients.Sleeper;
 
 @Configuration
@@ -33,7 +34,8 @@ public class DeadlockApiConfig {
                 .baseUrl(properties.baseUrl())
                 .defaultHeader(HttpHeaders.ACCEPT, MediaType.APPLICATION_JSON_VALUE)
                 .defaultHeader(HttpHeaders.USER_AGENT, USER_AGENT)
-                .requestFactory(requestFactory);
+                .requestFactory(requestFactory)
+                .requestInterceptor(new GzipInterceptor());
     }
 
     @Bean
