@@ -55,6 +55,10 @@ import sntiago05.rejuv.services.AnalyzeService;
 import sntiago05.rejuv.services.AssetImages;
 import sntiago05.rejuv.services.GameAssets;
 import sntiago05.rejuv.services.HeroResolver;
+import sntiago05.rejuv.services.IconCatalog;
+import sntiago05.rejuv.services.ChartRenderer;
+import sntiago05.rejuv.domain.MatchVisuals;
+import net.dv8tion.jda.api.utils.FileUpload;
 import sntiago05.rejuv.services.MatchNotFoundException;
 import sntiago05.rejuv.services.MatchSearchService;
 import sntiago05.rejuv.services.Messages;
@@ -75,6 +79,8 @@ class AnalyzeCommandTest {
     private MatchSearchService matchSearchService;
     private GameAssets gameAssets;
     private HeroResolver heroResolver;
+    private IconCatalog iconCatalog;
+    private ChartRenderer chartRenderer;
     private AnalyzeCommand command;
     private User caller;
     private WebhookMessageEditAction<Message> edit;
@@ -87,8 +93,10 @@ class AnalyzeCommandTest {
         matchSearchService = mock(MatchSearchService.class);
         gameAssets = mock(GameAssets.class);
         heroResolver = mock(HeroResolver.class);
+        iconCatalog = new IconCatalog();
+        chartRenderer = mock(ChartRenderer.class);
         command = new AnalyzeCommand(analyzeService, profileService, messages, assetImages,
-                matchSearchService, gameAssets, heroResolver);
+                matchSearchService, gameAssets, heroResolver, iconCatalog, chartRenderer);
         caller = user(CALLER_ID, "Caller");
     }
 
@@ -174,6 +182,83 @@ class AnalyzeCommandTest {
         assertThat(embed.getFields().get(3).getValue()).isEqualTo("10 kills\n20k souls");
         assertThat(embed.getFooter()).isNotNull();
         assertThat(embed.getFooter().getText()).isEqualTo(messages.get("analyze.footer", "Infernus", "Archon 3"));
+    }
+
+    private static final MatchVisuals.ChartData CHART = new MatchVisuals.ChartData(
+            List.of(0, 180), List.of(0L, 500L), List.of(0L, 800L), List.of(0L, 700L));
+
+    private MatchVisuals visualsWithTwoItems(MatchVisuals.ChartData chart) {
+        return new MatchVisuals(List.of(
+                new MatchVisuals.PurchasedItem(101L, "Basic Magazine", 65),
+                new MatchVisuals.PurchasedItem(102L, "Headshot Booster", 600)), chart);
+    }
+
+    private InteractionHook runWithReport(AnalysisReport report) {
+        SlashCommandInteractionEvent event = mockEvent();
+        when(profileService.findLinkedAccountId(CALLER_ID)).thenReturn(OptionalLong.of(ACCOUNT_ID));
+        deferFor(event);
+        InteractionHook hook = hookFor(event);
+        when(edit.setFiles(any(java.util.Collection.class))).thenReturn(edit);
+        when(analyzeService.analyze(eq(CALLER_ID), eq(ACCOUNT_ID), any())).thenReturn(report);
+        command.handle(event);
+        return hook;
+    }
+
+    private AnalysisReport reportWith(MatchVisuals visuals) {
+        AnalysisResult aiResult = new AnalysisResult("Great farming", "Too many deaths", "Ward more", List.of("10 kills"));
+        return new AnalysisReport(1, "Infernus", "Archon 3", "win", 30.0, aiResult, Map.of(), false, visuals);
+    }
+
+    @Test
+    void visualsAddBuildFieldWithEmojiOrNameOnlyAndAttachChart() {
+        iconCatalog.replace(Map.of("i_101", "<:i_101:555>"));
+        byte[] png = {1, 2, 3};
+        when(chartRenderer.render(CHART)).thenReturn(Optional.of(png));
+
+        InteractionHook hook = runWithReport(reportWith(visualsWithTwoItems(CHART)));
+
+        MessageEmbed embed = capturedEmbed(hook);
+        MessageEmbed.Field build = embed.getFields().stream()
+                .filter(f -> messages.get("analyze.field.build").equals(f.getName())).findFirst().orElseThrow();
+        assertThat(build.getValue()).isEqualTo("<:i_101:555> Basic Magazine (1:05)\nHeadshot Booster (10:00)");
+        assertThat(embed.getImage()).isNotNull();
+        assertThat(embed.getImage().getUrl()).isEqualTo("attachment://match.png");
+        ArgumentCaptor<java.util.Collection<FileUpload>> files = ArgumentCaptor.forClass(java.util.Collection.class);
+        verify(edit).setFiles(files.capture());
+        assertThat(files.getValue()).hasSize(1);
+        assertThat(files.getValue().iterator().next().getName()).isEqualTo("match.png");
+    }
+
+    @Test
+    void rendererReturningEmptyKeepsBuildFieldButNoImageOrFile() {
+        when(chartRenderer.render(CHART)).thenReturn(Optional.empty());
+
+        InteractionHook hook = runWithReport(reportWith(visualsWithTwoItems(CHART)));
+
+        MessageEmbed embed = capturedEmbed(hook);
+        assertThat(embed.getImage()).isNull();
+        assertThat(embed.getFields()).hasSize(5);
+        verify(edit, never()).setFiles(any(java.util.Collection.class));
+    }
+
+    @Test
+    void noVisualsKeepsTheCurrentEmbed() {
+        InteractionHook hook = runWithReport(reportWith(null));
+
+        MessageEmbed embed = capturedEmbed(hook);
+        assertThat(embed.getFields()).hasSize(4);
+        assertThat(embed.getImage()).isNull();
+        verify(edit, never()).setFiles(any(java.util.Collection.class));
+        verifyNoInteractions(chartRenderer);
+    }
+
+    @Test
+    void newCatalogKeysResolve() {
+        for (String key : List.of("analyze.field.build", "analyze.chart.lead_title", "analyze.chart.networth_title",
+                "analyze.chart.legend_you", "analyze.chart.legend_team")) {
+            assertThat(messages.get(key)).isNotBlank();
+        }
+        assertThat(messages.get("analyze.build.item", "Name", "1:05")).isEqualTo("Name (1:05)");
     }
 
     @Test

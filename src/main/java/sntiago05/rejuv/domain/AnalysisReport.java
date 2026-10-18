@@ -11,7 +11,13 @@ public record AnalysisReport(int heroId,
                              double durationMin,
                              AnalysisResult analysis,
                              Map<String, AnalysisInput.MetricComparison> metrics,
-                             boolean degraded) {
+                             boolean degraded,
+                             MatchVisuals visuals) {
+
+    public AnalysisReport(int heroId, String hero, String rank, String result, double durationMin,
+                          AnalysisResult analysis, Map<String, AnalysisInput.MetricComparison> metrics, boolean degraded) {
+        this(heroId, hero, rank, result, durationMin, analysis, metrics, degraded, null);
+    }
 
     public AnalysisReport {
         metrics = metrics == null ? Map.of() : Collections.unmodifiableMap(new LinkedHashMap<>(metrics));
