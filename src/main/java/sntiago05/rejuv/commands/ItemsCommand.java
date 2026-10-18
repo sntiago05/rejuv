@@ -1,6 +1,5 @@
 package sntiago05.rejuv.commands;
 
-import java.util.List;
 import java.util.OptionalLong;
 
 import net.dv8tion.jda.api.EmbedBuilder;
@@ -111,25 +110,10 @@ public class ItemsCommand implements SlashCommand {
 
         assetImages.heroCardUrl(report.heroId()).ifPresent(builder::setThumbnail);
 
-        if (!report.underperforming().isEmpty()) {
-            List<String> underperformingLines = report.underperforming().stream()
-                    .map(this::itemLine)
-                    .toList();
-            String value = EmbedStyle.fitField(underperformingLines);
-            if (!value.isEmpty()) {
-                builder.addField(messages.get("items.field.underperforming"), value, false);
-            }
-        }
-
-        if (!report.outperforming().isEmpty()) {
-            List<String> outperformingLines = report.outperforming().stream()
-                    .map(this::itemLine)
-                    .toList();
-            String value = EmbedStyle.fitField(outperformingLines);
-            if (!value.isEmpty()) {
-                builder.addField(messages.get("items.field.outperforming"), value, false);
-            }
-        }
+        EmbedStyle.addFittedField(builder, messages.get("items.field.underperforming"),
+                report.underperforming().stream().map(this::itemLine).toList());
+        EmbedStyle.addFittedField(builder, messages.get("items.field.outperforming"),
+                report.outperforming().stream().map(this::itemLine).toList());
 
         builder.setFooter(messages.get("items.footer", ItemsService.MIN_PLAYER_MATCHES, ItemsService.MIN_META_MATCHES));
         return builder.build();

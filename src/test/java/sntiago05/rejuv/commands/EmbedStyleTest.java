@@ -7,6 +7,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 
+import net.dv8tion.jda.api.EmbedBuilder;
+import net.dv8tion.jda.api.entities.MessageEmbed;
 import org.junit.jupiter.api.Test;
 
 class EmbedStyleTest {
@@ -61,5 +63,27 @@ class EmbedStyleTest {
     void fitFieldReturnsEmptyIfFirstLineExceedsLimit() {
         String hugeLine = "x".repeat(1025);
         assertThat(EmbedStyle.fitField(List.of(hugeLine))).isEqualTo("");
+    }
+
+    @Test
+    void addFittedFieldAddsNonInlineFieldWithFittedLines() {
+        EmbedBuilder builder = new EmbedBuilder().setTitle("t");
+
+        EmbedStyle.addFittedField(builder, "Items", List.of("a", "b"));
+
+        MessageEmbed.Field field = builder.build().getFields().getFirst();
+        assertThat(field.getName()).isEqualTo("Items");
+        assertThat(field.getValue()).isEqualTo("a\nb");
+        assertThat(field.isInline()).isFalse();
+    }
+
+    @Test
+    void addFittedFieldSkipsFieldWhenNothingFits() {
+        EmbedBuilder builder = new EmbedBuilder().setTitle("t");
+
+        EmbedStyle.addFittedField(builder, "Empty", List.of());
+        EmbedStyle.addFittedField(builder, "Too long", List.of("x".repeat(1025)));
+
+        assertThat(builder.build().getFields()).isEmpty();
     }
 }

@@ -10,6 +10,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HexFormat;
@@ -24,6 +25,9 @@ import javax.imageio.stream.MemoryCacheImageOutputStream;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfSystemProperty;
+import org.springframework.web.client.RestClient;
+import sntiago05.rejuv.clients.DeadlockApiClient;
+import sntiago05.rejuv.clients.dto.HeroAsset;
 import sntiago05.rejuv.clients.dto.HeroCounterStat;
 import sntiago05.rejuv.clients.dto.MatchHistoryEntry;
 import sntiago05.rejuv.domain.DeathEvent;
@@ -34,7 +38,10 @@ import sntiago05.rejuv.domain.PlayerTelemetry;
 import sntiago05.rejuv.domain.PowerUpBuff;
 import sntiago05.rejuv.domain.SnapshotDetail;
 import sntiago05.rejuv.domain.StatSnapshot;
+import sntiago05.rejuv.config.DeadlockApiProperties;
 import sntiago05.rejuv.services.ChartRenderer;
+import sntiago05.rejuv.services.GameAssets;
+import sntiago05.rejuv.services.HeroResolver;
 import sntiago05.rejuv.services.MessagesFixture;
 import sntiago05.rejuv.services.SoulCurveSvg;
 
@@ -109,6 +116,28 @@ class CpuHotPathBenchmarkTest {
         assertThat(after.get()).isEqualTo(before.get());
         report("hero input whitespace normalisation (x1000)", medianMillis(() -> repeat(before, 1000)),
                 medianMillis(() -> repeat(after, 1000)));
+    }
+
+    /** Every hero option (and every /analyze match autocomplete keystroke with a hero) resolves the typed name. */
+    @Test
+    void heroResolve() {
+        List<HeroAsset> heroes = IntStream.rangeClosed(1, 40)
+                .mapToObj(i -> new HeroAsset(i, "hero_" + i, i == 7 ? "Lady Geist" : "Hero Number " + i))
+                .toList();
+        DeadlockApiClient client = new DeadlockApiClient(RestClient.create(), new DeadlockApiProperties(
+                "https://deadlock-api.test", Duration.ofSeconds(3), Duration.ofSeconds(10), Duration.ofSeconds(2),
+                Duration.ofSeconds(10)), wait -> { }) {
+            @Override
+            public List<HeroAsset> getHeroes() {
+                return heroes;
+            }
+        };
+        HeroResolver resolver = new HeroResolver(new GameAssets(client));
+        assertThat(resolver.resolve("  lady   geist ")).map(HeroAsset::id).contains(7);
+        assertThat(resolver.resolve("lady")).map(HeroAsset::id).contains(7);
+        System.out.printf("[benchmark] hero resolve x1000 (exact + unique prefix, 40 heroes): median %.3f ms%n",
+                medianMillis(() -> repeat(() -> resolver.resolve("  lady   geist ").isPresent()
+                        && resolver.resolve("lady").isPresent(), 500)));
     }
 
     @Test

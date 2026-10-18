@@ -2,7 +2,6 @@ package sntiago05.rejuv.commands;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 import java.util.Optional;
 import java.util.OptionalLong;
 import java.util.Set;
@@ -13,7 +12,6 @@ import net.dv8tion.jda.api.entities.User;
 import net.dv8tion.jda.api.events.interaction.command.CommandAutoCompleteInteractionEvent;
 import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEvent;
 import net.dv8tion.jda.api.interactions.InteractionHook;
-import net.dv8tion.jda.api.interactions.commands.Command;
 import net.dv8tion.jda.api.interactions.commands.OptionMapping;
 import net.dv8tion.jda.api.interactions.commands.OptionType;
 import net.dv8tion.jda.api.interactions.commands.build.Commands;
@@ -103,16 +101,7 @@ public class MatchesCommand implements SlashCommand {
             heroId = hero.map(HeroAsset::id).orElse(-1);
         }
 
-        Boolean win = null;
-        OptionMapping resultOpt = event.getOption("result");
-        if (resultOpt != null) {
-            if ("win".equalsIgnoreCase(resultOpt.getAsString())) {
-                win = Boolean.TRUE;
-            } else if ("loss".equalsIgnoreCase(resultOpt.getAsString())) {
-                win = Boolean.FALSE;
-            }
-        }
-
+        Boolean win = CommandSupport.winFilter(event.getOption("result"));
         MatchFilter filter = (heroId == null && win == null) ? MatchFilter.LATEST : new MatchFilter(null, heroId, win);
 
         event.deferReply().queue();
@@ -133,15 +122,8 @@ public class MatchesCommand implements SlashCommand {
     }
 
     private void autocompleteHero(CommandAutoCompleteInteractionEvent event) {
-        String query = event.getFocusedOption().getValue().toLowerCase(Locale.ROOT);
-        List<Command.Choice> choices = gameAssets.heroNames().values().stream()
-                .filter(name -> name.toLowerCase(Locale.ROOT).contains(query))
-                .distinct()
-                .sorted(String.CASE_INSENSITIVE_ORDER)
-                .limit(25)
-                .map(name -> new Command.Choice(name, name))
-                .toList();
-        event.replyChoices(choices).queue();
+        event.replyChoices(CommandSupport.heroChoices(gameAssets.heroNames().values(),
+                event.getFocusedOption().getValue())).queue();
     }
 
     private void answer(InteractionHook hook, long callerId, long accountId, User target, MatchFilter filter) {
@@ -183,7 +165,7 @@ public class MatchesCommand implements SlashCommand {
                     ? messages.get("matches.result.choice.win")
                     : messages.get("matches.result.choice.loss");
             String kda = m.kills() + "/" + m.deaths() + "/" + m.assists();
-            String duration = formatDuration(m.durationS());
+            String duration = CommandSupport.minutesSeconds(m.durationS());
             String entry = messages.get("matches.entry",
                     "<t:" + m.startTimeEpochS() + ":d>",
                     heroWithIcon,
@@ -200,9 +182,5 @@ public class MatchesCommand implements SlashCommand {
         builder.setDescription(EmbedStyle.fitField(lines));
         builder.setFooter(messages.get("matches.footer"));
         return builder.build();
-    }
-
-    private static String formatDuration(int durationS) {
-        return String.format(Locale.ROOT, "%d:%02d", durationS / 60, durationS % 60);
     }
 }

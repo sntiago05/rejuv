@@ -1,10 +1,13 @@
 package sntiago05.rejuv.commands;
 
+import java.util.Collection;
+import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
 
 import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEvent;
 import net.dv8tion.jda.api.interactions.InteractionHook;
+import net.dv8tion.jda.api.interactions.commands.Command;
 import net.dv8tion.jda.api.interactions.commands.OptionMapping;
 import net.dv8tion.jda.api.interactions.commands.OptionType;
 import net.dv8tion.jda.api.interactions.commands.build.OptionData;
@@ -41,6 +44,41 @@ public final class CommandSupport {
             rank.addChoice(messages.get("meta.rank." + tier), tier);
         }
         return rank;
+    }
+
+    /** Seconds as {@code m:ss} (match durations, buy times). */
+    static String minutesSeconds(int seconds) {
+        return String.format(Locale.ROOT, "%d:%02d", seconds / 60, seconds % 60);
+    }
+
+    /**
+     * Win filter of the optional "result" option: {@code TRUE} for "win", {@code FALSE} for "loss" (any case),
+     * {@code null} when the option is absent or has another value.
+     */
+    static Boolean winFilter(OptionMapping resultOption) {
+        if (resultOption == null) {
+            return null;
+        }
+        String value = resultOption.getAsString();
+        if ("win".equalsIgnoreCase(value)) {
+            return Boolean.TRUE;
+        }
+        if ("loss".equalsIgnoreCase(value)) {
+            return Boolean.FALSE;
+        }
+        return null;
+    }
+
+    /** Hero autocomplete: up to 25 distinct names containing the typed text (ignoring case), sorted ignoring case. */
+    static List<Command.Choice> heroChoices(Collection<String> heroNames, String typed) {
+        String query = typed.toLowerCase(Locale.ROOT);
+        return heroNames.stream()
+                .filter(name -> name.toLowerCase(Locale.ROOT).contains(query))
+                .distinct()
+                .sorted(String.CASE_INSENSITIVE_ORDER)
+                .limit(OptionData.MAX_CHOICES)
+                .map(name -> new Command.Choice(name, name))
+                .toList();
     }
 
     public static String getHeroInput(SlashCommandInteractionEvent event) {

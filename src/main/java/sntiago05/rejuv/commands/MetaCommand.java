@@ -80,12 +80,8 @@ public class MetaCommand implements SlashCommand {
         for (MetaHero hero : tierList.heroes()) {
             linesByTier.computeIfAbsent(hero.tier(), tier -> new ArrayList<>()).add(heroLine(hero));
         }
-        linesByTier.forEach((tier, lines) -> {
-            String value = EmbedStyle.fitField(lines);
-            if (!value.isEmpty()) {
-                builder.addField(messages.get("meta.tier." + tier.name().toLowerCase(Locale.ROOT)), value, false);
-            }
-        });
+        linesByTier.forEach((tier, lines) -> EmbedStyle.addFittedField(builder,
+                messages.get("meta.tier." + tier.name().toLowerCase(Locale.ROOT)), lines));
 
         builder.setFooter(messages.get("meta.footer", String.valueOf(tierList.minMatches())));
         return builder.build();
