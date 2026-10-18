@@ -3,6 +3,8 @@ package sntiago05.rejuv.commands;
 import java.util.List;
 import java.util.Optional;
 
+import net.dv8tion.jda.api.EmbedBuilder;
+
 /**
  * Styling constants and helpers for Discord embeds.
  */
@@ -57,5 +59,16 @@ final class EmbedStyle {
             return "";
         }
         return String.join("\n", lines.subList(0, count));
+    }
+
+    /**
+     * Adds a non-inline field whose value is {@link #fitField(List)} of the lines; adds nothing when no line fits
+     * (including an empty list).
+     */
+    static void addFittedField(EmbedBuilder builder, String name, List<String> lines) {
+        String value = fitField(lines);
+        if (!value.isEmpty()) {
+            builder.addField(name, value, false);
+        }
     }
 }

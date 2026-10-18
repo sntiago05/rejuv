@@ -140,15 +140,7 @@ public class AnalyzeCommand implements SlashCommand {
                 heroId = hero.get().id();
             }
 
-            Boolean win = null;
-            OptionMapping resultOpt = event.getOption("result");
-            if (resultOpt != null) {
-                if ("win".equalsIgnoreCase(resultOpt.getAsString())) {
-                    win = Boolean.TRUE;
-                } else if ("loss".equalsIgnoreCase(resultOpt.getAsString())) {
-                    win = Boolean.FALSE;
-                }
-            }
+            Boolean win = CommandSupport.winFilter(event.getOption("result"));
             filter = (heroId == null && win == null) ? MatchFilter.LATEST : new MatchFilter(null, heroId, win);
         }
 
@@ -197,15 +189,8 @@ public class AnalyzeCommand implements SlashCommand {
     }
 
     private void autocompleteHero(CommandAutoCompleteInteractionEvent event) {
-        String query = event.getFocusedOption().getValue().toLowerCase(Locale.ROOT);
-        List<Command.Choice> choices = gameAssets.heroNames().values().stream()
-                .filter(name -> name.toLowerCase(Locale.ROOT).contains(query))
-                .distinct()
-                .sorted(String.CASE_INSENSITIVE_ORDER)
-                .limit(25)
-                .map(name -> new Command.Choice(name, name))
-                .toList();
-        event.replyChoices(choices).queue();
+        event.replyChoices(CommandSupport.heroChoices(gameAssets.heroNames().values(),
+                event.getFocusedOption().getValue())).queue();
     }
 
     private void autocompleteMatch(CommandAutoCompleteInteractionEvent event) {
@@ -229,17 +214,7 @@ public class AnalyzeCommand implements SlashCommand {
             }
         }
 
-        Boolean win = null;
-        OptionMapping resultOpt = event.getOption("result");
-        if (resultOpt != null) {
-            if ("win".equalsIgnoreCase(resultOpt.getAsString())) {
-                win = Boolean.TRUE;
-            } else if ("loss".equalsIgnoreCase(resultOpt.getAsString())) {
-                win = Boolean.FALSE;
-            }
-        }
-
-        MatchFilter filter = new MatchFilter(null, heroId, win);
+        MatchFilter filter = new MatchFilter(null, heroId, CommandSupport.winFilter(event.getOption("result")));
         List<MatchSummary> matches = matchSearchService.find(accountId, filter, 10);
         if (matches.isEmpty()) {
             event.replyChoices(List.of()).queue();
@@ -365,16 +340,10 @@ public class AnalyzeCommand implements SlashCommand {
         List<String> lines = new ArrayList<>(visuals.items().size());
         for (MatchVisuals.PurchasedItem item : visuals.items()) {
             String icon = iconCatalog.item(item.itemId()).map(i -> i + " ").orElse("");
-            lines.add(messages.get("analyze.build.item", icon + item.name(), formatBuyTime(item.boughtAtS())));
+            lines.add(messages.get("analyze.build.item", icon + item.name(),
+                    CommandSupport.minutesSeconds(item.boughtAtS())));
         }
-        String value = EmbedStyle.fitField(lines);
-        if (!value.isEmpty()) {
-            builder.addField(messages.get("analyze.field.build"), value, false);
-        }
-    }
-
-    static String formatBuyTime(int seconds) {
-        return (seconds / 60) + ":" + String.format(Locale.ROOT, "%02d", seconds % 60);
+        EmbedStyle.addFittedField(builder, messages.get("analyze.field.build"), lines);
     }
 
     private void buildFallbackKeyNumbers(EmbedBuilder builder, Map<String, AnalysisInput.MetricComparison> metrics) {

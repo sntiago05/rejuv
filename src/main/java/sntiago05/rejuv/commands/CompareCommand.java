@@ -1,6 +1,5 @@
 package sntiago05.rejuv.commands;
 
-import java.util.List;
 import java.util.OptionalLong;
 
 import net.dv8tion.jda.api.EmbedBuilder;
@@ -113,15 +112,8 @@ public class CompareCommand implements SlashCommand {
 
         assetImages.heroCardUrl(report.heroId()).ifPresent(builder::setThumbnail);
 
-        List<String> metricLines = report.gaps().stream()
-                .map(this::metricLine)
-                .toList();
-
         String fieldName = EmbedStyle.withIcon(iconCatalog.hero(report.heroId()), messages.get("compare.field.metrics"));
-        String fieldValue = EmbedStyle.fitField(metricLines);
-        if (!fieldValue.isEmpty()) {
-            builder.addField(fieldName, fieldValue, false);
-        }
+        EmbedStyle.addFittedField(builder, fieldName, report.gaps().stream().map(this::metricLine).toList());
 
         builder.setFooter(messages.get("compare.footer", rankLabel));
         return builder.build();

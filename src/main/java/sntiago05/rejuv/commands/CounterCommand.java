@@ -1,7 +1,5 @@
 package sntiago05.rejuv.commands;
 
-import java.util.List;
-
 import net.dv8tion.jda.api.EmbedBuilder;
 import net.dv8tion.jda.api.entities.MessageEmbed;
 import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEvent;
@@ -83,35 +81,12 @@ public class CounterCommand implements SlashCommand {
 
         assetImages.heroCardUrl(guide.heroId()).ifPresent(builder::setThumbnail);
 
-        if (!guide.counters().isEmpty()) {
-            List<String> counterLines = guide.counters().stream()
-                    .map(this::matchupLine)
-                    .toList();
-            String value = EmbedStyle.fitField(counterLines);
-            if (!value.isEmpty()) {
-                builder.addField(messages.get("counter.field.counters"), value, false);
-            }
-        }
-
-        if (!guide.items().isEmpty()) {
-            List<String> itemLines = guide.items().stream()
-                    .map(this::itemLine)
-                    .toList();
-            String value = EmbedStyle.fitField(itemLines);
-            if (!value.isEmpty()) {
-                builder.addField(messages.get("counter.field.items"), value, false);
-            }
-        }
-
-        if (!guide.favorable().isEmpty()) {
-            List<String> favorableLines = guide.favorable().stream()
-                    .map(this::matchupLine)
-                    .toList();
-            String value = EmbedStyle.fitField(favorableLines);
-            if (!value.isEmpty()) {
-                builder.addField(messages.get("counter.field.favorable"), value, false);
-            }
-        }
+        EmbedStyle.addFittedField(builder, messages.get("counter.field.counters"),
+                guide.counters().stream().map(this::matchupLine).toList());
+        EmbedStyle.addFittedField(builder, messages.get("counter.field.items"),
+                guide.items().stream().map(this::itemLine).toList());
+        EmbedStyle.addFittedField(builder, messages.get("counter.field.favorable"),
+                guide.favorable().stream().map(this::matchupLine).toList());
 
         builder.setFooter(messages.get("counter.footer", String.valueOf(CounterService.MIN_MATCHUP_MATCHES),
                 String.valueOf(CounterService.MIN_ITEM_MATCHES)));
