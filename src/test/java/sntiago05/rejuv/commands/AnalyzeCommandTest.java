@@ -12,6 +12,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import java.time.Instant;
@@ -38,6 +39,9 @@ import net.dv8tion.jda.api.requests.restaction.interactions.AutoCompleteCallback
 import net.dv8tion.jda.api.requests.restaction.interactions.ReplyCallbackAction;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import sntiago05.rejuv.clients.DeadlockApiException;
 import sntiago05.rejuv.clients.DeadlockApiUnavailableException;
@@ -99,7 +103,7 @@ class AnalyzeCommandTest {
 
         OptionData matchOpt = data.getOptions().get(0);
         assertThat(matchOpt.getName()).isEqualTo("match");
-        assertThat(matchOpt.getType()).isEqualTo(OptionType.INTEGER);
+        assertThat(matchOpt.getType()).isEqualTo(OptionType.STRING);
         assertThat(matchOpt.isRequired()).isFalse();
         assertThat(matchOpt.isAutoComplete()).isTrue();
 
@@ -332,7 +336,7 @@ class AnalyzeCommandTest {
         hookFor(event);
 
         OptionMapping matchOpt = mock(OptionMapping.class);
-        when(matchOpt.getAsLong()).thenReturn(900000005L);
+        when(matchOpt.getAsString()).thenReturn("900000005");
         when(event.getOption("match")).thenReturn(matchOpt);
 
         OptionMapping heroOpt = mock(OptionMapping.class);
@@ -450,11 +454,11 @@ class AnalyzeCommandTest {
         List<Command.Choice> choices = choicesCaptor.getValue();
         assertThat(choices).hasSize(2);
         assertThat(choices.get(0).getName()).isEqualTo("Infernus Win (2023-11-14) - 5/3/7");
-        assertThat(choices.get(0).getAsLong()).isEqualTo(900000001L);
+        assertThat(choices.get(0).getAsString()).isEqualTo("900000001");
         assertThat(choices.get(0).getName().length()).isLessThanOrEqualTo(100);
 
         assertThat(choices.get(1).getName()).isEqualTo("Seven Loss (2023-11-13) - 2/8/1");
-        assertThat(choices.get(1).getAsLong()).isEqualTo(900000002L);
+        assertThat(choices.get(1).getAsString()).isEqualTo("900000002");
         assertThat(choices.get(1).getName().length()).isLessThanOrEqualTo(100);
     }
 
@@ -596,6 +600,83 @@ class AnalyzeCommandTest {
     }
 
     @Test
+    void typedNumericMatchIdPassesFilterWithCallerId() {
+        SlashCommandInteractionEvent event = mockEvent();
+        when(profileService.findLinkedAccountId(CALLER_ID)).thenReturn(OptionalLong.of(ACCOUNT_ID));
+        deferFor(event);
+        hookFor(event);
+        OptionMapping matchOpt = mock(OptionMapping.class);
+        when(matchOpt.getAsString()).thenReturn("118802457");
+        when(event.getOption("match")).thenReturn(matchOpt);
+        AnalysisResult aiResult = new AnalysisResult("Strength", "Leak", "Action", List.of());
+        AnalysisReport report = new AnalysisReport(1, "Infernus", "Archon 3", "win", 30.0, aiResult, Map.of(), false);
+        when(analyzeService.analyze(eq(CALLER_ID), eq(ACCOUNT_ID), any())).thenReturn(report);
+
+        command.handle(event);
+
+        ArgumentCaptor<MatchFilter> filterCaptor = ArgumentCaptor.forClass(MatchFilter.class);
+        verify(analyzeService).analyze(eq(CALLER_ID), eq(ACCOUNT_ID), filterCaptor.capture());
+        assertThat(filterCaptor.getValue()).isEqualTo(new MatchFilter(118802457L, null, null));
+    }
+
+    @Test
+    void pastedLabelRepliesEphemeralInvalidAndTouchesNothing() {
+        SlashCommandInteractionEvent event = mockEvent();
+        OptionMapping matchOpt = mock(OptionMapping.class);
+        when(matchOpt.getAsString()).thenReturn("17/10/2026 :h_16: Calico - Victory - 13/4/18 - 26:08 - 118802457");
+        when(event.getOption("match")).thenReturn(matchOpt);
+        ReplyCallbackAction reply = mock(ReplyCallbackAction.class);
+        when(event.reply(anyString())).thenReturn(reply);
+        when(reply.setEphemeral(true)).thenReturn(reply);
+
+        command.handle(event);
+
+        verify(event).reply(messages.get("analyze.match_invalid"));
+        verify(reply).setEphemeral(true);
+        verify(reply).queue();
+        verify(event, never()).deferReply();
+        verify(event, never()).deferReply(anyBoolean());
+        verifyNoInteractions(profileService, analyzeService);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"", "   ", "abc", "-5", "0", "12 34", "1234567890123456789", "1e9"})
+    void invalidMatchValuesAreRejected(String raw) {
+        SlashCommandInteractionEvent event = mockEvent();
+        OptionMapping matchOpt = mock(OptionMapping.class);
+        when(matchOpt.getAsString()).thenReturn(raw);
+        when(event.getOption("match")).thenReturn(matchOpt);
+        ReplyCallbackAction reply = mock(ReplyCallbackAction.class);
+        when(event.reply(anyString())).thenReturn(reply);
+        when(reply.setEphemeral(true)).thenReturn(reply);
+
+        command.handle(event);
+
+        verify(event).reply(messages.get("analyze.match_invalid"));
+        verifyNoInteractions(profileService, analyzeService);
+    }
+
+    @ParameterizedTest
+    @CsvSource({"1,1", "' 118802457 ',118802457", "123456789012345678,123456789012345678"})
+    void validMatchValuesAreAccepted(String raw, long expected) {
+        SlashCommandInteractionEvent event = mockEvent();
+        when(profileService.findLinkedAccountId(CALLER_ID)).thenReturn(OptionalLong.of(ACCOUNT_ID));
+        deferFor(event);
+        hookFor(event);
+        OptionMapping matchOpt = mock(OptionMapping.class);
+        when(matchOpt.getAsString()).thenReturn(raw);
+        when(event.getOption("match")).thenReturn(matchOpt);
+        when(analyzeService.analyze(eq(CALLER_ID), eq(ACCOUNT_ID), any()))
+                .thenThrow(new MatchNotFoundException("Not found"));
+
+        command.handle(event);
+
+        ArgumentCaptor<MatchFilter> filterCaptor = ArgumentCaptor.forClass(MatchFilter.class);
+        verify(analyzeService).analyze(eq(CALLER_ID), eq(ACCOUNT_ID), filterCaptor.capture());
+        assertThat(filterCaptor.getValue().matchId()).isEqualTo(expected);
+    }
+
+    @Test
     void resolvesEveryAnalyzeKey() {
         List<String> requiredKeys = List.of(
                 "analyze.description",
@@ -633,6 +714,7 @@ class AnalyzeCommandTest {
                 "analyze.result.choice.loss",
                 "analyze.hero_not_found",
                 "analyze.match_not_found",
+                "analyze.match_invalid",
                 "analyze.autocomplete.match",
                 "analyze.limit_reached"
         );

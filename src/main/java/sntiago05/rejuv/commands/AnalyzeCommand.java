@@ -79,7 +79,7 @@ public class AnalyzeCommand implements SlashCommand {
 
     @Override
     public SlashCommandData data() {
-        OptionData matchOption = new OptionData(OptionType.INTEGER, "match", messages.get("analyze.option.match"), false)
+        OptionData matchOption = new OptionData(OptionType.STRING, "match", messages.get("analyze.option.match"), false)
                 .setAutoComplete(true);
         OptionData heroOption = new OptionData(OptionType.STRING, "hero", messages.get("analyze.option.hero"), false)
                 .setAutoComplete(true);
@@ -96,7 +96,12 @@ public class AnalyzeCommand implements SlashCommand {
         MatchFilter filter;
         OptionMapping matchOpt = event.getOption("match");
         if (matchOpt != null) {
-            filter = new MatchFilter(matchOpt.getAsLong(), null, null);
+            OptionalLong matchId = parseMatchId(matchOpt.getAsString());
+            if (matchId.isEmpty()) {
+                event.reply(messages.get("analyze.match_invalid")).setEphemeral(true).queue();
+                return;
+            }
+            filter = new MatchFilter(matchId.getAsLong(), null, null);
         } else {
             Integer heroId = null;
             OptionMapping heroOpt = event.getOption("hero");
@@ -130,6 +135,23 @@ public class AnalyzeCommand implements SlashCommand {
 
         event.deferReply().queue();
         answer(event.getHook(), caller.getIdLong(), accountId.getAsLong(), filter);
+    }
+
+    /** Accepts only 1 to 18 ASCII digits (after trim) with a value above zero. */
+    private static OptionalLong parseMatchId(String raw) {
+        String value = raw.trim();
+        int length = value.length();
+        if (length == 0 || length > 18) {
+            return OptionalLong.empty();
+        }
+        for (int i = 0; i < length; i++) {
+            char c = value.charAt(i);
+            if (c < '0' || c > '9') {
+                return OptionalLong.empty();
+            }
+        }
+        long id = Long.parseLong(value);
+        return id > 0 ? OptionalLong.of(id) : OptionalLong.empty();
     }
 
     @Override
@@ -208,7 +230,7 @@ public class AnalyzeCommand implements SlashCommand {
             String kda = m.kills() + "/" + m.deaths() + "/" + m.assists();
 
             String choiceName = formatMatchChoiceName(heroName, resultText, date, kda);
-            choices.add(new Command.Choice(choiceName, m.matchId()));
+            choices.add(new Command.Choice(choiceName, String.valueOf(m.matchId())));
         }
         event.replyChoices(choices).queue();
     }
