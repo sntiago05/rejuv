@@ -341,6 +341,22 @@ class DeadlockApiClientCachingTest {
     }
 
     @Test
+    void playerNamesAreCachedAndFailuresAreNotCached() {
+        server.expect(once(), requestTo(BASE_URL + "/v1/players/steam?account_ids=1,2"))
+                .andRespond(withSuccess(fixture("players-steam.json"), MediaType.APPLICATION_JSON));
+        server.expect(once(), requestTo(BASE_URL + "/v1/players/steam?account_ids=4"))
+                .andRespond(withServerError());
+        server.expect(once(), requestTo(BASE_URL + "/v1/players/steam?account_ids=4"))
+                .andRespond(withSuccess(fixture("players-steam.json"), MediaType.APPLICATION_JSON));
+
+        assertThat(client.getPlayerNames(List.of(1L, 2L))).hasSize(2);
+        assertThat(client.getPlayerNames(List.of(1L, 2L))).hasSize(2);
+
+        assertThatThrownBy(() -> client.getPlayerNames(List.of(4L))).isInstanceOf(DeadlockApiException.class);
+        assertThat(client.getPlayerNames(List.of(4L))).hasSize(2);
+    }
+
+    @Test
     void playerRanksAreCachedBySortedIdListAndFailuresAreNotCached() {
         server.expect(once(), requestTo(BASE_URL + "/v1/players/rank?account_ids=1,2"))
                 .andRespond(withSuccess(fixture("player-ranks.json"), MediaType.APPLICATION_JSON));
@@ -436,6 +452,7 @@ class DeadlockApiClientCachingTest {
                 Map.entry(CacheConfig.DEADLOCK_MATCH_HISTORY, Duration.ofMinutes(2)),
                 Map.entry(CacheConfig.DEADLOCK_PLAYER_RANK, Duration.ofMinutes(10)),
                 Map.entry(CacheConfig.DEADLOCK_PLAYER_RANKS, Duration.ofMinutes(10)),
+                Map.entry(CacheConfig.DEADLOCK_PLAYER_NAMES, Duration.ofHours(1)),
                 Map.entry(CacheConfig.DEADLOCK_MATCH_METADATA, Duration.ofHours(24)),
                 Map.entry(CacheConfig.PROFILE_SUMMARY, Duration.ofMinutes(10)),
                 Map.entry(CacheConfig.DEADLOCK_HERO_STATS, Duration.ofHours(6)),
@@ -452,6 +469,7 @@ class DeadlockApiClientCachingTest {
                 Map.entry(CacheConfig.DEADLOCK_MATCH_HISTORY, 1000L),
                 Map.entry(CacheConfig.DEADLOCK_PLAYER_RANK, 1000L),
                 Map.entry(CacheConfig.DEADLOCK_PLAYER_RANKS, 100L),
+                Map.entry(CacheConfig.DEADLOCK_PLAYER_NAMES, 500L),
                 Map.entry(CacheConfig.DEADLOCK_MATCH_METADATA, 300L),
                 Map.entry(CacheConfig.PROFILE_SUMMARY, 1000L),
                 Map.entry(CacheConfig.DEADLOCK_HERO_STATS, 50L),

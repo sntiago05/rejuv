@@ -13,6 +13,7 @@ import net.dv8tion.jda.api.interactions.commands.OptionMapping;
 import net.dv8tion.jda.api.interactions.commands.OptionType;
 import net.dv8tion.jda.api.interactions.commands.build.Commands;
 import net.dv8tion.jda.api.interactions.commands.build.SlashCommandData;
+import net.dv8tion.jda.api.utils.MarkdownSanitizer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -28,6 +29,7 @@ public class MatesCommand implements SlashCommand {
 
     private static final Logger log = LoggerFactory.getLogger(MatesCommand.class);
     private static final String USER_OPTION = "user";
+    private static final int MAX_NAME_CODE_POINTS = 32;
 
     private final ProfileService profileService;
     private final MatesService matesService;
@@ -84,12 +86,28 @@ public class MatesCommand implements SlashCommand {
         }
     }
 
+    /** Single line, at most 32 code points, Discord markdown escaped; empty when there is no usable name. */
+    private static String sanitizeName(String rawName) {
+        if (rawName == null) {
+            return "";
+        }
+        String oneLine = rawName.replaceAll("[\r\n\t]+", " ").trim();
+        if (oneLine.codePointCount(0, oneLine.length()) > MAX_NAME_CODE_POINTS) {
+            oneLine = oneLine.substring(0, oneLine.offsetByCodePoints(0, MAX_NAME_CODE_POINTS)).trim();
+        }
+        return oneLine.isEmpty() ? "" : MarkdownSanitizer.escape(oneLine);
+    }
+
     private MessageEmbed embed(MatesSummary summary, User target) {
         List<String> entryLines = new ArrayList<>();
         for (int i = 0; i < summary.teammates().size(); i++) {
             Teammate teammate = summary.teammates().get(i);
             int position = i + 1;
-            String label = messages.get("mates.teammate_label", String.valueOf(teammate.accountId()));
+            String id = String.valueOf(teammate.accountId());
+            String name = sanitizeName(summary.names().get(teammate.accountId()));
+            String label = name.isEmpty()
+                    ? messages.get("mates.teammate_label", id)
+                    : messages.get("mates.teammate_named", name, id);
             long winRateWhole = Math.round(teammate.winRatePercent());
             entryLines.add(messages.get("mates.entry", String.valueOf(position), label,
                     String.valueOf(teammate.matches()), String.valueOf(winRateWhole)));

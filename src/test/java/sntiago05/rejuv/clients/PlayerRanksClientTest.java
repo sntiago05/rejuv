@@ -167,4 +167,77 @@ class PlayerRanksClientTest {
         assertThatThrownBy(() -> client.getPlayerRanks(List.of(1000001L)))
                 .isInstanceOf(DeadlockApiException.class);
     }
+
+    private static final String STEAM_URL = BASE_URL + "/v1/players/steam?account_ids=";
+
+    @Test
+    void playerNamesSendsOnlyAccountIdsWithoutRefreshAndMapsNames() {
+        server.expect(once(), requestTo(STEAM_URL + "1000001,1000002"))
+                .andExpect(method(HttpMethod.GET))
+                .andExpect(queryParam("account_ids", "1000001,1000002"))
+                .andExpect(request -> assertThat(request.getURI().getQuery()).isEqualTo("account_ids=1000001,1000002"))
+                .andRespond(withSuccess(fixture("players-steam.json"), MediaType.APPLICATION_JSON));
+
+        Map<Long, String> names = client.getPlayerNames(List.of(1000001L, 1000002L));
+
+        assertThat(names).containsOnly(Map.entry(1000001L, "FakeAlpha"), Map.entry(1000002L, "FakeBravo"));
+    }
+
+    @Test
+    void playerNamesOmitsMissingNullAndBlankNames() {
+        server.expect(once(), requestTo(STEAM_URL + "1,2,3,4"))
+                .andRespond(withSuccess("[{\"account_id\":1,\"personaname\":\"One\"},{\"account_id\":2},"
+                        + "{\"account_id\":3,\"personaname\":\"   \"},{\"account_id\":1,\"personaname\":\"Dup\"}]",
+                        MediaType.APPLICATION_JSON));
+
+        Map<Long, String> names = client.getPlayerNames(List.of(1L, 2L, 3L, 4L));
+
+        assertThat(names).containsOnly(Map.entry(1L, "One"));
+    }
+
+    @Test
+    void playerNamesEmptyArrayGivesEmptyMap() {
+        server.expect(once(), requestTo(STEAM_URL + "1"))
+                .andRespond(withSuccess("[]", MediaType.APPLICATION_JSON));
+
+        assertThat(client.getPlayerNames(List.of(1L))).isEmpty();
+    }
+
+    @Test
+    void playerNamesServerErrorThrowsDeadlockApiException() {
+        server.expect(once(), requestTo(STEAM_URL + "1")).andRespond(withServerError());
+
+        assertThatThrownBy(() -> client.getPlayerNames(List.of(1L)))
+                .isInstanceOf(DeadlockApiException.class)
+                .isNotInstanceOf(DeadlockApiUnavailableException.class);
+    }
+
+    @Test
+    void playerNames503OnceThenSuccessRetries() {
+        server.expect(once(), requestTo(STEAM_URL + "1000001"))
+                .andRespond(withStatus(HttpStatus.SERVICE_UNAVAILABLE).header("Retry-After", "1"));
+        server.expect(once(), requestTo(STEAM_URL + "1000001"))
+                .andRespond(withSuccess(fixture("players-steam.json"), MediaType.APPLICATION_JSON));
+
+        assertThat(client.getPlayerNames(List.of(1000001L))).containsEntry(1000001L, "FakeAlpha");
+        assertThat(sleeps).containsExactly(Duration.ofSeconds(1));
+    }
+
+    @Test
+    void playerNames429ThrowsUnavailable() {
+        server.expect(once(), requestTo(STEAM_URL + "1"))
+                .andRespond(withStatus(HttpStatus.TOO_MANY_REQUESTS));
+
+        assertThatThrownBy(() -> client.getPlayerNames(List.of(1L)))
+                .isInstanceOf(DeadlockApiUnavailableException.class);
+    }
+
+    @Test
+    void playerNamesInvalidListsThrowWithNoRequest() {
+        List<Long> tooMany = IntStream.rangeClosed(1, 1001).mapToLong(i -> (long) i).boxed().toList();
+
+        assertThatThrownBy(() -> client.getPlayerNames(List.of())).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> client.getPlayerNames(tooMany)).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> client.getPlayerNames(List.of(1L, -5L))).isInstanceOf(IllegalArgumentException.class);
+    }
 }

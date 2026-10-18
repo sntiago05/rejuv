@@ -20,6 +20,7 @@ public class CacheConfig {
     public static final String DEADLOCK_MATCH_HISTORY = "deadlockMatchHistory";  // 2 min, max 1000
     public static final String DEADLOCK_PLAYER_RANK = "deadlockPlayerRank";      // 10 min, max 1000
     public static final String DEADLOCK_PLAYER_RANKS = "deadlockPlayerRanks";    // 10 min, max 100
+    public static final String DEADLOCK_PLAYER_NAMES = "deadlockPlayerNames";    // 1 h, max 500
     public static final String DEADLOCK_MATCH_METADATA = "deadlockMatchMetadata"; // 24 h, max 300
     public static final String PROFILE_SUMMARY = "profileSummary";               // 10 min, max 1000
     public static final String DEADLOCK_HERO_STATS = "deadlockHeroStats";        // 6 h, max 50
@@ -41,6 +42,7 @@ public class CacheConfig {
         register(cacheManager, DEADLOCK_MATCH_HISTORY, Duration.ofMinutes(2), 1000);
         register(cacheManager, DEADLOCK_PLAYER_RANK, Duration.ofMinutes(10), 1000);
         register(cacheManager, DEADLOCK_PLAYER_RANKS, Duration.ofMinutes(10), 100);
+        register(cacheManager, DEADLOCK_PLAYER_NAMES, Duration.ofHours(1), 500);
         register(cacheManager, DEADLOCK_MATCH_METADATA, Duration.ofHours(24), 300);
         register(cacheManager, PROFILE_SUMMARY, Duration.ofMinutes(10), 1000);
         register(cacheManager, DEADLOCK_HERO_STATS, Duration.ofHours(6), 50);
