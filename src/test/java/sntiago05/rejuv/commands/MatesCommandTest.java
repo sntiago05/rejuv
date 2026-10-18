@@ -14,6 +14,7 @@ import static org.mockito.Mockito.when;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.OptionalLong;
 
 import net.dv8tion.jda.api.entities.Message;
@@ -137,7 +138,7 @@ class MatesCommandTest {
 
     @Test
     void emptyTeammatesEditsWithNoMatesMessage() {
-        when(matesService.getMates(ACCOUNT_ID)).thenReturn(new MatesSummary(ACCOUNT_ID, List.of()));
+        when(matesService.getMates(ACCOUNT_ID)).thenReturn(new MatesSummary(ACCOUNT_ID, List.of(), Map.of()));
 
         assertThat(editedTextForLinkedCaller()).isEqualTo(messages.get("mates.no_mates", MatesService.MIN_MATCHES_TOGETHER));
     }
@@ -158,6 +159,46 @@ class MatesCommandTest {
     }
 
     @Test
+    void namedTeammateRendersNameAndIdWhileUnnamedFallsBack() {
+        String value = renderedValue(Map.of(2000001L, "Alpha"));
+
+        assertThat(value).contains("1. Alpha (#2000001) - 20 matches, 75% win");
+        assertThat(value).contains("2. Player #2000002 - 10 matches, 60% win");
+    }
+
+    @Test
+    void namesAreSanitized() {
+        String value = renderedValue(Map.of(2000001L, "**x**", 2000002L, "  line1\nline2\t" + "A".repeat(40)));
+        assertThat(value).contains("1. \\*\\*x\\*\\* (#2000001)");
+        assertThat(value).contains("2. line1 line2 " + "A".repeat(20) + " (#2000002)");
+
+        String emoji = "\uD83D\uDE00";
+        String truncated = renderedValue(Map.of(2000001L, emoji.repeat(40)));
+        assertThat(truncated).contains(emoji.repeat(32) + " (#2000001)");
+        assertThat(truncated).doesNotContain(emoji.repeat(33));
+    }
+
+    @Test
+    void blankNameFallsBackToPlayerLabel() {
+        String value = renderedValue(Map.of(2000001L, " \n\t "));
+
+        assertThat(value).contains("1. Player #2000001 - 20 matches");
+    }
+
+    private String renderedValue(Map<Long, String> names) {
+        SlashCommandInteractionEvent event = event(null);
+        when(profileService.findLinkedAccountId(CALLER_ID)).thenReturn(OptionalLong.of(ACCOUNT_ID));
+        MatesSummary base = sampleSummary();
+        when(matesService.getMates(ACCOUNT_ID)).thenReturn(new MatesSummary(ACCOUNT_ID, base.teammates(), names));
+        deferFor(event);
+        InteractionHook hook = hookFor(event);
+
+        command.handle(event);
+
+        return capturedEmbed(hook).getFields().get(0).getValue();
+    }
+
+    @Test
     void allMatesCatalogKeysResolve() {
         List<String> requiredKeys = List.of(
                 "mates.description",
@@ -169,6 +210,7 @@ class MatesCommandTest {
                 "mates.field.top",
                 "mates.entry",
                 "mates.teammate_label",
+                "mates.teammate_named",
                 "mates.footer"
         );
 
@@ -183,7 +225,7 @@ class MatesCommandTest {
         for (int i = 1; i <= 5; i++) {
             mates.add(new Teammate(2000000L + i, 100, 60, 60.0));
         }
-        MatesSummary summary = new MatesSummary(ACCOUNT_ID, mates);
+        MatesSummary summary = new MatesSummary(ACCOUNT_ID, mates, Map.of());
 
         SlashCommandInteractionEvent event = event(null);
         when(profileService.findLinkedAccountId(CALLER_ID)).thenReturn(OptionalLong.of(ACCOUNT_ID));
@@ -235,7 +277,7 @@ class MatesCommandTest {
     private static MatesSummary sampleSummary() {
         Teammate m1 = new Teammate(2000001L, 20, 15, 75.0);
         Teammate m2 = new Teammate(2000002L, 10, 6, 60.0);
-        return new MatesSummary(ACCOUNT_ID, List.of(m1, m2));
+        return new MatesSummary(ACCOUNT_ID, List.of(m1, m2), Map.of());
     }
 
     private MessageEmbed capturedEmbed(InteractionHook hook) {

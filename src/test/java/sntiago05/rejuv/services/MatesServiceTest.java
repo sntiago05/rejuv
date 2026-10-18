@@ -3,7 +3,11 @@ package sntiago05.rejuv.services;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.time.Clock;
@@ -11,6 +15,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Map;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -134,5 +139,59 @@ class MatesServiceTest {
 
         assertThatThrownBy(() -> matesService.getMates(ACCOUNT_ID))
                 .isInstanceOf(DeadlockApiException.class);
+    }
+
+    @Test
+    void namesFetchedOnceForSortedDistinctTeammateIdsExcludingCaller() {
+        when(deadlockApiClient.getMateStats(eq(ACCOUNT_ID), eq(expectedWindowTimestamp))).thenReturn(List.of(
+                new MateStat(2000003L, 10, 8),
+                new MateStat(ACCOUNT_ID, 30, 20),
+                new MateStat(2000001L, 20, 18),
+                new MateStat(2000002L, 10, 5)));
+        when(deadlockApiClient.getPlayerNames(List.of(2000001L, 2000002L, 2000003L)))
+                .thenReturn(Map.of(2000001L, "Alpha"));
+
+        MatesSummary summary = matesService.getMates(ACCOUNT_ID);
+
+        assertThat(summary.names()).containsOnly(Map.entry(2000001L, "Alpha"));
+        assertThat(summary.teammates()).extracting(Teammate::accountId)
+                .containsExactly(2000001L, 2000003L, 2000002L);
+        verify(deadlockApiClient).getPlayerNames(List.of(2000001L, 2000002L, 2000003L));
+    }
+
+    @Test
+    void noNamesCallWhenNoTeammates() {
+        when(deadlockApiClient.getMateStats(eq(ACCOUNT_ID), eq(expectedWindowTimestamp))).thenReturn(List.of());
+
+        MatesSummary summary = matesService.getMates(ACCOUNT_ID);
+
+        assertThat(summary.names()).isEmpty();
+        verify(deadlockApiClient, never()).getPlayerNames(anyList());
+    }
+
+    @Test
+    void namesFailureGivesSummaryWithEmptyNames() {
+        when(deadlockApiClient.getMateStats(eq(ACCOUNT_ID), eq(expectedWindowTimestamp)))
+                .thenReturn(List.of(new MateStat(2000001L, 10, 8)));
+
+        doThrow(new DeadlockApiUnavailableException("busy", null, null)).when(deadlockApiClient).getPlayerNames(anyList());
+        MatesSummary unavailable = matesService.getMates(ACCOUNT_ID);
+
+        doThrow(new DeadlockApiException("no profile", null)).when(deadlockApiClient).getPlayerNames(anyList());
+        MatesSummary failed = matesService.getMates(ACCOUNT_ID);
+
+        for (MatesSummary summary : List.of(unavailable, failed)) {
+            assertThat(summary.teammates()).extracting(Teammate::accountId).containsExactly(2000001L);
+            assertThat(summary.names()).isEmpty();
+        }
+    }
+
+    @Test
+    void illegalArgumentFromNamesCallIsNotSwallowed() {
+        when(deadlockApiClient.getMateStats(eq(ACCOUNT_ID), eq(expectedWindowTimestamp)))
+                .thenReturn(List.of(new MateStat(2000001L, 10, 8)));
+        when(deadlockApiClient.getPlayerNames(anyList())).thenThrow(new IllegalArgumentException("bad"));
+
+        assertThatThrownBy(() -> matesService.getMates(ACCOUNT_ID)).isInstanceOf(IllegalArgumentException.class);
     }
 }

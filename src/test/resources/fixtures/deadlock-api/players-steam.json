@@ -1,0 +1,15 @@
+[
+  {
+    "account_id": 1000001,
+    "personaname": "FakeAlpha",
+    "avatar": "https://example.test/a.jpg",
+    "profileurl": "https://example.test/id/alpha",
+    "countrycode": "XX"
+  },
+  {
+    "account_id": 1000002,
+    "personaname": "FakeBravo",
+    "realname": "Fake Person",
+    "friends": []
+  }
+]
