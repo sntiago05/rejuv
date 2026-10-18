@@ -50,6 +50,7 @@ import sntiago05.rejuv.domain.ItemPurchase;
 import sntiago05.rejuv.domain.MatchAnalysis;
 import sntiago05.rejuv.domain.MatchFilter;
 import sntiago05.rejuv.domain.MatchTelemetry;
+import sntiago05.rejuv.domain.MatchVisuals;
 import sntiago05.rejuv.domain.PlayerTelemetry;
 import sntiago05.rejuv.domain.StatSnapshot;
 import sntiago05.rejuv.repositories.MatchAnalysisRepository;
@@ -90,6 +91,7 @@ class AnalyzeServiceTest {
     private AnalysisClient analysisClient;
     private MatchAnalysisRepository repository;
     private UsageService usageService;
+    private MatchVisualsService visualsService;
     private AnalyzeService service;
 
     @BeforeEach
@@ -100,11 +102,12 @@ class AnalyzeServiceTest {
         analysisClient = mock(AnalysisClient.class);
         repository = mock(MatchAnalysisRepository.class);
         usageService = mock(UsageService.class);
+        visualsService = mock(MatchVisualsService.class);
         GameAssets gameAssets = mock(GameAssets.class);
         when(gameAssets.heroNames()).thenReturn(Map.of(HERO_ID, "Infernus", 2, "Seven"));
         MatchSearchService matchSearchService = new MatchSearchService(deadlockApiClient, gameAssets);
         AnthropicPricingProperties pricing = new AnthropicPricingProperties(0, 0);
-        service = new AnalyzeService(deadlockApiClient, matchMetadataSource, metricsService, analysisClient, repository, matchSearchService, pricing, usageService);
+        service = new AnalyzeService(deadlockApiClient, matchMetadataSource, metricsService, analysisClient, repository, matchSearchService, pricing, usageService, visualsService);
     }
 
     @Test
@@ -163,7 +166,7 @@ class AnalyzeServiceTest {
     }
 
     @Test
-    void storedPathReturnsStoredAnalysisWithoutMetadataOrBenchmarksOrAiCall() throws Exception {
+    void storedPathReturnsStoredAnalysisWithoutBenchmarksOrAiCall() throws Exception {
         String resultJson = new JsonMapper().writeValueAsString(AI_RESULT);
         MatchAnalysis stored = new MatchAnalysis(
                 ACCOUNT_ID, MATCH_ID, HERO_ID, resultJson, "claude-haiku-5-5", 800, 200, Instant.now());
@@ -186,12 +189,93 @@ class AnalyzeServiceTest {
 
         verify(usageService, never()).checkAllowance(anyLong());
         verify(usageService, never()).recordAnalysis(anyLong(), anyLong());
-        verify(matchMetadataSource, never()).getMatch(anyLong());
+        verify(matchMetadataSource, times(1)).getMatch(MATCH_ID);
+        assertThat(report.visuals()).isNull();
         verify(deadlockApiClient, never()).getBenchmarks(anyInt(), anyInt());
         verify(deadlockApiClient, never()).getItemStats(anyInt(), anyInt());
         verify(deadlockApiClient, never()).getItems();
         verify(analysisClient, never()).analyze(any());
         verify(repository, never()).save(any());
+    }
+
+    @Test
+    void storedPathAttachesVisualsFromCachedTelemetryWithoutAiOrUsage() throws Exception {
+        MatchVisuals visuals = new MatchVisuals(List.of(new MatchVisuals.PurchasedItem(101L, "Basic Magazine", 250)), null);
+        stubStored();
+        when(matchMetadataSource.getMatch(MATCH_ID)).thenReturn(TELEMETRY);
+        when(visualsService.build(ACCOUNT_ID, TELEMETRY)).thenReturn(Optional.of(visuals));
+
+        AnalysisReport report = service.analyze(CALLER_ID, ACCOUNT_ID, MatchFilter.LATEST);
+
+        assertThat(report.analysis()).isEqualTo(AI_RESULT);
+        assertThat(report.visuals()).isSameAs(visuals);
+        verify(matchMetadataSource, times(1)).getMatch(MATCH_ID);
+        verify(analysisClient, never()).analyze(any());
+        verify(usageService, never()).checkAllowance(anyLong());
+        verify(usageService, never()).recordAnalysis(anyLong(), anyLong());
+        verify(repository, never()).save(any());
+    }
+
+    @Test
+    void storedPathWithUnavailableMetadataReturnsStoredTextWithoutVisuals() throws Exception {
+        stubStored();
+        when(matchMetadataSource.getMatch(MATCH_ID)).thenThrow(new DeadlockApiUnavailableException("down", null, null));
+
+        AnalysisReport report = service.analyze(CALLER_ID, ACCOUNT_ID, MatchFilter.LATEST);
+
+        assertThat(report.analysis()).isEqualTo(AI_RESULT);
+        assertThat(report.visuals()).isNull();
+        assertThat(report.degraded()).isFalse();
+        verify(analysisClient, never()).analyze(any());
+        verify(repository, never()).delete(any());
+    }
+
+    @Test
+    void freshPathAttachesVisualsBuiltFromFetchedTelemetry() {
+        MatchVisuals visuals = new MatchVisuals(List.of(new MatchVisuals.PurchasedItem(101L, "Basic Magazine", 250)), null);
+        stubFresh();
+        when(visualsService.build(ACCOUNT_ID, TELEMETRY)).thenReturn(Optional.of(visuals));
+
+        AnalysisReport report = service.analyze(CALLER_ID, ACCOUNT_ID, MatchFilter.LATEST);
+
+        assertThat(report.visuals()).isSameAs(visuals);
+        verify(matchMetadataSource, times(1)).getMatch(MATCH_ID);
+    }
+
+    @Test
+    void freshPathWithoutTelemetryHasNoVisuals() {
+        stubFresh();
+        when(matchMetadataSource.getMatch(MATCH_ID)).thenThrow(new DeadlockApiUnavailableException("down", null, null));
+        when(visualsService.build(ACCOUNT_ID, null)).thenReturn(Optional.empty());
+
+        AnalysisReport report = service.analyze(CALLER_ID, ACCOUNT_ID, MatchFilter.LATEST);
+
+        assertThat(report.degraded()).isTrue();
+        assertThat(report.visuals()).isNull();
+    }
+
+    private void stubStored() throws Exception {
+        String resultJson = new JsonMapper().writeValueAsString(AI_RESULT);
+        MatchAnalysis stored = new MatchAnalysis(
+                ACCOUNT_ID, MATCH_ID, HERO_ID, resultJson, "claude-haiku-5-5", 800, 200, Instant.now());
+        when(deadlockApiClient.getMatchHistory(ACCOUNT_ID)).thenReturn(List.of(MATCH));
+        when(deadlockApiClient.getPlayerRank(ACCOUNT_ID)).thenReturn(RANK);
+        when(deadlockApiClient.getHeroes()).thenReturn(HEROES);
+        when(deadlockApiClient.getRanks()).thenReturn(RANKS);
+        when(repository.findByAccountIdAndMatchId(ACCOUNT_ID, MATCH_ID)).thenReturn(Optional.of(stored));
+    }
+
+    private void stubFresh() {
+        when(deadlockApiClient.getMatchHistory(ACCOUNT_ID)).thenReturn(List.of(MATCH));
+        when(deadlockApiClient.getPlayerRank(ACCOUNT_ID)).thenReturn(RANK);
+        when(deadlockApiClient.getHeroes()).thenReturn(HEROES);
+        when(deadlockApiClient.getRanks()).thenReturn(RANKS);
+        when(repository.findByAccountIdAndMatchId(ACCOUNT_ID, MATCH_ID)).thenReturn(Optional.empty());
+        when(matchMetadataSource.getMatch(MATCH_ID)).thenReturn(TELEMETRY);
+        when(deadlockApiClient.getBenchmarks(HERO_ID, 7)).thenReturn(BENCHMARKS);
+        when(deadlockApiClient.getItemStats(HERO_ID, 7)).thenReturn(ITEM_STATS);
+        when(deadlockApiClient.getItems()).thenReturn(ITEMS);
+        when(analysisClient.analyze(any())).thenReturn(new AnalysisOutcome(AI_RESULT, "claude-haiku-5-5", 1, 1000, 250));
     }
 
     @Test
@@ -508,14 +592,14 @@ class AnalyzeServiceTest {
         // Zero pricing
         AnalyzeService zeroService = new AnalyzeService(
                 deadlockApiClient, matchMetadataSource, metricsService, analysisClient, repository,
-                searchService, new AnthropicPricingProperties(0, 0), usageService);
+                searchService, new AnthropicPricingProperties(0, 0), usageService, visualsService);
         assertThat(zeroService.estimatedCostUsd(1000, 250)).isEqualTo("unknown");
 
         // Configured pricing: e.g. input $0.80 / 1M, output $4.00 / 1M
         // 1000 / 1e6 * 0.80 + 250 / 1e6 * 4.00 = 0.0008 + 0.0010 = 0.001800
         AnalyzeService pricedService = new AnalyzeService(
                 deadlockApiClient, matchMetadataSource, metricsService, analysisClient, repository,
-                searchService, new AnthropicPricingProperties(0.80, 4.00), usageService);
+                searchService, new AnthropicPricingProperties(0.80, 4.00), usageService, visualsService);
         assertThat(pricedService.estimatedCostUsd(1000, 250)).isEqualTo("0.001800");
 
         // Trigger AI analysis with pricedService and check log output

@@ -22,6 +22,7 @@ import net.dv8tion.jda.api.interactions.commands.OptionType;
 import net.dv8tion.jda.api.interactions.commands.build.Commands;
 import net.dv8tion.jda.api.interactions.commands.build.OptionData;
 import net.dv8tion.jda.api.interactions.commands.build.SlashCommandData;
+import net.dv8tion.jda.api.utils.FileUpload;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.NoSuchMessageException;
@@ -33,10 +34,13 @@ import sntiago05.rejuv.domain.AnalysisReport;
 import sntiago05.rejuv.domain.AnalysisResult;
 import sntiago05.rejuv.domain.MatchFilter;
 import sntiago05.rejuv.domain.MatchSummary;
+import sntiago05.rejuv.domain.MatchVisuals;
 import sntiago05.rejuv.services.AnalyzeService;
 import sntiago05.rejuv.services.AssetImages;
+import sntiago05.rejuv.services.ChartRenderer;
 import sntiago05.rejuv.services.GameAssets;
 import sntiago05.rejuv.services.HeroResolver;
+import sntiago05.rejuv.services.IconCatalog;
 import sntiago05.rejuv.services.MatchNotFoundException;
 import sntiago05.rejuv.services.MatchSearchService;
 import sntiago05.rejuv.services.Messages;
@@ -48,6 +52,7 @@ import sntiago05.rejuv.services.UsageLimitExceededException;
 public class AnalyzeCommand implements SlashCommand {
 
     static final int MAX_FIELD_LENGTH = 1024;
+    static final String CHART_FILE = "match.png";
     static final String TRUNCATION_SUFFIX = "...";
 
     private static final Logger log = LoggerFactory.getLogger(AnalyzeCommand.class);
@@ -59,10 +64,12 @@ public class AnalyzeCommand implements SlashCommand {
     private final MatchSearchService matchSearchService;
     private final GameAssets gameAssets;
     private final HeroResolver heroResolver;
+    private final IconCatalog iconCatalog;
+    private final ChartRenderer chartRenderer;
 
     public AnalyzeCommand(AnalyzeService analyzeService, ProfileService profileService, Messages messages,
                           AssetImages assetImages, MatchSearchService matchSearchService, GameAssets gameAssets,
-                          HeroResolver heroResolver) {
+                          HeroResolver heroResolver, IconCatalog iconCatalog, ChartRenderer chartRenderer) {
         this.analyzeService = analyzeService;
         this.profileService = profileService;
         this.messages = messages;
@@ -70,6 +77,8 @@ public class AnalyzeCommand implements SlashCommand {
         this.matchSearchService = matchSearchService;
         this.gameAssets = gameAssets;
         this.heroResolver = heroResolver;
+        this.iconCatalog = iconCatalog;
+        this.chartRenderer = chartRenderer;
     }
 
     @Override
@@ -254,7 +263,15 @@ public class AnalyzeCommand implements SlashCommand {
     private void answer(InteractionHook hook, long callerId, long accountId, MatchFilter filter) {
         try {
             AnalysisReport report = analyzeService.analyze(callerId, accountId, filter);
-            hook.editOriginalEmbeds(buildEmbed(report)).queue();
+            Optional<byte[]> chart = report.visuals() != null && report.visuals().chart() != null
+                    ? chartRenderer.render(report.visuals().chart())
+                    : Optional.empty();
+            MessageEmbed embed = buildEmbed(report, chart.isPresent());
+            if (chart.isPresent()) {
+                hook.editOriginalEmbeds(embed).setFiles(List.of(FileUpload.fromData(chart.get(), CHART_FILE))).queue();
+            } else {
+                hook.editOriginalEmbeds(embed).queue();
+            }
         } catch (UsageLimitExceededException ex) {
             String resetTimestamp = "<t:" + ex.resetsAt().getEpochSecond() + ":R>";
             hook.editOriginal(messages.get("analyze.limit_reached", ex.limit(), resetTimestamp)).queue();
@@ -269,7 +286,7 @@ public class AnalyzeCommand implements SlashCommand {
         }
     }
 
-    private MessageEmbed buildEmbed(AnalysisReport report) {
+    private MessageEmbed buildEmbed(AnalysisReport report, boolean withChart) {
         EmbedBuilder builder = new EmbedBuilder().setColor(EmbedStyle.COLOR);
         assetImages.heroCardUrl(report.heroId()).ifPresent(builder::setThumbnail);
 
@@ -298,6 +315,11 @@ public class AnalyzeCommand implements SlashCommand {
             buildFallbackKeyNumbers(builder, report.metrics());
         }
 
+        addBuildField(builder, report.visuals());
+        if (withChart) {
+            builder.setImage("attachment://" + CHART_FILE);
+        }
+
         if (report.rank() != null) {
             builder.setFooter(messages.get("analyze.footer", report.hero(), report.rank()));
         } else {
@@ -305,6 +327,25 @@ public class AnalyzeCommand implements SlashCommand {
         }
 
         return builder.build();
+    }
+
+    private void addBuildField(EmbedBuilder builder, MatchVisuals visuals) {
+        if (visuals == null || visuals.items().isEmpty()) {
+            return;
+        }
+        List<String> lines = new ArrayList<>(visuals.items().size());
+        for (MatchVisuals.PurchasedItem item : visuals.items()) {
+            String icon = iconCatalog.item(item.itemId()).map(i -> i + " ").orElse("");
+            lines.add(messages.get("analyze.build.item", icon + item.name(), formatBuyTime(item.boughtAtS())));
+        }
+        String value = EmbedStyle.fitField(lines);
+        if (!value.isEmpty()) {
+            builder.addField(messages.get("analyze.field.build"), value, false);
+        }
+    }
+
+    static String formatBuyTime(int seconds) {
+        return (seconds / 60) + ":" + String.format(Locale.ROOT, "%02d", seconds % 60);
     }
 
     private void buildFallbackKeyNumbers(EmbedBuilder builder, Map<String, AnalysisInput.MetricComparison> metrics) {

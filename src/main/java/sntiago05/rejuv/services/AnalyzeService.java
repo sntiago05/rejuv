@@ -30,6 +30,7 @@ import sntiago05.rejuv.domain.MatchAnalysis;
 import sntiago05.rejuv.domain.MatchFilter;
 import sntiago05.rejuv.domain.MatchRank;
 import sntiago05.rejuv.domain.MatchTelemetry;
+import sntiago05.rejuv.domain.MatchVisuals;
 import sntiago05.rejuv.repositories.MatchAnalysisRepository;
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.json.JsonMapper;
@@ -48,6 +49,7 @@ public class AnalyzeService {
     private final MatchSearchService matchSearchService;
     private final AnthropicPricingProperties pricingProperties;
     private final UsageService usageService;
+    private final MatchVisualsService visualsService;
 
     public AnalyzeService(DeadlockApiClient deadlockApiClient,
                           MatchMetadataSource matchMetadataSource,
@@ -56,7 +58,8 @@ public class AnalyzeService {
                           MatchAnalysisRepository repository,
                           MatchSearchService matchSearchService,
                           AnthropicPricingProperties pricingProperties,
-                          UsageService usageService) {
+                          UsageService usageService,
+                          MatchVisualsService visualsService) {
         this.deadlockApiClient = deadlockApiClient;
         this.matchMetadataSource = matchMetadataSource;
         this.metricsService = metricsService;
@@ -65,6 +68,7 @@ public class AnalyzeService {
         this.matchSearchService = matchSearchService;
         this.pricingProperties = pricingProperties;
         this.usageService = usageService;
+        this.visualsService = visualsService;
     }
 
     /**
@@ -99,7 +103,7 @@ public class AnalyzeService {
                 log.info("Analyze accountId={} matchId={} source=stored degraded=false inputTokens={} outputTokens={}",
                         accountId, match.matchId(), stored.getInputTokens(), stored.getOutputTokens());
                 return new AnalysisReport(match.heroId(), headerInput.hero(), headerInput.rank(), headerInput.result(),
-                        headerInput.durationMin(), analysis, Map.of(), false);
+                        headerInput.durationMin(), analysis, Map.of(), false, storedVisuals(accountId, match.matchId()));
             } catch (Exception ex) {
                 log.warn("Corrupted match analysis JSON for accountId={} matchId={}", accountId, match.matchId());
                 repository.delete(stored);
@@ -147,7 +151,7 @@ public class AnalyzeService {
             log.info("Analyze accountId={} matchId={} source=fallback degraded={} inputTokens={} outputTokens={}",
                     accountId, match.matchId(), degraded, outcome.inputTokens(), outcome.outputTokens());
             return new AnalysisReport(match.heroId(), input.hero(), input.rank(), input.result(), input.durationMin(),
-                    null, input.metrics(), degraded);
+                    null, input.metrics(), degraded, visuals(accountId, telemetry));
         }
 
         String json;
@@ -166,7 +170,7 @@ public class AnalyzeService {
                     accountId, match.matchId(), degraded, outcome.inputTokens(), outcome.outputTokens(),
                     estimatedCostUsd(outcome.inputTokens(), outcome.outputTokens()));
             return new AnalysisReport(match.heroId(), input.hero(), input.rank(), input.result(), input.durationMin(),
-                    outcome.result(), Map.of(), degraded);
+                    outcome.result(), Map.of(), degraded, visuals(accountId, telemetry));
         } catch (DataIntegrityViolationException ex) {
             Optional<MatchAnalysis> concurrent = repository.findByAccountIdAndMatchId(accountId, match.matchId());
             if (concurrent.isPresent()) {
@@ -175,13 +179,28 @@ public class AnalyzeService {
                     log.info("Analyze accountId={} matchId={} source=stored degraded=false inputTokens={} outputTokens={}",
                             accountId, match.matchId(), concurrent.get().getInputTokens(), concurrent.get().getOutputTokens());
                     return new AnalysisReport(match.heroId(), input.hero(), input.rank(), input.result(), input.durationMin(),
-                            concurrentResult, Map.of(), false);
+                            concurrentResult, Map.of(), false, visuals(accountId, telemetry));
                 } catch (Exception parseEx) {
                     log.warn("Corrupted concurrent match analysis JSON for accountId={} matchId={}", accountId, match.matchId());
                 }
             }
             return new AnalysisReport(match.heroId(), input.hero(), input.rank(), input.result(), input.durationMin(),
-                    outcome.result(), Map.of(), degraded);
+                    outcome.result(), Map.of(), degraded, visuals(accountId, telemetry));
+        }
+    }
+
+    private MatchVisuals visuals(long accountId, MatchTelemetry telemetry) {
+        return visualsService.build(accountId, telemetry).orElse(null);
+    }
+
+    /** Cached metadata read (not an AI call, no usage); any API failure just means no details. */
+    private MatchVisuals storedVisuals(long accountId, long matchId) {
+        try {
+            return visuals(accountId, matchMetadataSource.getMatch(matchId));
+        } catch (DeadlockApiException ex) {
+            log.warn("Match metadata unavailable for stored analysis accountId={} matchId={}: {}",
+                    accountId, matchId, ex.getClass().getSimpleName());
+            return null;
         }
     }
 
