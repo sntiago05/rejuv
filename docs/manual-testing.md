@@ -75,6 +75,12 @@ Premium is a Patreon role in the support server. To test: `PREMIUM_ROLE_CHECK_EN
 2. The log has no new ERROR; a provider failure only logs one WARN with the exception class and `/analyze` continues.
 3. A match using the raw metadata fallback also still works (death and farm data are missing there, so those layers return nothing).
 
+### Concurrency and freshness (Tasks 040, 041)
+1. `/analyze` on a fresh match. Expected: the Biggest Leak starts with a severity label (Major, Notable or Minor) and the log has no `invalid_output`. If it fails, Anthropic may reject the `enum` in the schema: report the log line.
+2. While that `/analyze` runs, send `/ping` or `/help` from another account. Expected: immediate answer.
+3. `/unlink`, then `/link` another account, then `/profile`. Expected: data of the new account at once.
+4. The log shows no `deadlock-api gate timeout` under normal use.
+
 ### `/matches` (Task 025)
 `/matches` lists the latest 10 matches and marks the analyzed ones; filters `hero` and `result` apply; `user` shows another linked member. Footer suggests `/analyze match:<id>`.
 

@@ -23,7 +23,7 @@ Packages (`sntiago05.rejuv`): `commands` (no logic) -> `services` -> `clients` (
 Claude Project/Claude Code = architect: writes specs in `docs/tasks/`, reviews diffs. Antigravity (`agy`) = main implementer, one worktree per task under `../rejuv-wt/NNN`, branch `feature/NNN-slug`, report in `docs/task-reports/`. Human reviews and merges; agents never push or merge unasked. Skills: `create-task-spec`, `execute-task`, `task-worktree`, `review-task-diff`, `git-commit`, `new-discord-command`, `run-rejuv` (mirrored in `.claude/skills/` and `.agents/skills`). Operational merge/launch plan: `docs/plan-de-implementacion-017-029.md`.
 
 ## Current status (2026-10-18)
-`main` contains tasks 001-009, 011-038 (see table; 010 is not merged and has no spec). Last full build: `./mvnw verify` passed on the 038 branch after merging `main` (exit 0, 816 tests on its own base; the 018 branch reported 814, 034 reported 820; each task was built before the others merged). The 037 branch passed `verify` (958 tests, 0 failures, 2 skipped) on top of every other merged task (PR #75), so that is the closest figure for `main`; `main` itself was not rebuilt after the merge: run `./mvnw verify` on `main` for the real count. CI (`.github/workflows/ci.yml`) now runs `verify` and the image build on PRs.
+`main` contains tasks 001-009, 011-041 (see table; 010 is not merged and has no spec). After merging 041, `verify` passed on the 040 branch (exit 0); the 041 branch alone reported 994 tests, 0 failures, 14 skipped. Last full build: `./mvnw verify` passed on the 038 branch after merging `main` (exit 0, 816 tests on its own base; the 018 branch reported 814, 034 reported 820; each task was built before the others merged). The 037 branch passed `verify` (958 tests, 0 failures, 2 skipped) on top of every other merged task (PR #75), so that is the closest figure for `main`; `main` itself was not rebuilt after the merge: run `./mvnw verify` on `main` for the real count. CI (`.github/workflows/ci.yml`) now runs `verify` and the image build on PRs.
 The bot has **not** been run end to end in public or deployed; no manual Discord check exists for most features.
 
 | Task | What | Report | PR |
@@ -49,6 +49,9 @@ The bot has **not** been run end to end in public or deployed; no manual Discord
 | 035 | Coach layer `matchup`: lane opponents, enemy pair win rates (`getHeroCounterStats`), lane result at 12 min | 035 | #72 |
 | 037 | Prompt v2 using coach insights; `focus_area` and `severity` in `AnalysisResult`; severity label in embed and web; soul curve own-rank fallback | 037 | #75 |
 | 038 | `/compare` premium: last games on a hero vs tier 11 medians | 038 | #71 |
+| 039 | Performance/multi-user: in-memory chart render, `open-in-view` off, shared helpers in `CommandSupport`/`EmbedStyle`, benchmark tests (`-Dbenchmark=true`) | 039 | #78 |
+| 040 | Cache freshness (new TTLs, metadata cache split, eviction on link/unlink), `RESULT_SCHEMA` with `focus_area`/`severity` enums, degraded AI analyses not stored, leaner AI input (no `p75`, no `none` coach entries) | 040 | #81 |
+| 041 | JDA event pool on virtual threads + global deadlock-api gate (`DeadlockApiGate`) | 041 | #80 |
 | 036 | Dockerfile, `compose.prod.yaml`, CI, `docs/deployment.md` | 036 | #64 |
 | refactor | `DeadlockApiRequests`, `GameAssets`, perf/dedup | refactor-perf-dedup | #39 |
 
@@ -65,7 +68,10 @@ The bot has **not** been run end to end in public or deployed; no manual Discord
 - **`/compare` (038):** `CompareService` (sample: hero filter, matches of 10+ min, newest 20, minimum 5), benchmarks at fixed tier 11 plus the player's own rank median (tier 1-10 only); deaths is lower-is-better; gated by `PremiumFeatureGate`. No telemetry (skips items and damage per minute on purpose).
 - **Analysis result (037):** `AnalysisResult` has nullable `focusArea` (phases, deaths, build, recent_form, matchup, metrics) and `severity` (minor, notable, major); invalid values normalize to `null` without failing the analysis; old stored JSON still parses. Embed and web prefix the leak with `analyze.severity.*` when present. `focus_area` is stored but not shown. `max-tokens` stays 1500.
 - **Soul curve rank (037):** with a lobby average badge the curve uses it; when it is missing (non-ranked match) `ReportService` uses the player's current rank from `getPlayerRank` (caption `report.curve.caption_own_rank`); unranked player means no curve.
-- **Caches:** `CacheConfig` registers 18 Caffeine caches (including `deadlockPlayerNames`, `deadlockPlayerItemStats`, `deadlockPerformanceCurve`). Any new cache must be added to `DeadlockApiClientCachingTest.cacheTtlsAndSizesMatchTheDesign` (exact set of names, TTLs, sizes); parallel tasks conflict there, resolve by keeping all entries.
+- **Caches (040):** `CacheConfig` registers 19 Caffeine caches with `recordStats()` and `@EnableCaching(proxyTargetClass = true)`. TTLs: assets 2 h; benchmarks, item stats, hero stats, item flow, ability order, hero counters, counter items, performance curve 3 h; match metadata 24 h (size 1000, on `JsonMatchMetadataSource`); `deadlockMatchMetadataRaw` 2 min (on `RawMatchMetadataSource`; `FallbackMatchMetadataSource` has no cache); match history 45 s; rank, ranks, profile summary, player hero/mate/item stats 5 min; names 1 h. `LinkService` evicts profile, history and rank on link/unlink.
+- **Degraded analyses (040):** if telemetry is unavailable and the AI answers, the report has no `publicId`, is not stored and not charged to usage; analyses from raw fallback telemetry are still stored. Coach entries with `significance` none are omitted; `p75` is no longer sent.
+- **Concurrency (041):** JDA events run on a virtual-thread pool. All deadlock-api requests pass `DeadlockApiGate` (fair semaphore, `deadlock-api.gate.max-concurrent` default 1, `acquire-timeout` 20 s; a timeout is an `IOException` mapped to the usual unavailable error). Per-user event ordering is no longer guaranteed (`/link` then `/analyze` at the same instant may say not linked). Web server threads are still platform threads.
+- **Performance (039):** chart rendered in memory; `spring.jpa.open-in-view: false`. Owner decisions still open: skip `getPlayerRank` for ranked matches, defer before premium lookups, `spring.threads.virtual.enabled`, V5 indexes (not needed below ~50k accounts). Any new cache must be added to `DeadlockApiClientCachingTest.cacheTtlsAndSizesMatchTheDesign` (exact set of names, TTLs, sizes); parallel tasks conflict there, resolve by keeping all entries.
 - **Flyway:** V1 `linked_account`, V2 `match_analysis`, V3 `analysis_usage`, V4 `match_analysis.public_id`. Next is V5; check open branches for a clashing number.
 
 ## Deadlock API facts (observed in real responses)
@@ -83,17 +89,18 @@ The bot has **not** been run end to end in public or deployed; no manual Discord
 - Claude API key only from `ANTHROPIC_API_KEY`, never logged. `agy` launched from scripts needs a `.ps1` launcher (quoting); one worktree per task.
 
 ## Known limitations and risks
-- Commands call the API synchronously on the JDA event thread after a deferral (`/analyze` makes many sequential calls).
+- No per-user cooldown and no cap on concurrent Anthropic calls (041 follow-ups). With gate `max-concurrent=1` a burst of cold analyses queues up to 20 s, then fails as unavailable.
 - `/analyze` quality (audit of 4 real analyses): numbers are grounded, but reasoning errors (compares a value with the wrong median), "leaks" in dominant games (0 denies) and no priority by impact. Coach upgrade built (031-035 data layers, 037 prompt/schema v2) but **not yet judged with real analyses**; 010 (tuning with testers) is pending. `max_tokens` is 1500 (raise in 037 if needed).
-- `/analyze` with duration <= 0 throws `IllegalArgumentException` (generic error). Re-linking to another account keeps the old account's stored analyses. `/profile` has no cache eviction on link (10 min stale). `/leaderboard server` considers only the 500 most recently linked accounts.
-- Web report: `rank` and `result` not stored; the page needs the cached metadata (24 h) for duration/build/chart and degrades without it; `spring.jpa.open-in-view` is on (default) and could be turned off.
+- `/analyze` with duration <= 0 throws `IllegalArgumentException` (generic error). Re-linking to another account keeps the old account's stored analyses. `/leaderboard server` considers only the 500 most recently linked accounts.
+- Web report: `rank` and `result` not stored; the page needs the cached metadata (24 h) for duration/build/chart and degrades without it.
 - Fonts for the chart are installed in the Docker image (task 036) but a real container render check on the server is still pending; a render failure only drops the image.
 - First emoji sync uploads ~315 application emojis (1-3 min); `MarkdownSanitizer` does not neutralize `@everyone` (embeds do not ping); private profiles without `personaname` unverified.
 - Data coverage gaps in deadlock-api; match metadata can be unavailable (degraded mode: history metrics only). Death positions have no map-zone data (do not claim "died in enemy territory").
 
 ## Next
 1. Waves 1-3 are merged (up to 038). Next: judge the new `/analyze` with real analyses and tuning with testers (010, no spec; needs the bot deployed, see item 3).
-2. Manual Discord checks pending (steps in `docs/manual-testing.md`): `/analyze` (chart, typed id, report button, soul curve, severity label and leak choice), `/items`, `/compare`, `/mates` names, `/heroes`, Patreon role, emoji sync, and that coach providers do not slow or break `/analyze`.
+2. **Verify live after 040/041** (not run yet): `/analyze` must show a severity label (Anthropic must accept the new schema `enum`; no `invalid_output` in the log) and another user's `/ping` must answer during an `/analyze`. API audit ideas (local `docs/evidence/api-analysis/`): gzip on the RestClient (no `Accept-Encoding` is sent today), 503 vs 404 for matches, more coach providers from metadata already downloaded.
+2b. Manual Discord checks pending (steps in `docs/manual-testing.md`): `/analyze` (chart, typed id, report button, soul curve, severity label and leak choice), `/items`, `/compare`, `/mates` names, `/heroes`, Patreon role, emoji sync, and that coach providers do not slow or break `/analyze`.
 3. Deployment to Oracle (guide in `docs/deployment.md`); HTTPS/domain not done.
 
 ## References
