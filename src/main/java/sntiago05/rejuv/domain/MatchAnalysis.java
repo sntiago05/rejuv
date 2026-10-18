@@ -1,6 +1,7 @@
 package sntiago05.rejuv.domain;
 
 import java.time.Instant;
+import java.util.UUID;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -41,6 +42,9 @@ public class MatchAnalysis {
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
+    @Column(name = "public_id", nullable = false, updatable = false)
+    private UUID publicId;
+
     protected MatchAnalysis() {
         // required by JPA
     }
@@ -55,6 +59,7 @@ public class MatchAnalysis {
         this.inputTokens = inputTokens;
         this.outputTokens = outputTokens;
         this.createdAt = createdAt;
+        this.publicId = UUID.randomUUID();
     }
 
     public Long getId() {
@@ -91,5 +96,9 @@ public class MatchAnalysis {
 
     public Instant getCreatedAt() {
         return createdAt;
+    }
+
+    public UUID getPublicId() {
+        return publicId;
     }
 }

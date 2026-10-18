@@ -102,4 +102,47 @@ class FlywayMigrationTest {
                 "INSERT INTO linked_account (discord_user_id, account_id) VALUES (?, NULL)", 2L))
                 .isInstanceOf(DataIntegrityViolationException.class);
     }
+
+    @Test
+    void appliesVersion4Successfully() {
+        List<Map<String, Object>> rows = jdbcTemplate.queryForList(
+                "SELECT description, success FROM flyway_schema_history WHERE version = '4'");
+
+        assertThat(rows).hasSize(1);
+        assertThat(rows.get(0).get("description")).isEqualTo("add match analysis public id");
+        assertThat(rows.get(0).get("success")).isEqualTo(true);
+    }
+
+    @Test
+    void matchAnalysisHasPublicIdColumnWithDefaultUuid() {
+        List<Map<String, Object>> columns = jdbcTemplate.queryForList("""
+                SELECT column_name, data_type, is_nullable
+                FROM information_schema.columns
+                WHERE table_schema = current_schema() AND table_name = 'match_analysis'
+                  AND column_name = 'public_id'
+                """);
+
+        assertThat(columns)
+                .extracting(column -> tuple(
+                        column.get("column_name"), column.get("data_type"), column.get("is_nullable")))
+                .containsExactly(tuple("public_id", "uuid", "NO"));
+    }
+
+    @Test
+    void plainSqlInsertWithoutPublicIdGeneratesUniqueUuids() {
+        jdbcTemplate.update("DELETE FROM match_analysis");
+        jdbcTemplate.update("""
+                INSERT INTO match_analysis (account_id, match_id, hero_id, result_json, model, input_tokens, output_tokens)
+                VALUES (1, 101, 1, '{}', 'model', 10, 10),
+                       (1, 102, 1, '{}', 'model', 10, 10)
+                """);
+
+        List<java.util.UUID> uuids = jdbcTemplate.queryForList(
+                "SELECT public_id FROM match_analysis WHERE account_id = 1", java.util.UUID.class);
+
+        assertThat(uuids).hasSize(2);
+        assertThat(uuids.get(0)).isNotNull();
+        assertThat(uuids.get(1)).isNotNull();
+        assertThat(uuids.get(0)).isNotEqualTo(uuids.get(1));
+    }
 }

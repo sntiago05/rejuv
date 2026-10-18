@@ -1,0 +1,157 @@
+:root {
+    --bg-color: #121316;
+    --card-bg: #1e1f22;
+    --card-border: #2b2d31;
+    --text-color: #dbdee1;
+    --text-muted: #949ba4;
+    --heading-color: #ffffff;
+    --accent-color: #e5a93c;
+    --accent-leak: #f28c28;
+    --accent-strength: #4c9be8;
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    background-color: var(--bg-color);
+    color: var(--text-color);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    line-height: 1.6;
+    min-height: 100vh;
+    padding: 1.5rem 1rem;
+}
+
+.container {
+    max-width: 680px;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+}
+
+.report-header {
+    text-align: center;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid var(--card-border);
+}
+
+.hero-name {
+    color: var(--accent-color);
+    font-size: 2rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+}
+
+.match-meta {
+    color: var(--text-muted);
+    font-size: 0.95rem;
+    margin-top: 0.25rem;
+}
+
+.duration {
+    margin-left: 0.5rem;
+}
+
+.degraded-notice {
+    background-color: rgba(242, 140, 40, 0.15);
+    border: 1px solid var(--accent-leak);
+    color: #ffb366;
+    padding: 0.75rem 1rem;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    text-align: center;
+}
+
+.card {
+    background-color: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-radius: 8px;
+    padding: 1.25rem;
+}
+
+.card h2 {
+    color: var(--heading-color);
+    font-size: 1.1rem;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+}
+
+.card-strength h2 {
+    color: var(--accent-strength);
+}
+
+.card-leak h2 {
+    color: var(--accent-leak);
+}
+
+.card-action h2 {
+    color: var(--accent-color);
+}
+
+.card p {
+    color: var(--text-color);
+    font-size: 0.95rem;
+    white-space: pre-line;
+}
+
+.card ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.card-numbers li,
+.card-build li {
+    padding: 0.35rem 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    font-size: 0.95rem;
+}
+
+.card-numbers li:last-child,
+.card-build li:last-child {
+    border-bottom: none;
+}
+
+.card-chart {
+    padding: 0.5rem;
+    overflow: hidden;
+}
+
+.chart-img {
+    width: 100%;
+    height: auto;
+    display: block;
+    border-radius: 4px;
+}
+
+.card-not-found {
+    text-align: center;
+    padding: 3rem 1.5rem;
+}
+
+.card-not-found h1 {
+    color: var(--accent-color);
+    font-size: 1.75rem;
+    margin-bottom: 0.75rem;
+}
+
+.report-footer {
+    text-align: center;
+    padding-top: 1rem;
+    border-top: 1px solid var(--card-border);
+    color: var(--text-muted);
+    font-size: 0.85rem;
+}
+
+.analyzed-date {
+    margin-bottom: 0.25rem;
+}
+
+.brand-footer {
+    color: var(--text-muted);
+    font-weight: 500;
+}

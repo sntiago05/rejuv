@@ -22,9 +22,13 @@ import net.dv8tion.jda.api.interactions.commands.OptionType;
 import net.dv8tion.jda.api.interactions.commands.build.Commands;
 import net.dv8tion.jda.api.interactions.commands.build.OptionData;
 import net.dv8tion.jda.api.interactions.commands.build.SlashCommandData;
+import net.dv8tion.jda.api.interactions.components.buttons.Button;
+import net.dv8tion.jda.api.requests.restaction.WebhookMessageEditAction;
+import net.dv8tion.jda.api.entities.Message;
 import net.dv8tion.jda.api.utils.FileUpload;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.NoSuchMessageException;
 import org.springframework.stereotype.Component;
 import sntiago05.rejuv.clients.DeadlockApiUnavailableException;
@@ -41,6 +45,7 @@ import sntiago05.rejuv.services.ChartRenderer;
 import sntiago05.rejuv.services.GameAssets;
 import sntiago05.rejuv.services.HeroResolver;
 import sntiago05.rejuv.services.IconCatalog;
+import sntiago05.rejuv.config.WebProperties;
 import sntiago05.rejuv.services.MatchNotFoundException;
 import sntiago05.rejuv.services.MatchSearchService;
 import sntiago05.rejuv.services.Messages;
@@ -49,6 +54,7 @@ import sntiago05.rejuv.services.ProfileService;
 import sntiago05.rejuv.services.UsageLimitExceededException;
 
 @Component
+@EnableConfigurationProperties(WebProperties.class)
 public class AnalyzeCommand implements SlashCommand {
 
     static final int MAX_FIELD_LENGTH = 1024;
@@ -66,10 +72,13 @@ public class AnalyzeCommand implements SlashCommand {
     private final HeroResolver heroResolver;
     private final IconCatalog iconCatalog;
     private final ChartRenderer chartRenderer;
+    private final WebProperties webProperties;
 
+    @org.springframework.beans.factory.annotation.Autowired
     public AnalyzeCommand(AnalyzeService analyzeService, ProfileService profileService, Messages messages,
                           AssetImages assetImages, MatchSearchService matchSearchService, GameAssets gameAssets,
-                          HeroResolver heroResolver, IconCatalog iconCatalog, ChartRenderer chartRenderer) {
+                          HeroResolver heroResolver, IconCatalog iconCatalog, ChartRenderer chartRenderer,
+                          WebProperties webProperties) {
         this.analyzeService = analyzeService;
         this.profileService = profileService;
         this.messages = messages;
@@ -79,6 +88,14 @@ public class AnalyzeCommand implements SlashCommand {
         this.heroResolver = heroResolver;
         this.iconCatalog = iconCatalog;
         this.chartRenderer = chartRenderer;
+        this.webProperties = webProperties != null ? webProperties : new WebProperties(null);
+    }
+
+    public AnalyzeCommand(AnalyzeService analyzeService, ProfileService profileService, Messages messages,
+                          AssetImages assetImages, MatchSearchService matchSearchService, GameAssets gameAssets,
+                          HeroResolver heroResolver, IconCatalog iconCatalog, ChartRenderer chartRenderer) {
+        this(analyzeService, profileService, messages, assetImages, matchSearchService, gameAssets,
+                heroResolver, iconCatalog, chartRenderer, new WebProperties(null));
     }
 
     @Override
@@ -267,11 +284,19 @@ public class AnalyzeCommand implements SlashCommand {
                     ? chartRenderer.render(report.visuals().chart())
                     : Optional.empty();
             MessageEmbed embed = buildEmbed(report, chart.isPresent());
+            WebhookMessageEditAction<Message> action = hook.editOriginalEmbeds(embed);
             if (chart.isPresent()) {
-                hook.editOriginalEmbeds(embed).setFiles(List.of(FileUpload.fromData(chart.get(), CHART_FILE))).queue();
-            } else {
-                hook.editOriginalEmbeds(embed).queue();
+                action = action.setFiles(List.of(FileUpload.fromData(chart.get(), CHART_FILE)));
             }
+            if (webProperties != null && webProperties.enabled() && report.publicId() != null) {
+                String base = webProperties.baseUrl().trim();
+                while (base.endsWith("/")) {
+                    base = base.substring(0, base.length() - 1);
+                }
+                String url = base + "/r/" + report.publicId();
+                action = action.setActionRow(Button.link(url, messages.get("analyze.report_button")));
+            }
+            action.queue();
         } catch (UsageLimitExceededException ex) {
             String resetTimestamp = "<t:" + ex.resetsAt().getEpochSecond() + ":R>";
             hook.editOriginal(messages.get("analyze.limit_reached", ex.limit(), resetTimestamp)).queue();

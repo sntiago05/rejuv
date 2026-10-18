@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -103,7 +104,8 @@ public class AnalyzeService {
                 log.info("Analyze accountId={} matchId={} source=stored degraded=false inputTokens={} outputTokens={}",
                         accountId, match.matchId(), stored.getInputTokens(), stored.getOutputTokens());
                 return new AnalysisReport(match.heroId(), headerInput.hero(), headerInput.rank(), headerInput.result(),
-                        headerInput.durationMin(), analysis, Map.of(), false, storedVisuals(accountId, match.matchId()));
+                        headerInput.durationMin(), analysis, Map.of(), false, storedVisuals(accountId, match.matchId()),
+                        stored.getPublicId());
             } catch (Exception ex) {
                 log.warn("Corrupted match analysis JSON for accountId={} matchId={}", accountId, match.matchId());
                 repository.delete(stored);
@@ -151,7 +153,7 @@ public class AnalyzeService {
             log.info("Analyze accountId={} matchId={} source=fallback degraded={} inputTokens={} outputTokens={}",
                     accountId, match.matchId(), degraded, outcome.inputTokens(), outcome.outputTokens());
             return new AnalysisReport(match.heroId(), input.hero(), input.rank(), input.result(), input.durationMin(),
-                    null, input.metrics(), degraded, visuals(accountId, telemetry));
+                    null, input.metrics(), degraded, visuals(accountId, telemetry), null);
         }
 
         String json;
@@ -170,7 +172,7 @@ public class AnalyzeService {
                     accountId, match.matchId(), degraded, outcome.inputTokens(), outcome.outputTokens(),
                     estimatedCostUsd(outcome.inputTokens(), outcome.outputTokens()));
             return new AnalysisReport(match.heroId(), input.hero(), input.rank(), input.result(), input.durationMin(),
-                    outcome.result(), Map.of(), degraded, visuals(accountId, telemetry));
+                    outcome.result(), Map.of(), degraded, visuals(accountId, telemetry), entity.getPublicId());
         } catch (DataIntegrityViolationException ex) {
             Optional<MatchAnalysis> concurrent = repository.findByAccountIdAndMatchId(accountId, match.matchId());
             if (concurrent.isPresent()) {
@@ -179,13 +181,14 @@ public class AnalyzeService {
                     log.info("Analyze accountId={} matchId={} source=stored degraded=false inputTokens={} outputTokens={}",
                             accountId, match.matchId(), concurrent.get().getInputTokens(), concurrent.get().getOutputTokens());
                     return new AnalysisReport(match.heroId(), input.hero(), input.rank(), input.result(), input.durationMin(),
-                            concurrentResult, Map.of(), false, visuals(accountId, telemetry));
+                            concurrentResult, Map.of(), false, visuals(accountId, telemetry), concurrent.get().getPublicId());
                 } catch (Exception parseEx) {
                     log.warn("Corrupted concurrent match analysis JSON for accountId={} matchId={}", accountId, match.matchId());
                 }
             }
+            UUID publicId = concurrent.map(MatchAnalysis::getPublicId).orElseGet(entity::getPublicId);
             return new AnalysisReport(match.heroId(), input.hero(), input.rank(), input.result(), input.durationMin(),
-                    outcome.result(), Map.of(), degraded, visuals(accountId, telemetry));
+                    outcome.result(), Map.of(), degraded, visuals(accountId, telemetry), publicId);
         }
     }
 
