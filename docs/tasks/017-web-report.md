@@ -1,130 +1,104 @@
-# Task 017: Web server, public report page `/r/{publicId}` and "View full report" button
+# Task 017: Public web report page and "View full report" button
 
 - **Branch**: `feature/017-web-report`
-- **Implementer**: Claude Code (the plan assigns it; it changes the application type and adds dependencies)
-- **Related ADRs**: ADR-0012 (bot first, server-rendered report pages at `/r/{publicId}`), ADR-0001 (Spring Boot), ADR-0005 (Docker Compose deployment), ADR-0008 (English, i18n-ready). **This task needs a new ADR** (see Documentation).
+- **Implementer**: Antigravity
+- **Related ADRs**: ADR-0012 (web reports in week 2), new ADR-0018 (created by this task)
+- **Depends on**: 009, 019, 026 (merged). Merge **after task 029** if 029 is already on `main` (both edit `AnalyzeService`); otherwise merge `origin/main` into the branch before finishing.
 
 ## Goal
-Every stored AI analysis gets a public, non-guessable report page served by the same Spring Boot app, and the `/analyze` embed gets a link button "View full report" that opens it. The page is read-only, shows the same coaching content as the embed in a shareable layout, and exposes no Discord or account identifier.
-
-## Context (verified from the repository when this spec was written, 2026-10-17)
-Do not repeat this discovery. If a fact below is false in your checkout, stop and ask.
-
-- Plan: `docs/implementation-plan.md` task 017 depends on 009 (merged). **Merge order matters:** Task 025 changes `AnalyzeService.analyze` and Task 019 adds Flyway `V3`; start this branch from the latest `origin/main` **after 025 and 019 are merged**, and use `V4`. If they are not merged, stop and ask. Baseline: measure `./mvnw clean verify` before your first change.
-- The app is a non-web application today: `src/main/resources/application.yaml` has `spring.main.web-application-type: none`; `pom.xml` has no web or template starter (starters present: `spring-boot-starter`, data-jpa, flyway, validation, cache, restclient; Boot 4.1, Java 21).
-- `match_analysis` (V2): `id, account_id, match_id, hero_id, result_json, model, input_tokens, output_tokens, created_at`, unique `(account_id, match_id)`; entity `domain/MatchAnalysis`, `repositories/MatchAnalysisRepository`. `AnalysisResult` (strength, biggestLeak, nextGameAction, keyNumbers) is stored as JSON in `result_json`. `AnalysisReport(heroId, hero, rank, result, durationMin, analysis, metrics, degraded)` is what the command renders; only fresh, non-fallback AI analyses are stored. `LinkService.unlink` already deletes the stored analyses of an account that is no longer linked by anyone (so the page of an unlinked account disappears: keep that behavior).
-- `AnalyzeCommand` replies with `hook.editOriginalEmbeds(embed)`; no components are used anywhere yet. `commands/EmbedStyle` has the brand color `0xE5A93C`.
-- Rules from `AGENTS.md`: no JDA types in `services/`, no business logic in `commands/`, user-facing text in `messages.properties` (page texts too, see below), Flyway only for schema changes, no secrets in git. **New dependencies and an architecture change are authorized only by this spec.**
-
-## Step 0: verify (before writing code)
-1. Dependencies: with Boot 4.1 the web and template starter artifact ids may differ from Boot 3 (`spring-boot-starter-web` / `-thymeleaf`). Confirm the correct artifact ids in the Spring Boot 4.1 BOM or documentation, add them **without a version**, and record the ids and the resolved versions in the report. Use the **servlet** stack (Spring MVC) with Thymeleaf. If the template starter is not available for Boot 4.1, stop and ask (the alternative is plain HTML built in Java).
-2. JDA: confirm in JDA 5.6.1 (`javap`/sources) the API for a link button and for attaching it to an edit: `Button.link(String url, String label)`, `ActionRow.of(...)`, `WebhookMessageEditAction.setComponents(...)`/`setActionRow(...)`. Record the signatures in the report.
-3. Startup: after the change, `./mvnw clean verify` must still pass (every `@SpringBootTest` context now starts a web environment) and the bot must still start. Record memory use at idle if you can measure it (ADR-0012 asks to re-check limits).
+Every stored `/analyze` result gets a random, non-guessable public page `GET /r/{publicId}` rendered by the same Spring Boot app (Thymeleaf), and the `/analyze` embed gets a link button "View full report" that opens it. The page shows the same coaching text as the embed plus the final build and the existing soul chart. This task introduces the web server; HTTPS, the domain and the interactive soul curve are other tasks (018, 036).
 
 ## Files to create or modify
 | File | Change |
 |---|---|
-| `docs/adr/0017-web-report-pages.md` | **Create.** New ADR (authorized exception to "never edit ADRs": new file only). Use `docs/adr/0000-template.md`. |
-| `pom.xml` | **Modify.** Only the two starters from Step 0 (and nothing else). |
-| `src/main/resources/application.yaml` | **Modify.** `spring.main.web-application-type: servlet`, `server.port: ${PORT:8080}`, and a `rejuv.web` block (see signatures). Nothing else. |
-| `.env.example` | **Modify.** Add `REPORT_BASE_URL=` and `PORT=8080` (no real values). |
-| `src/main/resources/db/migration/V4__match_analysis_public_report.sql` | **Create.** |
-| `src/main/java/sntiago05/rejuv/domain/MatchAnalysis.java` | **Modify.** New fields and accessors for the new columns (see signatures). |
-| `src/main/java/sntiago05/rejuv/repositories/MatchAnalysisRepository.java` | **Modify.** Add `findByPublicId`. |
-| `src/main/java/sntiago05/rejuv/domain/AnalysisReport.java` | **Modify.** Add `String publicId` (null when the analysis is not stored). |
-| `src/main/java/sntiago05/rejuv/services/AnalyzeService.java` | **Modify.** Create the public id and the display columns when saving; return `publicId` in every `AnalysisReport`. Nothing else. |
-| `src/main/java/sntiago05/rejuv/config/WebProperties.java` | **Create.** Properties record. |
-| `src/main/java/sntiago05/rejuv/config/WebConfig.java` | **Create.** Registers `WebProperties`; security headers filter. |
-| `src/main/java/sntiago05/rejuv/services/ReportService.java` | **Create.** |
-| `src/main/java/sntiago05/rejuv/domain/ReportView.java` | **Create.** Record. |
-| `src/main/java/sntiago05/rejuv/web/ReportController.java` | **Create.** New package `web/` for HTTP endpoints (**architecture change, recorded in the ADR**; update nothing else in `docs/architecture.md`). |
-| `src/main/resources/templates/report.html` | **Create.** |
-| `src/main/resources/templates/report-not-found.html` | **Create.** |
-| `src/main/java/sntiago05/rejuv/commands/AnalyzeCommand.java` | **Modify.** Add the link button when a public id and a base URL exist. |
-| `src/main/resources/messages.properties` | **Modify.** Add the `report.*` block at the **end of the file** (page texts and button label). |
-| `src/test/java/sntiago05/rejuv/services/ReportServiceTest.java` | **Create.** |
-| `src/test/java/sntiago05/rejuv/web/ReportControllerTest.java` | **Create.** |
-| `src/test/java/sntiago05/rejuv/repositories/MatchAnalysisRepositoryTest.java` | **Modify.** Public id uniqueness and lookup. |
-| `src/test/java/sntiago05/rejuv/services/AnalyzeServiceTest.java` | **Modify.** `publicId` behavior. |
-| `src/test/java/sntiago05/rejuv/commands/AnalyzeCommandTest.java` | **Modify.** Button present or absent. |
-| `docs/task-reports/017-web-report.md` | **Create.** Task report (format of `docs/task-reports/014-heroes.md`). |
+| `pom.xml` | Add `spring-boot-starter-webmvc` and `spring-boot-starter-thymeleaf` (versions from the Boot BOM). **No other dependency.** |
+| `src/main/resources/application.yaml` | Web config, see Behavior 1. |
+| `.env.example` | Add `WEB_PORT=`, `WEB_BIND_ADDRESS=`, `WEB_BASE_URL=` (empty values, commented purpose). |
+| `src/main/resources/db/migration/V4__add_match_analysis_public_id.sql` | **New** migration. |
+| `domain/MatchAnalysis.java` | Modify: add `publicId` (`UUID`), getter. |
+| `repositories/MatchAnalysisRepository.java` | Modify: add `findByPublicId(UUID)`. |
+| `domain/AnalysisReport.java` | Modify: add last component `UUID publicId` (nullable); keep both existing constructors (publicId = `null`). |
+| `services/AnalyzeService.java` | Modify: fill `publicId` in the report at every construction site (stored row, fresh save, concurrent duplicate); `null` on the fallback outcome. Nothing else. |
+| `config/WebProperties.java` | **New.** `@ConfigurationProperties("rejuv.web")` record `WebProperties(String baseUrl)`; blank or null = web links disabled. |
+| `services/ReportService.java` | **New.** Builds a `domain/ReportView`. |
+| `domain/ReportView.java` | **New** record. |
+| `web/ReportController.java` | **New** package `web`. |
+| `commands/AnalyzeCommand.java` | Modify: add the link button (Behavior 5). |
+| `src/main/resources/messages.properties` | Add keys at the end (Behavior 6). |
+| `src/main/resources/templates/report.html`, `report-not-found.html` | **New** Thymeleaf templates. |
+| `src/main/resources/static/report.css` | **New**, small hand-written stylesheet (no CDN, no JavaScript). |
+| `docs/adr/0018-web-report-stack.md` | **New** ADR (template `0000-template.md`): Spring MVC + Thymeleaf in the same app, no frontend build, reverse proxy later; consequences (memory, port, public pages). |
+| Tests | **New**: `ReportServiceTest`, `ReportControllerTest`. Modify: `MatchAnalysisRepositoryTest`, `FlywayMigrationTest` (V4 expectations), `AnalyzeServiceTest`, `AnalyzeCommandTest`, `MessagesIntegrationTest` only if its key list must grow. If enabling the web environment breaks other existing tests (for example `RejuvApplicationTests`), change the minimum lines needed in them and list each in the report. |
+| `docs/task-reports/017-web-report.md` | **New.** Task report. |
 
-No Caddy, domain, TLS or Docker Compose change (Task 018). If you think another file is needed, stop and ask.
+Do not touch any other file. `docs/PROJECT_CONTEXT.md`: mark the update as pending integration.
 
 ## Interfaces / signatures
 
-### Migration `V4__match_analysis_public_report.sql`
-Add to `match_analysis`: `public_id varchar(32)`, `result varchar(8)`, `duration_min double precision`, `rank_label varchar(64)`. Backfill `public_id` for existing rows with a random 32-hex value (PostgreSQL 17: `replace(gen_random_uuid()::text, '-', '')`), then `alter ... set not null` and add a unique constraint `uq_match_analysis_public_id`. `result`, `duration_min` and `rank_label` stay nullable (old rows have none; the page omits what is missing). Never edit it after it is applied.
-
-### Public id
-128 bits from `java.security.SecureRandom`, rendered as 32 lowercase hex characters, generated in `AnalyzeService` when it saves a new row (a collision is practically impossible; the unique constraint is the safety net). The id never appears in logs at INFO next to an account or Discord id.
-
-### Properties
 ```java
-@ConfigurationProperties("rejuv.web")
-public record WebProperties(String baseUrl) { }   // rejuv.web.base-url: ${REPORT_BASE_URL:}
-```
-Blank base URL = feature off for the button (the page still works). A non-blank value must be an `https` URL (or `http://localhost...` for development) and is used without a trailing slash; reject anything else at startup with a clear message.
+// V4 (Flyway, never edit after merge). gen_random_uuid() is built in since PostgreSQL 13 (project uses 17).
+ALTER TABLE match_analysis ADD COLUMN public_id UUID NOT NULL DEFAULT gen_random_uuid();
+ALTER TABLE match_analysis ADD CONSTRAINT uq_match_analysis_public_id UNIQUE (public_id);
 
-### `services/ReportService` (new) and `domain/ReportView` (new)
-```java
-public record ReportView(String heroName, String result, Double durationMin, String rankLabel,
-                         Instant createdAt, AnalysisResult analysis) { }
-public Optional<ReportView> findByPublicId(String publicId)
-```
-`publicId` that is not exactly 32 lowercase hex characters returns empty **without touching the database**. Hero name comes from `GameAssets.heroNames()` (null-safe, falls back to `#<heroId>` text from the catalog). Unparseable `result_json` returns empty and logs WARN with the row id only.
+// domain/MatchAnalysis.java : @Column(name = "public_id", nullable = false, updatable = false) private UUID publicId;
+// set to UUID.randomUUID() in the public constructor (existing 8-argument signature unchanged); the protected JPA constructor leaves it to Hibernate.
+public UUID getPublicId()
 
-### `web/ReportController`
-`GET /r/{publicId}` -> HTML (`report.html`) with status 200, or `report-not-found.html` with status 404. No other route, no listing, no JSON API, no write endpoint. Responses carry `X-Robots-Tag: noindex, nofollow`, `Referrer-Policy: no-referrer`, `X-Content-Type-Options: nosniff` and a `Content-Security-Policy` that allows only same-origin and inline styles used by the template (no external scripts: the soul curve chart and any CDN script belong to Task 018).
+// repositories/MatchAnalysisRepository.java
+Optional<MatchAnalysis> findByPublicId(UUID publicId);
+
+// config/WebProperties.java
+@ConfigurationProperties("rejuv.web") public record WebProperties(String baseUrl) { public boolean enabled(); } // enabled = non-blank
+
+// domain/ReportView.java  (no account id, no Discord id, ever)
+public record ReportView(UUID publicId, long matchId, String hero, int heroId, String rank, String result,
+        Double durationMin, AnalysisResult analysis, List<MatchVisuals.PurchasedItem> build, boolean hasChart,
+        Instant analyzedAt) {}
+// hero: hero asset name or "hero_<id>"; rank / result / durationMin: null when unknown (see Behavior 3)
+
+// services/ReportService.java
+public Optional<ReportView> find(UUID publicId)            // empty = no such report; never throws for API failures
+public Optional<byte[]> chartPng(UUID publicId)            // empty = no report or no chart
+
+// web/ReportController.java
+@GetMapping("/r/{publicId}")            -> view "report" (HTTP 200) or "report-not-found" (HTTP 404)
+@GetMapping("/r/{publicId}/chart.png")  -> image/png (200) or 404 with an empty body
+```
 
 ## Behavior
-- Page: hero, result, duration, rank (when present), date (UTC), then `Key Strength`, `Biggest Leak`, `Next Game Action` and the key numbers, plus a footer stating it was generated by Rejuv from deadlock-api data. All text comes from `messages.properties` (`report.*`), all dynamic values are escaped by Thymeleaf (`th:text`, never `th:utext`). **No Discord id, account id, match id or username is rendered.** Responsive and readable on a phone, dark and light friendly, no external fonts or scripts.
-- `/analyze`: when the reply has a `publicId` **and** `WebProperties.baseUrl()` is not blank, attach one link button (label `report.button`, URL `<baseUrl>/r/<publicId>`) with `ActionRow`. Otherwise no components. Stored analyses reopened later get the same button (same public id). Degraded or fallback replies are not stored, so they have no button.
-- Unlinking deletes the stored analyses (existing behavior), so the page answers 404 afterwards. Add a test for that through the repository delete path or document in the report why it is covered.
-- Memory and startup: the app still starts the bot; the web server is the only new listener (`PORT`, default 8080); no public exposure is configured by this task.
 
-### User-facing text (English)
-`report.button`, `report.title`, `report.heading`, `report.field.strength`, `report.field.leak`, `report.field.next_action`, `report.field.key_numbers`, `report.meta`, `report.footer`, `report.not_found.title`, `report.not_found.body`. Templates read them through a `Messages`-backed model attribute or Spring's message source (use the existing message source, no second one).
-
-## Tests
-JUnit 5, AssertJ, Mockito; `@WebMvcTest` or `MockMvc` standalone for the controller.
-1. **`ReportServiceTest`:** valid id found; malformed id (wrong length, uppercase, non-hex, SQL characters, path traversal text) returns empty and **never** queries the repository; missing id empty; corrupt JSON empty; hero name fallback; nullable header fields.
-2. **`ReportControllerTest`:** 200 with the expected content for a known id; 404 page for unknown or malformed id; response headers (`X-Robots-Tag`, `Referrer-Policy`, `X-Content-Type-Options`, CSP); HTML escaping (a result text containing `<script>` is rendered inert); no account id, match id or Discord id appears in the body.
-3. **`MatchAnalysisRepositoryTest`:** `findByPublicId`; the unique constraint rejects a duplicate public id; a row without a public id is rejected (not null). The backfill of old rows is checked manually (see Verification) because the test database starts already migrated.
-4. **`AnalyzeServiceTest`:** a new analysis is saved with a 32-hex public id and the display columns; the same id is returned when the analysis is reopened; fallback and degraded replies have `publicId == null`.
-5. **`AnalyzeCommandTest`:** a button with the right URL when a public id and a base URL exist; none without the base URL; none without a public id.
-6. Context test: the application context starts in web mode (`@SpringBootTest` with the existing Testcontainers configuration) and the controller bean exists.
-
-## Verification
-1. Step 0 recorded in the report.
-2. `./mvnw clean verify` passes with Docker running (Windows: `.\mvnw.cmd clean verify`; see the `MAVEN_USER_HOME` note in `docs/PROJECT_CONTEXT.md`). Report the real test count against the baseline and that Flyway applied V4.
-3. `git diff --check`; the diff contains only the files in the table; `.env` never read or printed.
-4. Backfill check: against a local database already at V3 with at least one stored analysis (or one inserted by hand), start the app and confirm in `psql` that existing rows got distinct 32-hex `public_id` values.
-5. Manual check (needs the usual credentials and `REPORT_BASE_URL=http://localhost:8080`): `/analyze` shows the button, the link opens the page, an unknown id gives the 404 page, `/unlink` makes the page 404. If you do not run it, say so in the report.
-
-## Documentation
-- ADR `docs/adr/0017-web-report-pages.md`: decision (same app, servlet stack, Thymeleaf, `/r/{publicId}` with 128-bit ids, no listing, noindex), alternatives (separate frontend, Caddy-only static export), consequences (memory, public attack surface, privacy on unlink).
-- Task report `docs/task-reports/017-web-report.md`: status, Step 0 findings, summary, files, commands run with real results, deviations, known issues.
-- `docs/PROJECT_CONTEXT.md`: **do not edit in this branch** while other task branches are active; mark it "pending integration" and list the facts (V4, web mode, port, `rejuv.web.base-url`, public id rules, `web/` package, ADR-0017).
-- Do not edit other ADRs, `docs/mvp-spec.md`, `docs/implementation-plan.md` or other specs.
+1. **Web server.** `application.yaml`: remove `spring.main.web-application-type: none`; set `server.port: ${WEB_PORT:8080}`, `server.address: ${WEB_BIND_ADDRESS:127.0.0.1}` (loopback by default; a reverse proxy publishes it later), `rejuv.web.base-url: ${WEB_BASE_URL:}`, `server.error.include-stacktrace: never`, `spring.thymeleaf.cache: true`. The bot must still start and answer commands exactly as before; the web server is additive.
+2. **Public id.** V4 backfills every existing row with a random UUID through the column default. New rows get `UUID.randomUUID()` from the entity (122 random bits, not enumerable). `/unlink` already deletes analyses of unlinked accounts, so their pages disappear automatically (state this in the report; add no code).
+3. **`ReportService.find`.** Loads the row by `publicId`; parses `result_json` into `AnalysisResult` (a corrupted row = empty, WARN log with the public id only). Hero name from the cached assets (`GameAssets`/`DeadlockApiClient.getHeroes`, same helper style as the rest of the services). Then one cached read `matchMetadataSource.getMatch(matchId)`; any `RuntimeException` is caught (one WARN with the exception class) and the page degrades: `durationMin = null`, `build = []`, `hasChart = false`. With telemetry: `durationMin = telemetry.durationS() / 60.0` rounded to one decimal; `build` and `hasChart` from `MatchVisualsService.build(accountId, telemetry)`. `rank` and `result` are **not stored** and are not recomputed in this task: they are `null` and the template omits them. The service performs no AI call, records no usage and never calls the usage limit code.
+4. **`ReportService.chartPng`** renders the chart with the existing `ChartRenderer.render(ChartData)`; a render failure is empty (404).
+5. **Button in `/analyze`.** In `AnalyzeCommand.answer`, when `WebProperties.enabled()` and `report.publicId() != null`, attach a link button to the reply (both the branch with the chart attachment and the one without): URL = `baseUrl` without trailing `/` + `/r/` + publicId, label `analyze.report_button`. When web links are disabled, the reply is exactly what it is today. No other change to the embed.
+6. **Controller / template rules.**
+   - `publicId` that is not a valid UUID, or unknown: HTTP 404 using `report-not-found` (no echo of the input, no stack trace).
+   - All text through `th:text` / `#{...}` (auto-escaped). `th:utext` is forbidden. All static text comes from `messages.properties` keys `report.*` through Thymeleaf message expressions; no hardcoded user-facing text in templates.
+   - The page shows: hero and match id; the three coaching sections (strength, biggest leak, do this next game) and key numbers, in the same order as the embed; the final build list (item name and minute bought) when present; the chart `<img src="/r/{publicId}/chart.png">` when `hasChart`; the analysis date; a short footer. It must read well on a phone (viewport meta, single column).
+   - Response headers on both routes: `X-Robots-Tag: noindex, nofollow`; `Content-Security-Policy: default-src 'none'; img-src 'self'; style-src 'self'; base-uri 'none'; frame-ancestors 'none'`; `Referrer-Policy: no-referrer`; `X-Content-Type-Options: nosniff`; `Cache-Control: private, max-age=300`. The HTML also has `<meta name="robots" content="noindex,nofollow">`.
+   - No JavaScript, no external fonts, scripts or CDNs.
+7. **Messages (exact keys, English).** `analyze.report_button` ("View full report"), `report.title` (page title with hero), `report.strength`, `report.leak`, `report.next_action`, `report.key_numbers`, `report.build`, `report.build_item` (`{0}` at minute `{1}`), `report.match` (`Match {0}`), `report.analyzed_on`, `report.degraded` (details unavailable), `report.footer`, `report.not_found.title`, `report.not_found.body`. Pass `MessagesIntegrationTest` (key format rules) unchanged in spirit.
 
 ## Out of scope
-- Domain, Caddy, TLS and compose changes, the soul curve chart and any external script (Task 018); premium-only content; a public index of reports; user accounts, login or deletion from the page; sharing metadata images; Open Graph previews; rate limiting (note the risk in the report).
-- Changing the prompt, the AI client or what the analysis contains.
+HTTPS, Caddy, domain, DNS (task 036 prepares the container, a later deploy step does the rest); interactive/JS charts and the soul curve vs average (task 018); storing rank, result or the AI input; authentication, accounts, deleting a single report, listing reports, sitemap; open-graph previews; any change to the AI prompt or `AnalysisResult`; rate limiting beyond the existing caches; coach sections from tasks 031-037.
+
+## Tests
+- `FlywayMigrationTest` / `MatchAnalysisRepositoryTest` (Testcontainers, PostgreSQL 17): V4 applies; a row inserted by plain SQL without `public_id` gets a non-null UUID; two rows get different UUIDs; `findByPublicId` finds the saved entity and returns empty for an unknown id; the public constructor sets a non-null `publicId`; the unique constraint rejects a duplicate.
+- `ReportServiceTest` (mocks): unknown id empty; corrupted JSON empty; full view with telemetry (duration rounded, build and `hasChart`); `getMatch` throwing `DeadlockApiUnavailableException` and `MatchMetadataNotFoundException` degrades without throwing; no AI client or usage service is called (verify no interaction); hero fallback `hero_<id>`.
+- `ReportControllerTest` (MockMvc with the Spring context, mocked `ReportService`): 200 HTML with the strength text; HTML special characters in the analysis text are escaped (use `<script>` in the text); 404 for a malformed id and for an unknown id (both render `report-not-found`, neither echoes the input); `chart.png` returns `image/png` bytes and 404 when empty; all security headers present on both routes; page contains no `<script`.
+- `AnalyzeServiceTest`: stored path, fresh path and concurrent-duplicate path return the row's `publicId`; the fallback outcome returns `null`.
+- `AnalyzeCommandTest`: with web enabled and a non-null `publicId` the reply has exactly one link button whose URL is `baseUrl/r/<id>` (also when `baseUrl` ends with `/`); with `baseUrl` blank, or `publicId == null`, there is no component; `analyze.report_button` resolves.
+
+## Verification
+`./mvnw clean verify` (on this machine `.\mvnw.cmd clean verify`, Docker running). Manual check (owner or implementer if a bot token is available; otherwise say it was not run): start Postgres and the bot with `WEB_BASE_URL=http://localhost:8080`, run `/analyze`, click the button, open the page on desktop and in a narrow browser window; open `/r/not-a-uuid` and `/r/<random uuid>` and confirm 404. Record what was actually run.
 
 ## Acceptance criteria
-- [ ] The two starters are added without versions and the app still starts the bot and passes the whole suite
-- [ ] `/r/{publicId}` serves a stored analysis and returns a 404 page for unknown or malformed ids without a database query for malformed ones
-- [ ] The page exposes no Discord id, account id, match id or username, escapes every dynamic value, sends the security headers and works without any external script
-- [ ] The button appears only when a public id and a valid `REPORT_BASE_URL` exist
-- [ ] Unlinking removes the reports (404)
-- [ ] V4 applies, backfills public ids and never edits V1 to V3
-- [ ] ADR-0017 created; no other ADR edited
-- [ ] All user-facing text (page and button) is in `messages.properties`
-- [ ] `./mvnw clean verify` passes; test count and baseline difference are in the report
-- [ ] Task report created; `docs/PROJECT_CONTEXT.md` update marked pending integration; final diff has no unrelated files
-
-## Decisions and open questions
-Decisions taken in this spec: ids are 128-bit random hex; the page shows only what is stored (strength, leak, action, key numbers and the header fields), not the full metric table; the web server runs on `PORT` (default 8080) and exposure is left to Task 018.
-
-Open for the owner (not blocking): whether stored reports should expire after N days (privacy and storage); whether to persist the metric table so the page can show more than the embed; the domain name (Task 018).
+- [ ] Compiles, all tests pass, counts recorded in the report
+- [ ] `GET /r/{publicId}` works, escapes all dynamic text and sends the required headers
+- [ ] The `/analyze` reply is unchanged when web links are disabled
+- [ ] V4 applies on a database that already has rows; no applied migration edited
+- [ ] No page or log line exposes account ids or Discord ids; `.env` never read or committed
+- [ ] Only the two web dependencies added; ADR-0018 written; no other file changed
+- [ ] Task report created; `docs/PROJECT_CONTEXT.md` update marked pending integration
+- [ ] Follows AGENTS.md conventions
