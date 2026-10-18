@@ -10,7 +10,23 @@ public record AnalysisInput(String hero, String rank, String result,
                             @JsonProperty("duration_min") double durationMin,
                             Map<String, MetricComparison> metrics,
                             List<ItemTiming> items,
-                            String language) {
+                            String language,
+                            @JsonInclude(JsonInclude.Include.NON_EMPTY)
+                            Map<String, Object> coach) {
+
+    public AnalysisInput(String hero, String rank, String result, double durationMin,
+                         Map<String, MetricComparison> metrics, List<ItemTiming> items, String language) {
+        this(hero, rank, result, durationMin, metrics, items, language, Map.of());
+    }
+
+    public AnalysisInput {
+        coach = coach == null ? Map.of() : Map.copyOf(coach);
+    }
+
+    public AnalysisInput withCoach(Map<String, Object> coach) {
+        return new AnalysisInput(hero, rank, result, durationMin, metrics, items, language,
+                coach == null ? Map.of() : Map.copyOf(coach));
+    }
 
     /** p25/p50/p75 are null when no benchmark exists for the metric. */
     @JsonInclude(JsonInclude.Include.NON_NULL)
