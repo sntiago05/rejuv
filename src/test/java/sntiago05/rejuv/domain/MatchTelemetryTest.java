@@ -22,6 +22,18 @@ class MatchTelemetryTest {
     }
 
     @Test
+    void playerBySlotFindsPlayerAndSkipsNullSlots() {
+        PlayerTelemetry p1 = new PlayerTelemetry(1000001L, 1, 1, List.of(), List.of(), List.of(), 2, 1, List.of());
+        PlayerTelemetry p2 = new PlayerTelemetry(1000002L, 0, 13, List.of(), List.of(), List.of(), null, 2, List.of());
+        PlayerTelemetry p3 = new PlayerTelemetry(1000003L, 0, 25, List.of(), List.of(), List.of(), 5, 3, List.of());
+        MatchTelemetry match = new MatchTelemetry(900000003L, 1952, List.of(p1, p2, p3));
+
+        assertThat(match.playerBySlot(2)).contains(p1);
+        assertThat(match.playerBySlot(5)).contains(p3);
+        assertThat(match.playerBySlot(8)).isEmpty(); // not found
+    }
+
+    @Test
     void listsAreImmutableCopies() {
         List<Integer> pickupTimes = new ArrayList<>(List.of(100, 200));
         PowerUpBuff buff = new PowerUpBuff("spirit", true, pickupTimes);

@@ -29,10 +29,12 @@ import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
 import sntiago05.rejuv.config.DeadlockApiConfig;
 import sntiago05.rejuv.config.DeadlockApiProperties;
+import sntiago05.rejuv.domain.DeathEvent;
 import sntiago05.rejuv.domain.ItemPurchase;
 import sntiago05.rejuv.domain.MatchTelemetry;
 import sntiago05.rejuv.domain.PlayerTelemetry;
 import sntiago05.rejuv.domain.PowerUpBuff;
+import sntiago05.rejuv.domain.SnapshotDetail;
 import sntiago05.rejuv.domain.StatSnapshot;
 
 class JsonMatchMetadataSourceTest {
@@ -102,6 +104,10 @@ class JsonMatchMetadataSourceTest {
                 new ItemPurchase(3612874202L, 400, null));
     }
 
+    private static SnapshotDetail snapshotDetailWithCreeps(int creepKills) {
+        return new SnapshotDetail(0, 0, 0, creepKills, 0, 0, 0, 0, 0L, 0L, 0L, 0L, 0L);
+    }
+
     @Test
     void mapsSnapshotsSortedIncludingFinal() {
         server.expect(once(), requestTo(METADATA_URL))
@@ -111,15 +117,58 @@ class JsonMatchMetadataSourceTest {
         PlayerTelemetry p1 = telemetry.players().get(0);
 
         assertThat(p1.snapshots()).containsExactly(
-                new StatSnapshot(180, 1500L, 500L, 0L),
-                new StatSnapshot(360, 3200L, 1200L, 100L),
-                new StatSnapshot(540, 5100L, 2200L, 200L),
-                new StatSnapshot(720, 7500L, 3800L, 300L),
-                new StatSnapshot(900, 10200L, 5500L, 450L),
-                new StatSnapshot(1200, 14000L, 8000L, 700L),
-                new StatSnapshot(1500, 18500L, 12000L, 950L),
-                new StatSnapshot(1800, 23000L, 16500L, 1200L),
-                new StatSnapshot(1952, 26000L, 19500L, 1500L));
+                new StatSnapshot(180, 1500L, 500L, 0L, snapshotDetailWithCreeps(12)),
+                new StatSnapshot(360, 3200L, 1200L, 100L, snapshotDetailWithCreeps(25)),
+                new StatSnapshot(540, 5100L, 2200L, 200L, snapshotDetailWithCreeps(40)),
+                new StatSnapshot(720, 7500L, 3800L, 300L, snapshotDetailWithCreeps(55)),
+                new StatSnapshot(900, 10200L, 5500L, 450L, snapshotDetailWithCreeps(70)),
+                new StatSnapshot(1200, 14000L, 8000L, 700L, snapshotDetailWithCreeps(90)),
+                new StatSnapshot(1500, 18500L, 12000L, 950L, snapshotDetailWithCreeps(115)),
+                new StatSnapshot(1800, 23000L, 16500L, 1200L, snapshotDetailWithCreeps(140)),
+                new StatSnapshot(1952, 26000L, 19500L, 1500L, snapshotDetailWithCreeps(155)));
+        assertThat(p1.playerSlot()).isNull();
+        assertThat(p1.assignedLane()).isNull();
+        assertThat(p1.deaths()).isEmpty();
+    }
+
+    @Test
+    void mapsCoachFixtureWithRichTelemetry() {
+        server.expect(once(), requestTo(METADATA_URL))
+                .andRespond(withSuccess(fixture("match-metadata-coach.json"), MediaType.APPLICATION_JSON));
+
+        MatchTelemetry telemetry = source.getMatch(MATCH_ID);
+        assertThat(telemetry.players()).hasSize(3);
+
+        PlayerTelemetry p1 = telemetry.players().get(0);
+        assertThat(p1.accountId()).isEqualTo(1000001L);
+        assertThat(p1.playerSlot()).isEqualTo(2);
+        assertThat(p1.assignedLane()).isEqualTo(3);
+        // deaths out of order in JSON (500s then 250s) are sorted ascending
+        assertThat(p1.deaths()).containsExactly(
+                new DeathEvent(250, 6, 10.0, 15),
+                new DeathEvent(500, 8, 15.5, 25));
+        assertThat(p1.snapshots()).containsExactly(
+                new StatSnapshot(180, 1500L, 500L, 0L,
+                        new SnapshotDetail(1, 0, 2, 20, 25, 100, 20, 3, 800L, 1200L, 300L, 150L, 0L)));
+
+        PlayerTelemetry p2 = telemetry.players().get(1);
+        assertThat(p2.accountId()).isEqualTo(1000002L);
+        assertThat(p2.playerSlot()).isEqualTo(8);
+        assertThat(p2.assignedLane()).isNull(); // absent lane = null
+        assertThat(p2.deaths()).isEmpty(); // death_details absent = empty
+        // missing detail fields default to 0
+        assertThat(p2.snapshots()).containsExactly(
+                new StatSnapshot(180, 1200L, 300L, 50L,
+                        new SnapshotDetail(0, 0, 0, 0, 0, 0, 0, 0, 0L, 0L, 0L, 0L, 0L)));
+
+        PlayerTelemetry p3 = telemetry.players().get(2);
+        assertThat(p3.accountId()).isEqualTo(1000003L);
+        assertThat(p3.playerSlot()).isNull();
+        assertThat(p3.assignedLane()).isEqualTo(1);
+        assertThat(p3.deaths()).isEmpty(); // empty death_details
+        assertThat(p3.snapshots()).containsExactly(
+                new StatSnapshot(180, 1100L, 200L, 0L,
+                        new SnapshotDetail(4, 0, 0, 0, 0, 0, 0, 0, 0L, 0L, 0L, 0L, 0L)));
     }
 
     @Test

@@ -9,10 +9,12 @@ import org.springframework.web.client.RestClient;
 import sntiago05.rejuv.clients.DeadlockApiRequests.BodyReader;
 import sntiago05.rejuv.clients.dto.MatchMetadataResponse;
 import sntiago05.rejuv.config.DeadlockApiProperties;
+import sntiago05.rejuv.domain.DeathEvent;
 import sntiago05.rejuv.domain.ItemPurchase;
 import sntiago05.rejuv.domain.MatchTelemetry;
 import sntiago05.rejuv.domain.PlayerTelemetry;
 import sntiago05.rejuv.domain.PowerUpBuff;
+import sntiago05.rejuv.domain.SnapshotDetail;
 import sntiago05.rejuv.domain.StatSnapshot;
 
 /**
@@ -83,8 +85,32 @@ public class JsonMatchMetadataSource implements MatchMetadataSource {
                         required(stat.timeStampS(), "time_stamp_s"),
                         required(stat.netWorth(), "net_worth"),
                         required(stat.playerDamage(), "player_damage"),
-                        required(stat.playerHealing(), "player_healing")))
+                        required(stat.playerHealing(), "player_healing"),
+                        new SnapshotDetail(
+                                zeroIfNull(stat.kills()),
+                                zeroIfNull(stat.deaths()),
+                                zeroIfNull(stat.assists()),
+                                zeroIfNull(stat.creepKills()),
+                                zeroIfNull(stat.possibleCreeps()),
+                                zeroIfNull(stat.shotsHit()),
+                                zeroIfNull(stat.shotsMissed()),
+                                zeroIfNull(stat.denies()),
+                                zeroIfNull(stat.playerDamageTaken()),
+                                zeroIfNull(stat.goldLaneCreep()),
+                                zeroIfNull(stat.goldNeutralCreep()),
+                                zeroIfNull(stat.goldDenied()),
+                                zeroIfNull(stat.goldDeathLoss()))))
                 .sorted(Comparator.comparingInt(StatSnapshot::timeS))
+                .toList();
+
+        List<DeathEvent> deaths = player.deathDetails() == null ? List.of() : player.deathDetails().stream()
+                .map(death -> required(death, "death_details[]"))
+                .map(death -> new DeathEvent(
+                        required(death.gameTimeS(), "death_details[].game_time_s"),
+                        death.killerPlayerSlot(),
+                        death.timeToKillS(),
+                        death.deathDurationS() != null ? death.deathDurationS() : 0))
+                .sorted(Comparator.comparingInt(DeathEvent::gameTimeS))
                 .toList();
 
         List<PowerUpBuff> buffs = player.powerUpBuffs() == null ? List.of() : player.powerUpBuffs().stream()
@@ -97,7 +123,16 @@ public class JsonMatchMetadataSource implements MatchMetadataSource {
                 })
                 .toList();
 
-        return new PlayerTelemetry(accountId, team, heroId, items, snapshots, buffs);
+        return new PlayerTelemetry(accountId, team, heroId, items, snapshots, buffs,
+                player.playerSlot(), player.assignedLane(), deaths);
+    }
+
+    private static int zeroIfNull(Integer value) {
+        return value != null ? value : 0;
+    }
+
+    private static long zeroIfNull(Long value) {
+        return value != null ? value : 0L;
     }
 
     private static <T> T required(T value, String field) {

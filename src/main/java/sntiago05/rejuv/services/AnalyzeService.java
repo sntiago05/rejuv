@@ -31,6 +31,7 @@ import sntiago05.rejuv.domain.MatchFilter;
 import sntiago05.rejuv.domain.MatchRank;
 import sntiago05.rejuv.domain.MatchTelemetry;
 import sntiago05.rejuv.domain.MatchVisuals;
+import sntiago05.rejuv.domain.PlayerTelemetry;
 import sntiago05.rejuv.repositories.MatchAnalysisRepository;
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.json.JsonMapper;
@@ -50,6 +51,7 @@ public class AnalyzeService {
     private final AnthropicPricingProperties pricingProperties;
     private final UsageService usageService;
     private final MatchVisualsService visualsService;
+    private final CoachContextService coachContextService;
 
     public AnalyzeService(DeadlockApiClient deadlockApiClient,
                           MatchMetadataSource matchMetadataSource,
@@ -59,7 +61,8 @@ public class AnalyzeService {
                           MatchSearchService matchSearchService,
                           AnthropicPricingProperties pricingProperties,
                           UsageService usageService,
-                          MatchVisualsService visualsService) {
+                          MatchVisualsService visualsService,
+                          CoachContextService coachContextService) {
         this.deadlockApiClient = deadlockApiClient;
         this.matchMetadataSource = matchMetadataSource;
         this.metricsService = metricsService;
@@ -69,6 +72,7 @@ public class AnalyzeService {
         this.pricingProperties = pricingProperties;
         this.usageService = usageService;
         this.visualsService = visualsService;
+        this.coachContextService = coachContextService;
     }
 
     /**
@@ -145,6 +149,14 @@ public class AnalyzeService {
 
         AnalysisInput input = metricsService.buildInput(new MetricsRequest(
                 accountId, match, telemetry, rank.orElse(null), benchmarks, itemStats, items, heroes, ranks));
+
+        PlayerTelemetry player = telemetry != null ? telemetry.player(accountId).orElse(null) : null;
+        Integer rankTier = rank.map(MatchRank::tier).orElse(null);
+        List<MatchHistoryEntry> history = deadlockApiClient.getMatchHistory(accountId);
+        CoachRequest coachRequest = new CoachRequest(
+                accountId, match, history, telemetry, player, rankTier, heroes, items);
+        input = input.withCoach(coachContextService.build(coachRequest));
+
         AnalysisOutcome outcome = analysisClient.analyze(input);
 
         if (outcome.isFallback()) {
