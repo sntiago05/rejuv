@@ -14,6 +14,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -56,6 +57,7 @@ import sntiago05.rejuv.services.Messages;
 import sntiago05.rejuv.services.MessagesFixture;
 import sntiago05.rejuv.services.NoMatchHistoryException;
 import sntiago05.rejuv.services.ProfileService;
+import sntiago05.rejuv.services.UsageLimitExceededException;
 
 class AnalyzeCommandTest {
 
@@ -133,7 +135,7 @@ class AnalyzeCommandTest {
         verify(reply).queue();
         verify(event, never()).deferReply();
         verify(event, never()).deferReply(anyBoolean());
-        verify(analyzeService, never()).analyze(anyLong(), any());
+        verify(analyzeService, never()).analyze(anyLong(), anyLong(), any());
     }
 
     @Test
@@ -146,7 +148,7 @@ class AnalyzeCommandTest {
         AnalysisResult aiResult = new AnalysisResult(
                 "Great farming", "Too many deaths", "Ward more", List.of("10 kills", "20k souls"));
         AnalysisReport report = new AnalysisReport(1, "Infernus", "Archon 3", "win", 30.0, aiResult, Map.of(), false);
-        when(analyzeService.analyze(eq(ACCOUNT_ID), any())).thenReturn(report);
+        when(analyzeService.analyze(eq(CALLER_ID), eq(ACCOUNT_ID), any())).thenReturn(report);
         when(assetImages.heroCardUrl(1)).thenReturn(Optional.of("https://assets-bucket.deadlock-api.com/hero.png"));
 
         command.handle(event);
@@ -179,7 +181,7 @@ class AnalyzeCommandTest {
 
         AnalysisResult aiResult = new AnalysisResult("Strength", "Leak", "Action", List.of());
         AnalysisReport report = new AnalysisReport(1, "Infernus", "Archon 3", "win", 30.0, aiResult, Map.of(), true);
-        when(analyzeService.analyze(eq(ACCOUNT_ID), any())).thenReturn(report);
+        when(analyzeService.analyze(eq(CALLER_ID), eq(ACCOUNT_ID), any())).thenReturn(report);
 
         command.handle(event);
 
@@ -202,7 +204,7 @@ class AnalyzeCommandTest {
         metrics.put("player_damage_per_min", new MetricComparison(1200.0, null, null, null));
 
         AnalysisReport report = new AnalysisReport(1, "Infernus", "Archon 3", "loss", 25.4, null, metrics, false);
-        when(analyzeService.analyze(eq(ACCOUNT_ID), any())).thenReturn(report);
+        when(analyzeService.analyze(eq(CALLER_ID), eq(ACCOUNT_ID), any())).thenReturn(report);
 
         command.handle(event);
 
@@ -229,7 +231,7 @@ class AnalyzeCommandTest {
         Map<String, MetricComparison> metrics = Map.of(
                 "kills", new MetricComparison(10.0, null, null, null));
         AnalysisReport report = new AnalysisReport(1, "Infernus", "Archon 3", "win", 30.0, null, metrics, true);
-        when(analyzeService.analyze(eq(ACCOUNT_ID), any())).thenReturn(report);
+        when(analyzeService.analyze(eq(CALLER_ID), eq(ACCOUNT_ID), any())).thenReturn(report);
 
         command.handle(event);
 
@@ -248,7 +250,7 @@ class AnalyzeCommandTest {
 
         AnalysisResult aiResult = new AnalysisResult("Strength", "Leak", "Action", List.of("1"));
         AnalysisReport report = new AnalysisReport(1, "Infernus", null, "win", 30.0, aiResult, Map.of(), false);
-        when(analyzeService.analyze(eq(ACCOUNT_ID), any())).thenReturn(report);
+        when(analyzeService.analyze(eq(CALLER_ID), eq(ACCOUNT_ID), any())).thenReturn(report);
 
         command.handle(event);
 
@@ -267,7 +269,7 @@ class AnalyzeCommandTest {
         String longField = "word ".repeat(600); // 3000 chars
         AnalysisResult aiResult = new AnalysisResult(longField, "Leak", "Action", List.of());
         AnalysisReport report = new AnalysisReport(1, "Infernus", "Archon 3", "win", 30.0, aiResult, Map.of(), false);
-        when(analyzeService.analyze(eq(ACCOUNT_ID), any())).thenReturn(report);
+        when(analyzeService.analyze(eq(CALLER_ID), eq(ACCOUNT_ID), any())).thenReturn(report);
 
         command.handle(event);
 
@@ -283,7 +285,7 @@ class AnalyzeCommandTest {
         when(profileService.findLinkedAccountId(CALLER_ID)).thenReturn(OptionalLong.of(ACCOUNT_ID));
         deferFor(event);
         InteractionHook hook = hookFor(event);
-        when(analyzeService.analyze(eq(ACCOUNT_ID), any())).thenThrow(new NoMatchHistoryException(ACCOUNT_ID));
+        when(analyzeService.analyze(eq(CALLER_ID), eq(ACCOUNT_ID), any())).thenThrow(new NoMatchHistoryException(ACCOUNT_ID));
 
         command.handle(event);
 
@@ -298,7 +300,7 @@ class AnalyzeCommandTest {
         when(profileService.findLinkedAccountId(CALLER_ID)).thenReturn(OptionalLong.of(ACCOUNT_ID));
         deferFor(event);
         InteractionHook hook = hookFor(event);
-        when(analyzeService.analyze(eq(ACCOUNT_ID), any())).thenThrow(new DeadlockApiUnavailableException("busy", null, null));
+        when(analyzeService.analyze(eq(CALLER_ID), eq(ACCOUNT_ID), any())).thenThrow(new DeadlockApiUnavailableException("busy", null, null));
 
         command.handle(event);
 
@@ -313,7 +315,7 @@ class AnalyzeCommandTest {
         when(profileService.findLinkedAccountId(CALLER_ID)).thenReturn(OptionalLong.of(ACCOUNT_ID));
         deferFor(event);
         InteractionHook hook = hookFor(event);
-        when(analyzeService.analyze(eq(ACCOUNT_ID), any())).thenThrow(new IllegalStateException("boom"));
+        when(analyzeService.analyze(eq(CALLER_ID), eq(ACCOUNT_ID), any())).thenThrow(new IllegalStateException("boom"));
 
         assertThatCode(() -> command.handle(event)).doesNotThrowAnyException();
 
@@ -339,12 +341,12 @@ class AnalyzeCommandTest {
 
         AnalysisResult aiResult = new AnalysisResult("Strength", "Leak", "Action", List.of());
         AnalysisReport report = new AnalysisReport(1, "Infernus", "Archon 3", "win", 30.0, aiResult, Map.of(), false);
-        when(analyzeService.analyze(eq(ACCOUNT_ID), any())).thenReturn(report);
+        when(analyzeService.analyze(eq(CALLER_ID), eq(ACCOUNT_ID), any())).thenReturn(report);
 
         command.handle(event);
 
         ArgumentCaptor<MatchFilter> filterCaptor = ArgumentCaptor.forClass(MatchFilter.class);
-        verify(analyzeService).analyze(eq(ACCOUNT_ID), filterCaptor.capture());
+        verify(analyzeService).analyze(eq(CALLER_ID), eq(ACCOUNT_ID), filterCaptor.capture());
         MatchFilter usedFilter = filterCaptor.getValue();
         assertThat(usedFilter.matchId()).isEqualTo(900000005L);
         assertThat(usedFilter.heroId()).isNull();
@@ -369,12 +371,12 @@ class AnalyzeCommandTest {
 
         AnalysisResult aiResult = new AnalysisResult("Strength", "Leak", "Action", List.of());
         AnalysisReport report = new AnalysisReport(1, "Infernus", "Archon 3", "win", 30.0, aiResult, Map.of(), false);
-        when(analyzeService.analyze(eq(ACCOUNT_ID), any())).thenReturn(report);
+        when(analyzeService.analyze(eq(CALLER_ID), eq(ACCOUNT_ID), any())).thenReturn(report);
 
         command.handle(event);
 
         ArgumentCaptor<MatchFilter> filterCaptor = ArgumentCaptor.forClass(MatchFilter.class);
-        verify(analyzeService).analyze(eq(ACCOUNT_ID), filterCaptor.capture());
+        verify(analyzeService).analyze(eq(CALLER_ID), eq(ACCOUNT_ID), filterCaptor.capture());
         MatchFilter usedFilter = filterCaptor.getValue();
         assertThat(usedFilter.matchId()).isNull();
         assertThat(usedFilter.heroId()).isEqualTo(1);
@@ -401,7 +403,7 @@ class AnalyzeCommandTest {
         verify(reply).setEphemeral(true);
         verify(reply).queue();
         verify(event, never()).deferReply();
-        verify(analyzeService, never()).analyze(anyLong(), any());
+        verify(analyzeService, never()).analyze(anyLong(), anyLong(), any());
     }
 
     @Test
@@ -410,7 +412,7 @@ class AnalyzeCommandTest {
         when(profileService.findLinkedAccountId(CALLER_ID)).thenReturn(OptionalLong.of(ACCOUNT_ID));
         deferFor(event);
         InteractionHook hook = hookFor(event);
-        when(analyzeService.analyze(eq(ACCOUNT_ID), any())).thenThrow(new MatchNotFoundException("Not found"));
+        when(analyzeService.analyze(eq(CALLER_ID), eq(ACCOUNT_ID), any())).thenThrow(new MatchNotFoundException("Not found"));
 
         command.handle(event);
 
@@ -572,7 +574,25 @@ class AnalyzeCommandTest {
 
         command.autocomplete(event);
 
-        verify(analyzeService, never()).analyze(anyLong(), any());
+        verify(analyzeService, never()).analyze(anyLong(), anyLong(), any());
+    }
+
+    @Test
+    void usageLimitExceededExceptionEditsOriginalWithLimitReachedMessage() {
+        SlashCommandInteractionEvent event = mockEvent();
+        when(profileService.findLinkedAccountId(CALLER_ID)).thenReturn(OptionalLong.of(ACCOUNT_ID));
+        deferFor(event);
+        InteractionHook hook = hookFor(event);
+
+        Instant resetTime = Instant.parse("2026-10-26T00:00:00Z");
+        when(analyzeService.analyze(eq(CALLER_ID), eq(ACCOUNT_ID), any()))
+                .thenThrow(new UsageLimitExceededException(resetTime, 3));
+
+        command.handle(event);
+
+        ArgumentCaptor<String> captor = ArgumentCaptor.forClass(String.class);
+        verify(hook).editOriginal(captor.capture());
+        assertThat(captor.getValue()).isEqualTo(messages.get("analyze.limit_reached", 3, "<t:" + resetTime.getEpochSecond() + ":R>"));
     }
 
     @Test
@@ -613,7 +633,8 @@ class AnalyzeCommandTest {
                 "analyze.result.choice.loss",
                 "analyze.hero_not_found",
                 "analyze.match_not_found",
-                "analyze.autocomplete.match"
+                "analyze.autocomplete.match",
+                "analyze.limit_reached"
         );
 
         for (String key : requiredKeys) {
