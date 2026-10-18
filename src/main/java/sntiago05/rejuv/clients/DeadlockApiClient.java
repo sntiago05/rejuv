@@ -1,6 +1,7 @@
 package sntiago05.rejuv.clients;
 
 import java.net.URI;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -24,7 +25,9 @@ import sntiago05.rejuv.clients.dto.ItemStat;
 import sntiago05.rejuv.clients.dto.MatchHistoryEntry;
 import sntiago05.rejuv.clients.dto.MateStat;
 import sntiago05.rejuv.clients.dto.MetricPercentiles;
+import sntiago05.rejuv.clients.dto.PerformanceCurvePoint;
 import sntiago05.rejuv.clients.dto.PlayerHeroStat;
+import sntiago05.rejuv.clients.dto.PlayerItemStat;
 import sntiago05.rejuv.clients.dto.PlayerRank;
 import sntiago05.rejuv.clients.dto.RankAsset;
 import sntiago05.rejuv.clients.dto.SteamProfile;
@@ -49,6 +52,7 @@ public class DeadlockApiClient {
     private static final String PLAYER_STEAM_PATH = "/v1/players/steam";
     private static final String METRICS_PATH = "/v1/analytics/player-stats/metrics";
     private static final String ITEM_STATS_PATH = "/v1/analytics/item-stats";
+    private static final String PLAYER_ITEM_STATS_PATH = "/v1/analytics/item-stats";
     private static final String HERO_STATS_PATH = "/v1/analytics/hero-stats";
     private static final String PLAYER_HERO_STATS_PATH = "/v1/players/hero-stats";
     private static final String MATE_STATS_PATH = "/v1/players/{account_id}/mate-stats";
@@ -58,6 +62,7 @@ public class DeadlockApiClient {
     private static final String RANKS_PATH = "/v1/assets/ranks";
     private static final String HEROES_PATH = "/v1/assets/heroes";
     private static final String ITEMS_PATH = "/v1/assets/items";
+    private static final String PERFORMANCE_CURVE_PATH = "/v1/analytics/player-performance-curve";
 
     // Same mapper configuration as the RestClient's default JSON converter, so the DTOs are read identically.
     private static final BodyReader<List<MatchHistoryEntry>> HISTORY_READER = DeadlockApiRequests.jsonArrayPrefix(
@@ -67,6 +72,7 @@ public class DeadlockApiClient {
     private static final BodyReader<List<SteamProfile>> STEAM_PROFILES_READER = DeadlockApiRequests.json(new ParameterizedTypeReference<>() { });
     private static final BodyReader<Map<String, MetricPercentiles>> METRICS_READER = DeadlockApiRequests.json(new ParameterizedTypeReference<>() { });
     private static final BodyReader<List<ItemStat>> ITEM_STATS_READER = DeadlockApiRequests.json(new ParameterizedTypeReference<>() { });
+    private static final BodyReader<List<PlayerItemStat>> PLAYER_ITEM_STATS_READER = DeadlockApiRequests.json(new ParameterizedTypeReference<>() { });
     private static final BodyReader<List<HeroStat>> HERO_STATS_READER = DeadlockApiRequests.json(new ParameterizedTypeReference<>() { });
     private static final BodyReader<List<PlayerHeroStat>> PLAYER_HERO_STATS_READER = DeadlockApiRequests.json(new ParameterizedTypeReference<>() { });
     private static final BodyReader<List<MateStat>> MATE_STATS_READER = DeadlockApiRequests.json(new ParameterizedTypeReference<>() { });
@@ -76,6 +82,7 @@ public class DeadlockApiClient {
     private static final BodyReader<List<RankAsset>> RANKS_READER = DeadlockApiRequests.json(new ParameterizedTypeReference<>() { });
     private static final BodyReader<List<HeroAsset>> HEROES_READER = DeadlockApiRequests.json(new ParameterizedTypeReference<>() { });
     private static final BodyReader<List<ItemAsset>> ITEMS_READER = DeadlockApiRequests.json(new ParameterizedTypeReference<>() { });
+    private static final BodyReader<List<PerformanceCurvePoint>> PERFORMANCE_CURVE_READER = DeadlockApiRequests.json(new ParameterizedTypeReference<>() { });
 
     private final DeadlockApiRequests requests;
 
@@ -250,6 +257,24 @@ public class DeadlockApiClient {
     }
 
     /**
+     * Per-item totals of one player with one hero for matches that started at or after minUnixTimestamp.
+     * Empty list = no data.
+     * Callers must not call the analytics-style methods in parallel for different uncached keys.
+     */
+    @Cacheable(cacheNames = CacheConfig.DEADLOCK_PLAYER_ITEM_STATS, sync = true,
+            key = "#accountId + ':' + #heroId + ':' + #minUnixTimestamp")
+    public List<PlayerItemStat> getPlayerItemStats(long accountId, int heroId, long minUnixTimestamp) {
+        List<PlayerItemStat> stats = requests.get(PLAYER_ITEM_STATS_PATH,
+                uri -> uri.path(PLAYER_ITEM_STATS_PATH)
+                        .queryParam("account_id", accountId)
+                        .queryParam("hero_ids", heroId)
+                        .queryParam("min_unix_timestamp", minUnixTimestamp)
+                        .build(),
+                PLAYER_ITEM_STATS_READER);
+        return List.copyOf(stats);
+    }
+
+    /**
      * Item build flow of one hero since minUnixTimestamp. rankTier null = all ranks (no badge filter).
      * Callers must not call the analytics methods in parallel for different uncached keys.
      * @throws IllegalArgumentException if rankTier is non-null and not in 0..11 (before any HTTP call)
@@ -306,6 +331,25 @@ public class DeadlockApiClient {
                         .queryParam("min_unix_timestamp", minUnixTimestamp), rankTier),
                 ITEM_STATS_READER);
         return List.copyOf(stats);
+    }
+
+    /**
+     * Hero + rank performance curve over game time. Points are sorted ascending by gameTime.
+     * resolution=0 returns absolute game times in seconds.
+     *
+     * @throws IllegalArgumentException if rankTier is not in 0..11 (before any HTTP call)
+     */
+    @Cacheable(cacheNames = CacheConfig.DEADLOCK_PERFORMANCE_CURVE, sync = true, key = "#heroId + ':' + #rankTier")
+    public List<PerformanceCurvePoint> getPerformanceCurve(int heroId, int rankTier) {
+        requireRankTier(rankTier);
+        List<PerformanceCurvePoint> points = requests.get(PERFORMANCE_CURVE_PATH,
+                uri -> badgeRange(uri.path(PERFORMANCE_CURVE_PATH)
+                        .queryParam("hero_ids", heroId)
+                        .queryParam("resolution", 0), rankTier),
+                PERFORMANCE_CURVE_READER);
+        return points.stream()
+                .sorted(Comparator.comparingInt(PerformanceCurvePoint::gameTime))
+                .toList();
     }
 
     private static void requireRankTier(int rankTier) {

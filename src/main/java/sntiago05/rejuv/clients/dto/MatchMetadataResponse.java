@@ -26,8 +26,11 @@ public record MatchMetadataResponse(
             @JsonProperty("account_id") Long accountId,
             @JsonProperty("team") Integer team,
             @JsonProperty("hero_id") Integer heroId,
+            @JsonProperty("player_slot") Integer playerSlot,
+            @JsonProperty("assigned_lane") Integer assignedLane,
             @JsonProperty("items") List<Item> items,
             @JsonProperty("stats") List<Stat> stats,
+            @JsonProperty("death_details") List<DeathDetail> deathDetails,
             @JsonProperty("power_up_buffs") List<PowerUpBuff> powerUpBuffs
     ) { }
 
@@ -39,11 +42,32 @@ public record MatchMetadataResponse(
     ) { }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
+    public record DeathDetail(
+            @JsonProperty("game_time_s") Integer gameTimeS,
+            @JsonProperty("killer_player_slot") Integer killerPlayerSlot,
+            @JsonProperty("time_to_kill_s") Double timeToKillS,
+            @JsonProperty("death_duration_s") Integer deathDurationS
+    ) { }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
     public record Stat(
             @JsonProperty("time_stamp_s") Integer timeStampS,
             @JsonProperty("net_worth") Long netWorth,
             @JsonProperty("player_damage") Long playerDamage,
-            @JsonProperty("player_healing") Long playerHealing
+            @JsonProperty("player_healing") Long playerHealing,
+            @JsonProperty("kills") Integer kills,
+            @JsonProperty("deaths") Integer deaths,
+            @JsonProperty("assists") Integer assists,
+            @JsonProperty("creep_kills") Integer creepKills,
+            @JsonProperty("possible_creeps") Integer possibleCreeps,
+            @JsonProperty("shots_hit") Integer shotsHit,
+            @JsonProperty("shots_missed") Integer shotsMissed,
+            @JsonProperty("denies") Integer denies,
+            @JsonProperty("player_damage_taken") Long playerDamageTaken,
+            @JsonProperty("gold_lane_creep") Long goldLaneCreep,
+            @JsonProperty("gold_neutral_creep") Long goldNeutralCreep,
+            @JsonProperty("gold_denied") Long goldDenied,
+            @JsonProperty("gold_death_loss") Long goldDeathLoss
     ) { }
 
     @JsonIgnoreProperties(ignoreUnknown = true)

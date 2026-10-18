@@ -92,6 +92,7 @@ class AnalyzeServiceTest {
     private MatchAnalysisRepository repository;
     private UsageService usageService;
     private MatchVisualsService visualsService;
+    private CoachContextService coachContextService;
     private AnalyzeService service;
 
     @BeforeEach
@@ -103,11 +104,13 @@ class AnalyzeServiceTest {
         repository = mock(MatchAnalysisRepository.class);
         usageService = mock(UsageService.class);
         visualsService = mock(MatchVisualsService.class);
+        coachContextService = mock(CoachContextService.class);
+        when(coachContextService.build(any())).thenReturn(Map.of());
         GameAssets gameAssets = mock(GameAssets.class);
         when(gameAssets.heroNames()).thenReturn(Map.of(HERO_ID, "Infernus", 2, "Seven"));
         MatchSearchService matchSearchService = new MatchSearchService(deadlockApiClient, gameAssets);
         AnthropicPricingProperties pricing = new AnthropicPricingProperties(0, 0);
-        service = new AnalyzeService(deadlockApiClient, matchMetadataSource, metricsService, analysisClient, repository, matchSearchService, pricing, usageService, visualsService);
+        service = new AnalyzeService(deadlockApiClient, matchMetadataSource, metricsService, analysisClient, repository, matchSearchService, pricing, usageService, visualsService, coachContextService);
     }
 
     @Test
@@ -198,6 +201,7 @@ class AnalyzeServiceTest {
         verify(deadlockApiClient, never()).getItems();
         verify(analysisClient, never()).analyze(any());
         verify(repository, never()).save(any());
+        verify(coachContextService, never()).build(any());
     }
 
     @Test
@@ -610,14 +614,14 @@ class AnalyzeServiceTest {
         // Zero pricing
         AnalyzeService zeroService = new AnalyzeService(
                 deadlockApiClient, matchMetadataSource, metricsService, analysisClient, repository,
-                searchService, new AnthropicPricingProperties(0, 0), usageService, visualsService);
+                searchService, new AnthropicPricingProperties(0, 0), usageService, visualsService, coachContextService);
         assertThat(zeroService.estimatedCostUsd(1000, 250)).isEqualTo("unknown");
 
         // Configured pricing: e.g. input $0.80 / 1M, output $4.00 / 1M
         // 1000 / 1e6 * 0.80 + 250 / 1e6 * 4.00 = 0.0008 + 0.0010 = 0.001800
         AnalyzeService pricedService = new AnalyzeService(
                 deadlockApiClient, matchMetadataSource, metricsService, analysisClient, repository,
-                searchService, new AnthropicPricingProperties(0.80, 4.00), usageService, visualsService);
+                searchService, new AnthropicPricingProperties(0.80, 4.00), usageService, visualsService, coachContextService);
         assertThat(pricedService.estimatedCostUsd(1000, 250)).isEqualTo("0.001800");
 
         // Trigger AI analysis with pricedService and check log output
@@ -658,5 +662,33 @@ class AnalyzeServiceTest {
         verify(analysisClient, never()).analyze(any());
         verify(repository, never()).save(any());
         verify(usageService, never()).recordAnalysis(anyLong(), anyLong());
+        verify(coachContextService, never()).build(any());
+    }
+
+    @Test
+    void freshPathPassesCoachToAnalysisClientAndCarriesContextInCoachRequest() {
+        stubFresh();
+        Map<String, Object> coachInsights = Map.of("phase_stats", Map.of("z_score", 1.5));
+        when(coachContextService.build(any())).thenReturn(coachInsights);
+
+        AnalysisReport report = service.analyze(CALLER_ID, ACCOUNT_ID, MatchFilter.LATEST);
+
+        assertThat(report.analysis()).isEqualTo(AI_RESULT);
+
+        ArgumentCaptor<CoachRequest> requestCaptor = ArgumentCaptor.forClass(CoachRequest.class);
+        verify(coachContextService).build(requestCaptor.capture());
+        CoachRequest request = requestCaptor.getValue();
+        assertThat(request.accountId()).isEqualTo(ACCOUNT_ID);
+        assertThat(request.match()).isEqualTo(MATCH);
+        assertThat(request.history()).containsExactly(MATCH);
+        assertThat(request.telemetry()).isEqualTo(TELEMETRY);
+        assertThat(request.player()).isEqualTo(TELEMETRY.player(ACCOUNT_ID).orElseThrow());
+        assertThat(request.rankTier()).isEqualTo(7);
+        assertThat(request.heroes()).isEqualTo(HEROES);
+        assertThat(request.items()).isEqualTo(ITEMS);
+
+        ArgumentCaptor<AnalysisInput> inputCaptor = ArgumentCaptor.forClass(AnalysisInput.class);
+        verify(analysisClient).analyze(inputCaptor.capture());
+        assertThat(inputCaptor.getValue().coach()).isEqualTo(coachInsights);
     }
 }
