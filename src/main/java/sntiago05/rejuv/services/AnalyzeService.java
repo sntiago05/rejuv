@@ -197,8 +197,9 @@ public class AnalyzeService {
     private MatchVisuals storedVisuals(long accountId, long matchId) {
         try {
             return visuals(accountId, matchMetadataSource.getMatch(matchId));
-        } catch (DeadlockApiException ex) {
-            log.warn("Match metadata unavailable for stored analysis accountId={} matchId={}: {}",
+        } catch (RuntimeException ex) {
+            // Must never escape: the caller treats any exception as a corrupted stored row and deletes it.
+            log.warn("Visuals unavailable for stored analysis accountId={} matchId={}: {}",
                     accountId, matchId, ex.getClass().getSimpleName());
             return null;
         }

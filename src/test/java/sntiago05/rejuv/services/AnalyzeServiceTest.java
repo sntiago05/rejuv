@@ -231,6 +231,20 @@ class AnalyzeServiceTest {
     }
 
     @Test
+    void storedPathUnexpectedVisualsFailureKeepsStoredRowAndText() throws Exception {
+        stubStored();
+        when(matchMetadataSource.getMatch(MATCH_ID)).thenReturn(TELEMETRY);
+        when(visualsService.build(ACCOUNT_ID, TELEMETRY)).thenThrow(new IllegalStateException("boom"));
+
+        AnalysisReport report = service.analyze(CALLER_ID, ACCOUNT_ID, MatchFilter.LATEST);
+
+        assertThat(report.analysis()).isEqualTo(AI_RESULT);
+        assertThat(report.visuals()).isNull();
+        verify(repository, never()).delete(any());
+        verify(analysisClient, never()).analyze(any());
+    }
+
+    @Test
     void freshPathAttachesVisualsBuiltFromFetchedTelemetry() {
         MatchVisuals visuals = new MatchVisuals(List.of(new MatchVisuals.PurchasedItem(101L, "Basic Magazine", 250)), null);
         stubFresh();
