@@ -1,0 +1,50 @@
+{
+  "match_info": {
+    "match_id": 900000003,
+    "duration_s": 1800,
+    "players": [
+      {
+        "account_id": 1000001,
+        "team": 0,
+        "hero_id": 13,
+        "player_slot": 0,
+        "stats": [
+          {
+            "time_stamp_s": 300,
+            "net_worth": 2000,
+            "player_damage": 800,
+            "player_healing": 0,
+            "shots_hit": 200,
+            "shots_missed": 150
+          },
+          {
+            "time_stamp_s": 1800,
+            "net_worth": 15000,
+            "player_damage": 10000,
+            "player_healing": 0,
+            "shots_hit": 600,
+            "shots_missed": 400,
+            "hero_bullets_hit": 1200,
+            "hero_bullets_hit_crit": 180
+          }
+        ]
+      },
+      {
+        "account_id": 1000002,
+        "team": 1,
+        "hero_id": 25,
+        "player_slot": 6,
+        "stats": [
+          {
+            "time_stamp_s": 1800,
+            "net_worth": 14000,
+            "player_damage": 9000,
+            "player_healing": 0,
+            "shots_hit": 500,
+            "shots_missed": 500
+          }
+        ]
+      }
+    ]
+  }
+}

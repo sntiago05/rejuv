@@ -19,16 +19,17 @@ class AnalysisPromptTest {
         }
 
         assertThat(prompt.length())
-                .as("Prompt must stay under 5,000 characters")
-                .isLessThan(5000);
+                .as("Prompt must stay under 5,500 characters")
+                .isLessThan(5500);
 
-        // Six coach keys
+        // Seven coach keys
         assertThat(prompt).contains("phases");
         assertThat(prompt).contains("deaths");
         assertThat(prompt).contains("build");
         assertThat(prompt).contains("recent_form");
         assertThat(prompt).contains("matchup");
         assertThat(prompt).contains("objectives");
+        assertThat(prompt).contains("aim_mechanics");
 
         // Three severity words
         assertThat(prompt).contains("minor");
@@ -50,12 +51,17 @@ class AnalysisPromptTest {
         assertThat(prompt).contains("ttk_counted");
         assertThat(prompt).contains("rejuvenator_stolen_by_enemy");
         assertThat(prompt).contains("boss_damage_share_pct");
-        assertThat(prompt).contains("deaths, phases, objectives, build, matchup, recent_form");
+
+        // Task 045 fields and rules
+        assertThat(prompt).contains("accuracy_pct");
+        assertThat(prompt).contains("crit_pct");
+        assertThat(prompt).contains("deaths, phases, objectives, aim_mechanics, build, matchup, recent_form");
 
         String focusAreaLine = prompt.lines()
                 .filter(line -> line.trim().startsWith("- focus_area:"))
                 .findFirst()
                 .orElseThrow();
         assertThat(focusAreaLine).contains("\"objectives\"");
+        assertThat(focusAreaLine).contains("\"aim_mechanics\"");
     }
 }

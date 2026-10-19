@@ -442,4 +442,38 @@ class JsonMatchMetadataSourceTest {
         assertThat(rawTelemetry.players()).isNotEmpty();
         assertThat(rawTelemetry.players()).allSatisfy(p -> assertThat(p.bossDamage()).isNull());
     }
+
+    @Test
+    void mapsAimFixtureWithBulletsHitAndCrit() {
+        server.expect(once(), requestTo(METADATA_URL))
+                .andRespond(withSuccess(fixture("match-metadata-aim.json"), MediaType.APPLICATION_JSON));
+
+        MatchTelemetry telemetry = source.getMatch(MATCH_ID);
+        assertThat(telemetry.players()).hasSize(2);
+
+        PlayerTelemetry p1 = telemetry.player(1000001L).orElseThrow();
+        assertThat(p1.snapshots()).hasSize(2);
+
+        // Snapshot 1 (300s): crit fields absent, so heroBulletsHit and heroBulletsHitCrit stay null
+        SnapshotDetail s1 = p1.snapshots().get(0).detail();
+        assertThat(s1.shotsHit()).isEqualTo(200);
+        assertThat(s1.shotsMissed()).isEqualTo(150);
+        assertThat(s1.heroBulletsHit()).isNull();
+        assertThat(s1.heroBulletsHitCrit()).isNull();
+
+        // Snapshot 2 (1800s): both fields present and mapped
+        SnapshotDetail s2 = p1.snapshots().get(1).detail();
+        assertThat(s2.shotsHit()).isEqualTo(600);
+        assertThat(s2.shotsMissed()).isEqualTo(400);
+        assertThat(s2.heroBulletsHit()).isEqualTo(1200L);
+        assertThat(s2.heroBulletsHitCrit()).isEqualTo(180L);
+
+        // Player 2 (1800s): crit fields absent, stays null
+        PlayerTelemetry p2 = telemetry.player(1000002L).orElseThrow();
+        SnapshotDetail s2p2 = p2.snapshots().get(0).detail();
+        assertThat(s2p2.shotsHit()).isEqualTo(500);
+        assertThat(s2p2.shotsMissed()).isEqualTo(500);
+        assertThat(s2p2.heroBulletsHit()).isNull();
+        assertThat(s2p2.heroBulletsHitCrit()).isNull();
+    }
 }
