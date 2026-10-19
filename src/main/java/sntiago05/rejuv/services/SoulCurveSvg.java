@@ -118,7 +118,10 @@ public class SoulCurveSvg {
         sb.append(".caption { fill: #dbdee1; font-size: 13px; font-weight: 600; font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif; }\n");
         sb.append(".band { fill: #4c9be8; fill-opacity: 0.18; stroke: none; }\n");
         sb.append(".avg-line { stroke: #4c9be8; stroke-width: 2; stroke-dasharray: 6 4; fill: none; }\n");
-        sb.append(".player-line { stroke: #e5a93c; stroke-width: 3; fill: none; stroke-linecap: round; stroke-linejoin: round; }\n");
+        sb.append(".player-line { stroke: #ffc83d; stroke-width: 3; fill: none; stroke-linecap: round; stroke-linejoin: round; }\n");
+        sb.append(".direct-label-player { fill: #ffc83d; font-size: 11px; font-weight: 700; font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif; }\n");
+        sb.append(".direct-label-avg { fill: #4c9be8; font-size: 11px; font-weight: 600; font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif; }\n");
+        sb.append(".verdict-text { fill: #dbdee1; font-size: 11px; font-weight: 600; font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif; }\n");
         sb.append(".legend-text { fill: #dbdee1; font-size: 11px; font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif; }\n");
         sb.append("@media (prefers-color-scheme: light) {\n");
         sb.append("  .bg { fill: #ffffff; }\n");
@@ -129,6 +132,9 @@ public class SoulCurveSvg {
         sb.append("  .band { fill: #2563eb; fill-opacity: 0.15; }\n");
         sb.append("  .avg-line { stroke: #2563eb; }\n");
         sb.append("  .player-line { stroke: #d97706; }\n");
+        sb.append("  .direct-label-player { fill: #d97706; }\n");
+        sb.append("  .direct-label-avg { fill: #2563eb; }\n");
+        sb.append("  .verdict-text { fill: #111827; }\n");
         sb.append("  .legend-text { fill: #374151; }\n");
         sb.append("}\n");
         sb.append("</style>\n");
@@ -222,6 +228,57 @@ public class SoulCurveSvg {
         }
         sb.append(String.format(Locale.ROOT, "<path class=\"player-line\" d=\"%s\" />\n", playerD));
 
+        // Direct end labels
+        double lastTimeMin = timesS.get(n - 1) / 60.0;
+        double endX = mapX(lastTimeMin, maxXMinutes);
+        double endYPlayer = mapY((double) playerNetWorth.get(n - 1), yMaxSouls);
+        double endYAvg = mapY(avgNetWorth.get(n - 1), yMaxSouls);
+
+        double labelYPlayer = endYPlayer;
+        double labelYAvg = endYAvg;
+        if (Math.abs(labelYPlayer - labelYAvg) < 14.0) {
+            if (labelYPlayer <= labelYAvg) {
+                labelYPlayer -= 7.0;
+                labelYAvg += 7.0;
+            } else {
+                labelYPlayer += 7.0;
+                labelYAvg -= 7.0;
+            }
+        }
+
+        String labelXAnchor = (endX >= PLOT_RIGHT - 40.0) ? "end" : "start";
+        double labelX = (endX >= PLOT_RIGHT - 40.0) ? (endX - 8.0) : (endX + 8.0);
+
+        sb.append(String.format(Locale.ROOT,
+                "<text class=\"direct-label-player\" x=\"%.1f\" y=\"%.1f\" text-anchor=\"%s\">%s</text>\n",
+                labelX, labelYPlayer + 4.0, labelXAnchor, "You"));
+        sb.append(String.format(Locale.ROOT,
+                "<text class=\"direct-label-avg\" x=\"%.1f\" y=\"%.1f\" text-anchor=\"%s\">%s</text>\n",
+                labelX, labelYAvg + 4.0, labelXAnchor, "Average"));
+
+        // Verdict from last point
+        long lastPlayer = playerNetWorth.get(n - 1);
+        double lastAvg = avgNetWorth.get(n - 1);
+        String verdictText;
+        if (lastAvg > 0) {
+            double diff = lastPlayer - lastAvg;
+            long pct = Math.round((Math.abs(diff) / lastAvg) * 100.0);
+            if (diff > 0) {
+                verdictText = "above the average by " + pct + "%";
+            } else if (diff < 0) {
+                verdictText = "below the average by " + pct + "%";
+            } else {
+                verdictText = "tied with the average";
+            }
+        } else {
+            verdictText = "";
+        }
+        if (!verdictText.isEmpty()) {
+            sb.append(String.format(Locale.ROOT,
+                    "<text class=\"verdict-text\" x=\"%.1f\" y=\"%.1f\" text-anchor=\"end\">%s</text>\n",
+                    PLOT_RIGHT, PLOT_TOP - 12.0, escapeXml(verdictText)));
+        }
+
         // Caption
         String hero = (heroName != null && !heroName.isBlank()) ? heroName : "Hero";
         String rank = (rankLabel != null && !rankLabel.isBlank()) ? rankLabel : "lobby";
@@ -264,7 +321,17 @@ public class SoulCurveSvg {
         return PLOT_BOTTOM - ratio * PLOT_HEIGHT;
     }
 
-    private static String escapeXml(String text) {
+    public static String computeSoulCurveAlt(long finalPlayer, double finalAvg, int durationMin) {
+        if (finalAvg <= 0) {
+            return "Net worth vs lobby average chart";
+        }
+        double diff = finalPlayer - finalAvg;
+        long pct = Math.round((Math.abs(diff) / finalAvg) * 100.0);
+        String standing = (diff >= 0) ? ("above the average by " + pct + "%") : ("below the average by " + pct + "%");
+        return String.format(Locale.ROOT, "Net worth vs lobby average: finished %s at %d min.", standing, durationMin);
+    }
+
+    static String escapeXml(String text) {
         if (text == null) {
             return "";
         }

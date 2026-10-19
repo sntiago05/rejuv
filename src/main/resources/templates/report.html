@@ -9,124 +9,195 @@
 </head>
 <body>
     <main class="container">
-        <header class="report-header">
-            <h1 class="hero-name" th:text="${report.hero}">Hero</h1>
-            <p class="match-meta">
-                <span class="match-id" th:text="#{report.match(${#strings.toString(report.matchId)})}">Match 0</span>
-                <span th:if="${report.durationMin != null}" class="duration" th:text="|(${report.durationMin} min)|"></span>
-            </p>
+        <!-- 1. Hero banner -->
+        <header class="hero-banner">
+            <div class="banner-top">
+                <h1 class="hero-name" th:text="${report.hero}">Hero</h1>
+                <span th:if="${report.result != null}"
+                      class="result-badge"
+                      th:classappend="${report.result == 'win' ? 'result-win' : 'result-loss'}"
+                      th:text="${#messages.msgOrNull('report.result.' + report.result) ?: report.result}">Result</span>
+            </div>
+            <div class="banner-meta">
+                <span class="meta-item match-id" th:text="#{report.match(${#strings.toString(report.matchId)})}">Match 0</span>
+                <span th:if="${report.durationMin != null}" class="meta-item duration" th:text="#{report.glance.duration_val(${report.durationMin})}">0 min</span>
+                <span th:if="${report.rank != null}" class="meta-item rank" th:text="${report.rank}">Rank</span>
+                <span th:if="${report.analyzedAt != null}" class="meta-item date" th:text="#{report.analyzed_on(${report.analyzedAt})}">Date</span>
+            </div>
         </header>
 
-        <div th:if="${report.durationMin == null and (report.build == null or report.build.isEmpty()) and !report.hasChart}"
+        <div th:if="${report.durationMin == null and (report.build == null or report.build.isEmpty()) and !report.hasChart and !report.hasDetailedSections}"
              class="degraded-notice" th:text="#{report.degraded}">
             Match details unavailable
         </div>
 
-        <section th:if="${report.analysis != null}" class="coaching-sections">
+        <!-- 2. Verdict strip -->
+        <section th:if="${report.analysis != null}" class="verdict-strip">
+            <div class="verdict-columns">
+                <div class="card card-leak" th:classappend="${report.analysis.severity != null ? 'leak-severity-' + report.analysis.severity : ''}">
+                    <div class="card-head">
+                        <h2 th:text="#{report.leak}">Biggest Leak</h2>
+                        <span th:if="${report.analysis.severity != null}"
+                              class="significance-badge"
+                              th:classappend="${'sig-' + report.analysis.severity}"
+                              th:text="${#messages.msgOrNull('report.significance.' + report.analysis.severity) ?: report.analysis.severity}">Notable</span>
+                    </div>
+                    <p><span th:if="${report.analysis.severity != null}" th:text="#{${'analyze.severity.' + report.analysis.severity}} + ' '"></span><span th:text="${report.analysis.biggestLeak}">Leak content</span></p>
+                </div>
+
+                <div class="card card-action">
+                    <div class="card-head">
+                        <h2 th:text="#{report.next_action}">Next Game Focus</h2>
+                    </div>
+                    <p th:text="${report.analysis.nextGameAction}">Action content</p>
+                </div>
+            </div>
+
             <div class="card card-strength">
-                <h2 th:text="#{report.strength}">Key Strength</h2>
+                <div class="card-head">
+                    <h2 th:text="#{report.strength}">Key Strength</h2>
+                </div>
                 <p th:text="${report.analysis.strength}">Strength content</p>
             </div>
+        </section>
 
-            <div class="card card-leak">
-                <h2 th:text="#{report.leak}">Biggest Leak</h2>
-                <p><span th:if="${report.analysis.severity != null}" th:text="#{${'analyze.severity.' + report.analysis.severity}} + ' '"></span><span th:text="${report.analysis.biggestLeak}">Leak content</span></p>
-            </div>
-
-            <div class="card card-action">
-                <h2 th:text="#{report.next_action}">Next Game Focus</h2>
-                <p th:text="${report.analysis.nextGameAction}">Action content</p>
-            </div>
-
-            <div th:if="${report.analysis.keyNumbers != null and !report.analysis.keyNumbers.isEmpty()}" class="card card-numbers">
-                <h2 th:text="#{report.key_numbers}">Key Numbers</h2>
-                <ul>
-                    <li th:each="number : ${report.analysis.keyNumbers}" th:text="${number}">Number</li>
-                </ul>
+        <!-- 3. Key numbers with CSS bar width classes (w0..w100) -->
+        <section th:if="${report.metricsTable != null and !report.metricsTable.isEmpty()}" class="card card-key-numbers">
+            <h2 th:text="#{report.key_numbers}">Key Numbers</h2>
+            <div class="compact-metrics-list">
+                <div th:each="metric : ${report.metricsTable}" class="compact-metric-row">
+                    <div class="metric-name-col">
+                        <span class="metric-title" th:text="${#messages.msgOrNull(metric.labelKey) ?: metric.key}">Metric</span>
+                    </div>
+                    <div class="metric-bar-col">
+                        <div class="bar-track">
+                            <div class="bar-fill" th:classappend="${metric.widthClass}"></div>
+                        </div>
+                        <div class="bar-benchmarks">
+                            <span class="bm-p25" th:text="'p25: ' + ${metric.p25}">p25: -</span>
+                            <span class="bm-p50" th:text="'p50: ' + ${metric.p50}">p50: -</span>
+                        </div>
+                    </div>
+                    <div class="metric-val-col">
+                        <span class="val-yours" th:text="${metric.yourValue}">0</span>
+                        <span class="val-verdict" th:text="${metric.verdict}">-</span>
+                    </div>
+                </div>
             </div>
         </section>
 
-        <section th:if="${report.hasDetailedSections}" class="card card-glance">
-            <h2 th:text="#{report.glance.title}">Match at a Glance</h2>
-            <dl class="glance-list">
-                <div class="glance-item" th:if="${report.hero != null}">
-                    <dt th:text="#{report.glance.hero}">Hero</dt>
-                    <dd th:text="${report.hero}">Hero</dd>
-                </div>
-                <div class="glance-item" th:if="${report.rank != null}">
-                    <dt th:text="#{report.glance.rank}">Rank</dt>
-                    <dd th:text="${report.rank}">Rank</dd>
-                </div>
-                <div class="glance-item" th:if="${report.result != null}">
-                    <dt th:text="#{report.glance.result}">Result</dt>
-                    <dd th:text="${#messages.msgOrNull('report.result.' + report.result) ?: report.result}">Result</dd>
-                </div>
-                <div class="glance-item" th:if="${report.durationMin != null}">
-                    <dt th:text="#{report.glance.duration}">Duration</dt>
-                    <dd th:text="#{report.glance.duration_val(${report.durationMin})}">0 min</dd>
-                </div>
-            </dl>
+        <section th:if="${(report.metricsTable == null or report.metricsTable.isEmpty()) and report.analysis != null and report.analysis.keyNumbers != null and !report.analysis.keyNumbers.isEmpty()}" class="card card-numbers">
+            <h2 th:text="#{report.key_numbers}">Key Numbers</h2>
+            <ul>
+                <li th:each="number : ${report.analysis.keyNumbers}" th:text="${number}">Number</li>
+            </ul>
         </section>
 
-        <section th:if="${report.hasDetailedSections and report.metricsTable != null and !report.metricsTable.isEmpty()}" class="card card-metrics">
-            <h2 th:text="#{report.metrics.title}">Your Numbers vs Peers</h2>
-            <div class="table-container">
-                <table class="metrics-table">
-                    <thead>
-                        <tr>
-                            <th th:text="#{report.metrics.metric}">Metric</th>
-                            <th th:text="#{report.metrics.your_value}">You</th>
-                            <th th:text="#{report.metrics.p25}">p25</th>
-                            <th th:text="#{report.metrics.p50}">p50</th>
-                            <th th:text="#{report.metrics.verdict}">Verdict</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr th:each="metric : ${report.metricsTable}">
-                            <td class="metric-label" th:text="${#messages.msgOrNull(metric.labelKey) ?: metric.key}">Metric</td>
-                            <td class="metric-value" th:text="${metric.yourValue}">0</td>
-                            <td class="metric-p25" th:text="${metric.p25}">-</td>
-                            <td class="metric-p50" th:text="${metric.p50}">-</td>
-                            <td class="metric-verdict" th:text="${metric.verdict}">-</td>
-                        </tr>
-                    </tbody>
-                </table>
+        <!-- 4. Charts block -->
+        <section th:if="${report.hasSoulLead or report.hasSoulCurve or report.hasPhasesChart or report.hasDeathsChart or report.hasMetricsChart}" class="charts-section">
+            <!-- Chart 1: Soul Lead Over Time -->
+            <div th:if="${report.hasSoulLead}" class="card card-chart-block">
+                <h2 th:text="#{report.chart.soul_lead.title}">Soul Lead Over Time</h2>
+                <p class="chart-caption" th:text="#{report.chart.soul_lead.caption}">Caption</p>
+                <img th:src="@{/r/{id}/soul-lead.svg(id=${report.publicId})}" th:alt="${report.soulLeadAlt}" class="chart-svg-img">
+            </div>
+
+            <!-- Chart 2: Net Worth vs Lobby Average -->
+            <div th:if="${report.hasSoulCurve}" class="card card-chart-block card-soul-curve">
+                <h2 th:text="#{report.chart.soul_curve.title}">Net Worth vs Lobby Average</h2>
+                <p class="chart-caption" th:text="#{report.chart.soul_curve.caption}">Caption</p>
+                <img th:src="@{/r/{id}/soul-curve.svg(id=${report.publicId})}" th:alt="${report.soulCurveAlt}" class="chart-svg-img soul-curve-img">
+            </div>
+
+            <!-- Chart 3: Phase Scorecard -->
+            <div th:if="${report.hasPhasesChart}" class="card card-chart-block">
+                <h2 th:text="#{report.chart.phases.title}">Phase Scorecard</h2>
+                <p class="chart-caption" th:text="#{report.chart.phases.caption}">Caption</p>
+                <img th:src="@{/r/{id}/phases.svg(id=${report.publicId})}" th:alt="${report.phasesAlt}" class="chart-svg-img">
+            </div>
+
+            <!-- Chart 4: Deaths Timeline -->
+            <div th:if="${report.hasDeathsChart}" class="card card-chart-block">
+                <h2 th:text="#{report.chart.deaths.title}">Deaths Timeline</h2>
+                <p class="chart-caption" th:text="#{report.chart.deaths.caption}">Caption</p>
+                <img th:src="@{/r/{id}/deaths.svg(id=${report.publicId})}" th:alt="${report.deathsAlt}" class="chart-svg-img">
+            </div>
+
+            <!-- Chart 5: Metrics vs Peers -->
+            <div th:if="${report.hasMetricsChart}" class="card card-chart-block">
+                <h2 th:text="#{report.chart.metrics.title}">Metrics vs Peers</h2>
+                <p class="chart-caption" th:text="#{report.chart.metrics.caption}">Caption</p>
+                <img th:src="@{/r/{id}/metrics.svg(id=${report.publicId})}" th:alt="${report.metricsAlt}" class="chart-svg-img">
             </div>
         </section>
 
-        <section th:if="${report.hasDetailedSections and report.coachSections != null and !report.coachSections.isEmpty()}" class="coach-container">
-            <div th:each="section : ${report.coachSections}" class="card card-coach" th:classappend="${'coach-' + section.key}">
-                <div class="coach-header">
-                    <h2 th:text="${#messages.msgOrNull(section.titleKey) ?: section.key}">Coach Section</h2>
-                    <span th:if="${section.significance != null}" class="significance-badge"
-                          th:classappend="${'sig-' + section.significance}"
-                          th:text="${#messages.msgOrNull('report.significance.' + section.significance) ?: section.significance}">Notable</span>
+        <!-- 5. Detail sections (Collapsible <details> elements, first section open) -->
+        <section th:if="${report.hasDetailedSections}" class="details-section">
+            <details th:if="${report.metricsTable != null and !report.metricsTable.isEmpty()}" class="card card-details card-metrics" open>
+                <summary class="details-summary">
+                    <h2 th:text="#{report.metrics.title}">Your Numbers vs Peers</h2>
+                </summary>
+                <div class="table-container">
+                    <table class="metrics-table">
+                        <thead>
+                            <tr>
+                                <th th:text="#{report.metrics.metric}">Metric</th>
+                                <th th:text="#{report.metrics.your_value}">You</th>
+                                <th th:text="#{report.metrics.p25}">p25</th>
+                                <th th:text="#{report.metrics.p50}">p50</th>
+                                <th th:text="#{report.metrics.verdict}">Verdict</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr th:each="metric : ${report.metricsTable}">
+                                <td class="metric-label" th:text="${#messages.msgOrNull(metric.labelKey) ?: metric.key}">Metric</td>
+                                <td class="metric-value" th:text="${metric.yourValue}">0</td>
+                                <td class="metric-p25" th:text="${metric.p25}">-</td>
+                                <td class="metric-p50" th:text="${metric.p50}">-</td>
+                                <td class="metric-verdict" th:text="${metric.verdict}">-</td>
+                            </tr>
+                        </tbody>
+                    </table>
                 </div>
+            </details>
+
+            <div th:if="${report.coachSections != null and !report.coachSections.isEmpty()}" class="coach-container">
+                <details th:each="section : ${report.coachSections}" class="card card-details card-coach" th:classappend="${'coach-' + section.key}">
+                    <summary class="details-summary">
+                        <div class="coach-header">
+                            <h2 th:text="${#messages.msgOrNull(section.titleKey) ?: section.key}">Coach Section</h2>
+                            <span th:if="${section.significance != null}" class="significance-badge"
+                                  th:classappend="${'sig-' + section.significance}"
+                                  th:text="${#messages.msgOrNull('report.significance.' + section.significance) ?: section.significance}">Notable</span>
+                        </div>
+                    </summary>
+                    <dl class="coach-fields">
+                        <div class="coach-field-item" th:each="field : ${section.fields}">
+                            <dt th:text="${#messages.msgOrNull(field.labelKey) ?: field.labelKey}">Field</dt>
+                            <dd th:text="${field.value}">Value</dd>
+                        </div>
+                    </dl>
+                </details>
+            </div>
+
+            <details th:if="${report.otherSignals != null and !report.otherSignals.isEmpty()}" class="card card-details card-other-signals">
+                <summary class="details-summary">
+                    <h2 th:text="#{report.coach.other_signals}">Other Signals</h2>
+                </summary>
                 <dl class="coach-fields">
-                    <div class="coach-field-item" th:each="field : ${section.fields}">
-                        <dt th:text="${#messages.msgOrNull(field.labelKey) ?: field.labelKey}">Field</dt>
-                        <dd th:text="${field.value}">Value</dd>
+                    <div class="coach-field-item" th:each="signal : ${report.otherSignals}">
+                        <dt th:text="${signal.key}">Key</dt>
+                        <dd th:text="${signal.value}">Value</dd>
                     </div>
                 </dl>
-            </div>
-        </section>
-
-        <section th:if="${report.hasDetailedSections and report.otherSignals != null and !report.otherSignals.isEmpty()}" class="card card-other-signals">
-            <div class="coach-header">
-                <h2 th:text="#{report.coach.other_signals}">Other Signals</h2>
-            </div>
-            <dl class="coach-fields">
-                <div class="coach-field-item" th:each="signal : ${report.otherSignals}">
-                    <dt th:text="${signal.key}">Key</dt>
-                    <dd th:text="${signal.value}">Value</dd>
-                </div>
-            </dl>
+            </details>
         </section>
 
         <div th:if="${!report.hasDetailedSections}" class="older-analysis-notice" th:text="#{report.older_analysis_note}">
             Detailed match metrics and coach sections are only available for newer analyses.
         </div>
 
+        <!-- 6. Final build -->
         <section th:if="${report.build != null and !report.build.isEmpty()}" class="card card-build">
             <h2 th:text="#{report.build}">Final Build</h2>
             <ul class="build-list">
@@ -135,14 +206,7 @@
             </ul>
         </section>
 
-        <section th:if="${report.hasChart}" class="card card-chart">
-            <img th:src="@{/r/{id}/chart.png(id=${report.publicId})}" alt="Match Chart" class="chart-img">
-        </section>
-
-        <section th:if="${report.hasSoulCurve}" class="card card-soul-curve">
-            <img th:src="@{/r/{id}/soul-curve.svg(id=${report.publicId})}" th:alt="#{report.curve.alt}" class="soul-curve-img">
-        </section>
-
+        <!-- 7. Footer -->
         <footer class="report-footer">
             <p th:if="${report.analyzedAt != null}" class="analyzed-date" th:text="#{report.analyzed_on(${report.analyzedAt})}">Analyzed on date</p>
             <p class="brand-footer" th:text="#{report.footer}">Rejuv · AI coach for Deadlock</p>

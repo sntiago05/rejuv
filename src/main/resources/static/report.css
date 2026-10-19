@@ -5,9 +5,31 @@
     --text-color: #dbdee1;
     --text-muted: #949ba4;
     --heading-color: #ffffff;
-    --accent-color: #e5a93c;
+    --accent-color: #ffc83d;
     --accent-leak: #f28c28;
     --accent-strength: #4c9be8;
+    --color-win: #57f287;
+    --color-loss: #ed4245;
+    --track-bg: #2b2d31;
+    --bar-bg: #ffc83d;
+}
+
+@media (prefers-color-scheme: light) {
+    :root {
+        --bg-color: #f6f8fa;
+        --card-bg: #ffffff;
+        --card-border: #d0d7de;
+        --text-color: #1f2328;
+        --text-muted: #656d76;
+        --heading-color: #1f2328;
+        --accent-color: #d97706;
+        --accent-leak: #ea580c;
+        --accent-strength: #2563eb;
+        --color-win: #16a34a;
+        --color-loss: #dc2626;
+        --track-bg: #e5e7eb;
+        --bar-bg: #d97706;
+    }
 }
 
 * {
@@ -22,50 +44,86 @@ body {
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     line-height: 1.6;
     min-height: 100vh;
-    padding: 1.5rem 1rem;
+    padding: 1.5rem 0.75rem;
 }
 
 .container {
-    max-width: 680px;
+    max-width: 760px;
     margin: 0 auto;
     display: flex;
     flex-direction: column;
     gap: 1.25rem;
 }
 
-.report-header {
-    text-align: center;
-    padding-bottom: 0.5rem;
-    border-bottom: 1px solid var(--card-border);
+/* 1. Hero banner */
+.hero-banner {
+    background-color: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-radius: 8px;
+    padding: 1.25rem;
+}
+
+.banner-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 0.5rem;
 }
 
 .hero-name {
     color: var(--accent-color);
-    font-size: 2rem;
+    font-size: 1.85rem;
     font-weight: 700;
     letter-spacing: -0.02em;
 }
 
-.match-meta {
-    color: var(--text-muted);
-    font-size: 0.95rem;
-    margin-top: 0.25rem;
+.result-badge {
+    font-size: 0.85rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: 0.25rem 0.65rem;
+    border-radius: 4px;
 }
 
-.duration {
-    margin-left: 0.5rem;
+.result-win {
+    background-color: rgba(87, 242, 135, 0.15);
+    color: var(--color-win);
+    border: 1px solid var(--color-win);
+}
+
+.result-loss {
+    background-color: rgba(237, 66, 69, 0.15);
+    color: var(--color-loss);
+    border: 1px solid var(--color-loss);
+}
+
+.banner-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem 1.25rem;
+    color: var(--text-muted);
+    font-size: 0.9rem;
+    margin-top: 0.5rem;
+}
+
+.meta-item {
+    display: inline-flex;
+    align-items: center;
 }
 
 .degraded-notice {
     background-color: rgba(242, 140, 40, 0.15);
     border: 1px solid var(--accent-leak);
-    color: #ffb366;
+    color: var(--accent-leak);
     padding: 0.75rem 1rem;
     border-radius: 8px;
     font-size: 0.9rem;
     text-align: center;
 }
 
+/* Cards general */
 .card {
     background-color: var(--card-bg);
     border: 1px solid var(--card-border);
@@ -80,35 +138,200 @@ body {
     margin-bottom: 0.5rem;
 }
 
-.card-strength h2 {
-    color: var(--accent-strength);
-}
-
-.card-leak h2 {
-    color: var(--accent-leak);
-}
-
-.card-action h2 {
-    color: var(--accent-color);
-}
-
 .card p {
     color: var(--text-color);
     font-size: 0.95rem;
     white-space: pre-line;
 }
 
-.card ul {
-    list-style: none;
-    padding: 0;
-    margin: 0;
+.card-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.5rem;
+}
+
+.card-head h2 {
+    margin-bottom: 0;
+}
+
+/* 2. Verdict strip */
+.verdict-strip {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.verdict-columns {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 1rem;
+}
+
+@media (min-width: 720px) {
+    .verdict-columns {
+        grid-template-columns: 1fr 1fr;
+    }
+}
+
+.card-leak {
+    border-left: 4px solid var(--accent-leak);
+}
+
+.card-leak h2 {
+    color: var(--accent-leak);
+}
+
+.card-leak.leak-severity-major {
+    border-left-color: var(--color-loss);
+}
+
+.card-leak.leak-severity-major h2 {
+    color: var(--color-loss);
+}
+
+.card-action {
+    border-left: 4px solid var(--accent-color);
+}
+
+.card-action h2 {
+    color: var(--accent-color);
+}
+
+.card-strength {
+    border-left: 4px solid var(--accent-strength);
+}
+
+.card-strength h2 {
+    color: var(--accent-strength);
+}
+
+.significance-badge {
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    padding: 0.2rem 0.5rem;
+    border-radius: 4px;
+    letter-spacing: 0.05em;
+}
+
+.sig-major {
+    background-color: rgba(237, 66, 69, 0.15);
+    color: var(--color-loss);
+    border: 1px solid var(--color-loss);
+}
+
+.sig-notable {
+    background-color: rgba(242, 140, 40, 0.15);
+    color: var(--accent-leak);
+    border: 1px solid var(--accent-leak);
+}
+
+.sig-minor {
+    background-color: rgba(148, 155, 164, 0.15);
+    color: var(--text-muted);
+    border: 1px solid var(--text-muted);
+}
+
+/* 3. Key numbers with width classes w0..w100 */
+.compact-metrics-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.85rem;
+    margin-top: 0.5rem;
+}
+
+.compact-metric-row {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0.35rem 0.75rem;
+    padding-bottom: 0.65rem;
+    border-bottom: 1px solid var(--card-border);
+}
+
+@media (min-width: 520px) {
+    .compact-metric-row {
+        grid-template-columns: 160px 1fr 140px;
+        align-items: center;
+    }
+}
+
+.compact-metric-row:last-child {
+    border-bottom: none;
+    padding-bottom: 0;
+}
+
+.metric-title {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--heading-color);
+}
+
+.bar-track {
+    width: 100%;
+    height: 8px;
+    background-color: var(--track-bg);
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.bar-fill {
+    height: 100%;
+    background-color: var(--bar-bg);
+    border-radius: 4px;
+}
+
+/* CSS width classes w0..w100 (pure CSS widths, no inline style) */
+.w0 { width: 0%; }
+.w10 { width: 10%; }
+.w20 { width: 20%; }
+.w30 { width: 30%; }
+.w40 { width: 40%; }
+.w50 { width: 50%; }
+.w60 { width: 60%; }
+.w70 { width: 70%; }
+.w80 { width: 80%; }
+.w90 { width: 90%; }
+.w100 { width: 100%; }
+
+.bar-benchmarks {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    margin-top: 0.2rem;
+}
+
+.metric-val-col {
+    display: flex;
+    align-items: baseline;
+    gap: 0.5rem;
+    justify-content: flex-start;
+}
+
+@media (min-width: 520px) {
+    .metric-val-col {
+        justify-content: flex-end;
+    }
+}
+
+.val-yours {
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: var(--heading-color);
+}
+
+.val-verdict {
+    font-size: 0.8rem;
+    color: var(--accent-color);
 }
 
 .card-numbers li,
 .card-build li {
     padding: 0.35rem 0;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    border-bottom: 1px solid var(--card-border);
     font-size: 0.95rem;
+    list-style: none;
 }
 
 .card-numbers li:last-child,
@@ -116,58 +339,131 @@ body {
     border-bottom: none;
 }
 
-.card-chart {
-    padding: 0.5rem;
+/* 4. Charts block */
+.charts-section {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+}
+
+.card-chart-block {
+    padding: 1.25rem;
     overflow: hidden;
 }
 
-.chart-img {
+.chart-caption {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    margin-bottom: 0.75rem;
+}
+
+.chart-svg-img {
     width: 100%;
     height: auto;
     display: block;
     border-radius: 4px;
+    background-color: var(--card-bg);
 }
 
-.card-soul-curve {
-    padding: 0.5rem;
-    overflow: hidden;
+/* 5. Detail sections: collapsible <details> */
+.details-section {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
 }
 
-.soul-curve-img {
-    width: 100%;
-    height: auto;
-    display: block;
-    border-radius: 4px;
+details.card-details {
+    padding: 0.75rem 1.25rem;
+    cursor: pointer;
+    transition: background-color 0.15s ease;
 }
 
-.card-glance .glance-list {
+details.card-details[open] {
+    padding-bottom: 1.25rem;
+}
+
+.details-summary {
+    display: flex;
+    align-items: center;
+    list-style: none;
+    user-select: none;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.details-summary::-webkit-details-marker {
+    display: none;
+}
+
+.details-summary::before {
+    content: "▶";
+    display: inline-block;
+    font-size: 0.75rem;
+    color: var(--accent-color);
+    margin-right: 0.65rem;
+    transition: transform 0.2s ease;
+}
+
+details[open] > .details-summary::before {
+    transform: rotate(90deg);
+}
+
+.details-summary h2 {
+    margin-bottom: 0;
+    display: inline-block;
+}
+
+.coach-container {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.coach-header {
+    display: inline-flex;
+    justify-content: space-between;
+    align-items: center;
+    width: calc(100% - 1.5rem);
+}
+
+.coach-fields {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
-    gap: 0.75rem;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 0.6rem 1rem;
+    margin-top: 0.85rem;
+    padding-top: 0.85rem;
+    border-top: 1px solid var(--card-border);
+    cursor: default;
 }
 
-.glance-item dt {
+.coach-field-item {
+    display: flex;
+    flex-direction: column;
+}
+
+.coach-field-item dt {
     font-size: 0.8rem;
     color: var(--text-muted);
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
 }
 
-.glance-item dd {
-    font-size: 1.1rem;
-    font-weight: 600;
-    color: var(--heading-color);
+.coach-field-item dd {
+    font-size: 0.95rem;
+    color: var(--text-color);
+    word-break: break-word;
 }
 
 .table-container {
     overflow-x: auto;
+    margin-top: 0.85rem;
+    padding-top: 0.85rem;
+    border-top: 1px solid var(--card-border);
+    cursor: default;
 }
 
 .metrics-table {
     width: 100%;
     border-collapse: collapse;
     font-size: 0.9rem;
-    margin-top: 0.5rem;
 }
 
 .metrics-table th,
@@ -200,72 +496,6 @@ body {
     font-size: 0.85rem;
 }
 
-.coach-container {
-    display: flex;
-    flex-direction: column;
-    gap: 1.25rem;
-}
-
-.coach-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 0.75rem;
-}
-
-.coach-header h2 {
-    margin-bottom: 0;
-}
-
-.significance-badge {
-    font-size: 0.75rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    padding: 0.2rem 0.5rem;
-    border-radius: 4px;
-    letter-spacing: 0.05em;
-}
-
-.sig-major {
-    background-color: rgba(242, 63, 66, 0.15);
-    color: #f23f42;
-    border: 1px solid #f23f42;
-}
-
-.sig-notable {
-    background-color: rgba(242, 140, 40, 0.15);
-    color: var(--accent-leak);
-    border: 1px solid var(--accent-leak);
-}
-
-.sig-minor {
-    background-color: rgba(148, 155, 164, 0.15);
-    color: var(--text-muted);
-    border: 1px solid var(--text-muted);
-}
-
-.coach-fields {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: 0.6rem 1rem;
-}
-
-.coach-field-item {
-    display: flex;
-    flex-direction: column;
-}
-
-.coach-field-item dt {
-    font-size: 0.8rem;
-    color: var(--text-muted);
-}
-
-.coach-field-item dd {
-    font-size: 0.95rem;
-    color: var(--text-color);
-    word-break: break-word;
-}
-
 .older-analysis-notice {
     background-color: rgba(148, 155, 164, 0.08);
     border: 1px dashed var(--card-border);
@@ -276,17 +506,14 @@ body {
     text-align: center;
 }
 
-.card-not-found {
-    text-align: center;
-    padding: 3rem 1.5rem;
+/* 6. Final build */
+.card-build ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
 }
 
-.card-not-found h1 {
-    color: var(--accent-color);
-    font-size: 1.75rem;
-    margin-bottom: 0.75rem;
-}
-
+/* 7. Footer */
 .report-footer {
     text-align: center;
     padding-top: 1rem;
@@ -302,4 +529,73 @@ body {
 .brand-footer {
     color: var(--text-muted);
     font-weight: 500;
+}
+
+/* 404 page */
+.card-not-found {
+    text-align: center;
+    padding: 3rem 1.5rem;
+}
+
+.card-not-found h1 {
+    color: var(--accent-color);
+    font-size: 1.75rem;
+    margin-bottom: 0.75rem;
+}
+
+/* Print stylesheet */
+@media print {
+    body {
+        background-color: #ffffff !important;
+        color: #000000 !important;
+        padding: 0 !important;
+    }
+
+    .container {
+        max-width: 100% !important;
+        gap: 0.75rem !important;
+    }
+
+    .card, .hero-banner {
+        background-color: #ffffff !important;
+        border: 1px solid #cccccc !important;
+        box-shadow: none !important;
+        page-break-inside: avoid;
+    }
+
+    .degraded-notice,
+    .older-analysis-notice {
+        display: none !important;
+    }
+
+    details {
+        display: block !important;
+    }
+
+    details[open] > summary::before,
+    details > summary::before {
+        display: none !important;
+    }
+
+    details > * {
+        display: block !important;
+    }
+
+    .table-container {
+        display: block !important;
+        overflow: visible !important;
+    }
+
+    .metrics-table {
+        display: table !important;
+    }
+
+    .coach-fields {
+        display: grid !important;
+    }
+
+    .chart-svg-img {
+        max-width: 100% !important;
+        page-break-inside: avoid;
+    }
 }

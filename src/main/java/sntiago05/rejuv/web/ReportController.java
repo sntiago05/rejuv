@@ -79,13 +79,37 @@ public class ReportController {
 
     @GetMapping("/r/{publicId}/soul-curve.svg")
     public ResponseEntity<String> soulCurveSvg(@PathVariable("publicId") String publicIdRaw) {
+        return serveSvg(publicIdRaw, reportService::soulCurveSvg);
+    }
+
+    @GetMapping({"/r/{publicId}/soul-lead.svg", "/r/{publicId}/lead.svg"})
+    public ResponseEntity<String> soulLeadSvg(@PathVariable("publicId") String publicIdRaw) {
+        return serveSvg(publicIdRaw, reportService::soulLeadSvg);
+    }
+
+    @GetMapping("/r/{publicId}/phases.svg")
+    public ResponseEntity<String> phasesSvg(@PathVariable("publicId") String publicIdRaw) {
+        return serveSvg(publicIdRaw, reportService::phasesSvg);
+    }
+
+    @GetMapping("/r/{publicId}/deaths.svg")
+    public ResponseEntity<String> deathsSvg(@PathVariable("publicId") String publicIdRaw) {
+        return serveSvg(publicIdRaw, reportService::deathsSvg);
+    }
+
+    @GetMapping("/r/{publicId}/metrics.svg")
+    public ResponseEntity<String> metricsSvg(@PathVariable("publicId") String publicIdRaw) {
+        return serveSvg(publicIdRaw, reportService::metricsSvg);
+    }
+
+    private ResponseEntity<String> serveSvg(String publicIdRaw, java.util.function.Function<UUID, Optional<String>> loader) {
         HttpHeaders headers = createSecurityHeaders();
         Optional<UUID> uuid = parseUuid(publicIdRaw);
         if (uuid.isEmpty()) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).headers(headers).build();
         }
 
-        Optional<String> svg = reportService.soulCurveSvg(uuid.get());
+        Optional<String> svg = loader.apply(uuid.get());
         if (svg.isEmpty()) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).headers(headers).build();
         }

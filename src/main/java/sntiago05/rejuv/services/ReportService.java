@@ -9,6 +9,7 @@ import java.util.UUID;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import sntiago05.rejuv.clients.DeadlockApiClient;
 import sntiago05.rejuv.clients.MatchMetadataSource;
@@ -43,6 +44,26 @@ public class ReportService {
     private final ChartRenderer chartRenderer;
     private final DeadlockApiClient deadlockApiClient;
     private final SoulCurveSvg soulCurveSvg;
+    private final ReportChartsSvg reportChartsSvg;
+
+    @Autowired
+    public ReportService(MatchAnalysisRepository repository,
+                         MatchMetadataSource matchMetadataSource,
+                         MatchVisualsService visualsService,
+                         GameAssets gameAssets,
+                         ChartRenderer chartRenderer,
+                         DeadlockApiClient deadlockApiClient,
+                         SoulCurveSvg soulCurveSvg,
+                         ReportChartsSvg reportChartsSvg) {
+        this.repository = repository;
+        this.matchMetadataSource = matchMetadataSource;
+        this.visualsService = visualsService;
+        this.gameAssets = gameAssets;
+        this.chartRenderer = chartRenderer;
+        this.deadlockApiClient = deadlockApiClient;
+        this.soulCurveSvg = soulCurveSvg;
+        this.reportChartsSvg = reportChartsSvg;
+    }
 
     public ReportService(MatchAnalysisRepository repository,
                          MatchMetadataSource matchMetadataSource,
@@ -51,13 +72,7 @@ public class ReportService {
                          ChartRenderer chartRenderer,
                          DeadlockApiClient deadlockApiClient,
                          SoulCurveSvg soulCurveSvg) {
-        this.repository = repository;
-        this.matchMetadataSource = matchMetadataSource;
-        this.visualsService = visualsService;
-        this.gameAssets = gameAssets;
-        this.chartRenderer = chartRenderer;
-        this.deadlockApiClient = deadlockApiClient;
-        this.soulCurveSvg = soulCurveSvg;
+        this(repository, matchMetadataSource, visualsService, gameAssets, chartRenderer, deadlockApiClient, soulCurveSvg, null);
     }
 
     /**
@@ -86,6 +101,9 @@ public class ReportService {
         List<MatchVisuals.PurchasedItem> build = List.of();
         boolean hasChart = false;
         boolean hasSoulCurve = false;
+        boolean hasSoulLead = false;
+        String soulLeadAlt = "";
+        String soulCurveAlt = "";
 
         try {
             MatchTelemetry telemetry = matchMetadataSource.getMatch(stored.getMatchId());
@@ -94,9 +112,21 @@ public class ReportService {
                 Optional<MatchVisuals> visuals = visualsService.build(stored.getAccountId(), telemetry);
                 if (visuals.isPresent()) {
                     build = visuals.get().items();
-                    hasChart = visuals.get().chart() != null;
+                    MatchVisuals.ChartData chartData = visuals.get().chart();
+                    hasChart = chartData != null;
+                    if (chartData != null && chartData.soulLead() != null && chartData.soulLead().size() >= 2) {
+                        hasSoulLead = true;
+                        soulLeadAlt = ReportChartsSvg.computeSoulLeadAlt(chartData.timesS(), chartData.soulLead());
+                    }
                 }
-                hasSoulCurve = computeSoulCurveData(stored, telemetry).isPresent();
+                Optional<SoulCurveData> soulCurveDataOpt = computeSoulCurveData(stored, telemetry);
+                hasSoulCurve = soulCurveDataOpt.isPresent();
+                if (hasSoulCurve) {
+                    SoulCurveData scData = soulCurveDataOpt.get();
+                    int lastIdx = scData.playerNetWorth().size() - 1;
+                    int durM = (int) (scData.timesS().get(lastIdx) / 60);
+                    soulCurveAlt = SoulCurveSvg.computeSoulCurveAlt(scData.playerNetWorth().get(lastIdx), scData.avgNetWorth().get(lastIdx), durM);
+                }
             }
         } catch (RuntimeException ex) {
             log.warn("Match metadata unavailable for publicId={}: {}", publicId, ex.getClass().getSimpleName());
@@ -104,11 +134,20 @@ public class ReportService {
             build = List.of();
             hasChart = false;
             hasSoulCurve = false;
+            hasSoulLead = false;
+            soulLeadAlt = "";
+            soulCurveAlt = "";
         }
 
         String rank = null;
         String result = null;
         boolean hasDetailedSections = false;
+        boolean hasPhasesChart = false;
+        boolean hasDeathsChart = false;
+        boolean hasMetricsChart = false;
+        String phasesAlt = "";
+        String deathsAlt = "";
+        String metricsAlt = "";
         List<ReportView.MetricRow> metricsTable = List.of();
         List<ReportView.CoachSection> coachSections = List.of();
         List<ReportView.OtherSignal> otherSignals = List.of();
@@ -135,10 +174,45 @@ public class ReportService {
                     metricsTable = parseMetricsTable(inputTree.path("metrics"));
                     coachSections = parseCoachSections(inputTree.path("coach"));
                     otherSignals = parseOtherSignals(inputTree.path("coach"));
+
+                    // Phases chart
+                    JsonNode phasesArr = inputTree.path("coach").path("phases").path("phases");
+                    if (phasesArr.isArray() && !phasesArr.isEmpty()) {
+                        hasPhasesChart = true;
+                        List<ReportChartsSvg.PhaseScore> phaseScores = new ArrayList<>();
+                        for (JsonNode p : phasesArr) {
+                            phaseScores.add(new ReportChartsSvg.PhaseScore(p.path("name").asText(), p.path("change").asDouble()));
+                        }
+                        phasesAlt = ReportChartsSvg.computePhasesAlt(phaseScores);
+                    }
+
+                    // Deaths chart
+                    JsonNode deathsObj = inputTree.path("coach").path("deaths");
+                    if (deathsObj.isObject() && !deathsObj.isEmpty()) {
+                        hasDeathsChart = true;
+                        int total = deathsObj.path("total").asInt(0);
+                        int longestRespawn = deathsObj.path("longest_respawn_s").asInt(0);
+                        int laning = deathsObj.path("by_phase").path("laning").asInt(0);
+                        int mid = deathsObj.path("by_phase").path("mid").asInt(0);
+                        int late = deathsObj.path("by_phase").path("late").asInt(0);
+                        deathsAlt = ReportChartsSvg.computeDeathsAlt(laning, mid, late, total, longestRespawn);
+                    }
+
+                    // Metrics chart
+                    if (!metricsTable.isEmpty()) {
+                        hasMetricsChart = true;
+                        metricsAlt = ReportChartsSvg.computeMetricsAlt(metricsTable);
+                    }
                 }
             } catch (Exception ex) {
                 log.warn("Failed to parse analysis input JSON for publicId={}: {}", publicId, ex.getMessage());
                 hasDetailedSections = false;
+                hasPhasesChart = false;
+                hasDeathsChart = false;
+                hasMetricsChart = false;
+                phasesAlt = "";
+                deathsAlt = "";
+                metricsAlt = "";
                 rank = null;
                 result = null;
                 metricsTable = List.of();
@@ -163,7 +237,16 @@ public class ReportService {
                 hasDetailedSections,
                 metricsTable,
                 coachSections,
-                otherSignals
+                otherSignals,
+                hasSoulLead,
+                hasPhasesChart,
+                hasDeathsChart,
+                hasMetricsChart,
+                soulLeadAlt,
+                soulCurveAlt,
+                phasesAlt,
+                deathsAlt,
+                metricsAlt
         ));
     }
 
@@ -235,6 +318,120 @@ public class ReportService {
         SoulCurveData data = dataOpt.get();
         return soulCurveSvg.render(data.heroName(), data.rankLabel(), data.ownRank(),
                 data.timesS(), data.playerNetWorth(), data.avgNetWorth(), data.stdNetWorth());
+    }
+
+    /**
+     * Renders the soul lead chart as SVG. Empty when no report, no telemetry/chart, or rendering fails.
+     */
+    public Optional<String> soulLeadSvg(UUID publicId) {
+        if (publicId == null || reportChartsSvg == null) {
+            return Optional.empty();
+        }
+        Optional<MatchAnalysis> storedOpt = repository.findByPublicId(publicId);
+        if (storedOpt.isEmpty()) {
+            return Optional.empty();
+        }
+        MatchAnalysis stored = storedOpt.get();
+
+        MatchTelemetry telemetry;
+        try {
+            telemetry = matchMetadataSource.getMatch(stored.getMatchId());
+        } catch (RuntimeException ex) {
+            log.warn("Match metadata unavailable for soul lead publicId={}: {}", publicId, ex.getClass().getSimpleName());
+            return Optional.empty();
+        }
+        if (telemetry == null) {
+            return Optional.empty();
+        }
+
+        Optional<MatchVisuals> visuals = visualsService.build(stored.getAccountId(), telemetry);
+        if (visuals.isEmpty() || visuals.get().chart() == null) {
+            return Optional.empty();
+        }
+        MatchVisuals.ChartData chart = visuals.get().chart();
+        return reportChartsSvg.renderSoulLead(chart.timesS(), chart.soulLead(), chart.playerDeathTimesS());
+    }
+
+    /**
+     * Renders the phase scorecard as SVG. Empty when no report, no phases payload, or rendering fails.
+     */
+    public Optional<String> phasesSvg(UUID publicId) {
+        if (publicId == null || reportChartsSvg == null) {
+            return Optional.empty();
+        }
+        Optional<MatchAnalysis> storedOpt = repository.findByPublicId(publicId);
+        if (storedOpt.isEmpty() || storedOpt.get().getInputJson() == null) {
+            return Optional.empty();
+        }
+        try {
+            JsonNode tree = JSON_MAPPER.readTree(storedOpt.get().getInputJson());
+            JsonNode phasesNode = tree.path("coach").path("phases").path("phases");
+            if (!phasesNode.isArray() || phasesNode.isEmpty()) {
+                return Optional.empty();
+            }
+            List<ReportChartsSvg.PhaseScore> phases = new ArrayList<>();
+            for (JsonNode p : phasesNode) {
+                phases.add(new ReportChartsSvg.PhaseScore(p.path("name").asText(), p.path("change").asDouble()));
+            }
+            return reportChartsSvg.renderPhases(phases);
+        } catch (Exception ex) {
+            log.warn("Failed to parse phases for SVG publicId={}: {}", publicId, ex.getMessage());
+            return Optional.empty();
+        }
+    }
+
+    /**
+     * Renders the deaths breakdown as SVG. Empty when no report, no deaths payload, or rendering fails.
+     */
+    public Optional<String> deathsSvg(UUID publicId) {
+        if (publicId == null || reportChartsSvg == null) {
+            return Optional.empty();
+        }
+        Optional<MatchAnalysis> storedOpt = repository.findByPublicId(publicId);
+        if (storedOpt.isEmpty() || storedOpt.get().getInputJson() == null) {
+            return Optional.empty();
+        }
+        try {
+            JsonNode tree = JSON_MAPPER.readTree(storedOpt.get().getInputJson());
+            JsonNode deathsNode = tree.path("coach").path("deaths");
+            if (!deathsNode.isObject() || deathsNode.isEmpty()) {
+                return Optional.empty();
+            }
+            int total = deathsNode.path("total").asInt(0);
+            int longestRespawn = deathsNode.path("longest_respawn_s").asInt(0);
+            JsonNode byPhase = deathsNode.path("by_phase");
+            int laning = byPhase.path("laning").asInt(0);
+            int mid = byPhase.path("mid").asInt(0);
+            int late = byPhase.path("late").asInt(0);
+            return reportChartsSvg.renderDeaths(laning, mid, late, total, longestRespawn);
+        } catch (Exception ex) {
+            log.warn("Failed to parse deaths for SVG publicId={}: {}", publicId, ex.getMessage());
+            return Optional.empty();
+        }
+    }
+
+    /**
+     * Renders the metrics vs peers comparison as SVG. Empty when no report, no metrics, or rendering fails.
+     */
+    public Optional<String> metricsSvg(UUID publicId) {
+        if (publicId == null || reportChartsSvg == null) {
+            return Optional.empty();
+        }
+        Optional<MatchAnalysis> storedOpt = repository.findByPublicId(publicId);
+        if (storedOpt.isEmpty() || storedOpt.get().getInputJson() == null) {
+            return Optional.empty();
+        }
+        try {
+            JsonNode tree = JSON_MAPPER.readTree(storedOpt.get().getInputJson());
+            List<ReportView.MetricRow> metrics = parseMetricsTable(tree.path("metrics"));
+            if (metrics.isEmpty()) {
+                return Optional.empty();
+            }
+            return reportChartsSvg.renderMetrics(metrics);
+        } catch (Exception ex) {
+            log.warn("Failed to parse metrics for SVG publicId={}: {}", publicId, ex.getMessage());
+            return Optional.empty();
+        }
     }
 
     private record SoulCurveData(
@@ -400,6 +597,18 @@ public class ReportService {
         return String.format(Locale.ROOT, "%.1f", value);
     }
 
+    public static String mapWidthClass(double percentage) {
+        if (Double.isNaN(percentage) || percentage <= 0.0) {
+            return "w0";
+        }
+        if (percentage >= 100.0) {
+            return "w100";
+        }
+        int rounded = (int) Math.round(percentage / 10.0) * 10;
+        rounded = Math.clamp(rounded, 0, 100);
+        return "w" + rounded;
+    }
+
     private static List<ReportView.MetricRow> parseMetricsTable(JsonNode metricsNode) {
         if (metricsNode == null || !metricsNode.isObject()) {
             return List.of();
@@ -419,7 +628,14 @@ public class ReportService {
             String yourValueStr = formatNumber(value);
             String p25Str = formatNumber(p25);
             String p50Str = formatNumber(p50);
-            rows.add(new ReportView.MetricRow(metricKey, labelKey, yourValueStr, p25Str, p50Str, verdict));
+            double pct;
+            if (p50 != null && p50 > 0) {
+                pct = (value / (2.0 * p50)) * 100.0;
+            } else {
+                pct = 50.0;
+            }
+            String widthClass = mapWidthClass(pct);
+            rows.add(new ReportView.MetricRow(metricKey, labelKey, yourValueStr, p25Str, p50Str, verdict, widthClass));
         }
         return Collections.unmodifiableList(rows);
     }
