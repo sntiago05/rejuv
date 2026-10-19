@@ -123,7 +123,9 @@ public class JsonMatchMetadataSource implements MatchMetadataSource {
                                 zeroIfNull(stat.goldLaneCreep()),
                                 zeroIfNull(stat.goldNeutralCreep()),
                                 zeroIfNull(stat.goldDenied()),
-                                zeroIfNull(stat.goldDeathLoss()))))
+                                zeroIfNull(stat.goldDeathLoss()),
+                                stat.heroBulletsHit(),
+                                stat.heroBulletsHitCrit())))
                 .sorted(Comparator.comparingInt(StatSnapshot::timeS))
                 .toList();
 

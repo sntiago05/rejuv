@@ -16,7 +16,7 @@ public record AnalysisResult(String strength,
                             @JsonProperty("focus_area") @JsonInclude(JsonInclude.Include.NON_NULL) String focusArea,
                             @JsonProperty("severity") @JsonInclude(JsonInclude.Include.NON_NULL) String severity) {
 
-    public static final Set<String> FOCUS_AREAS = Set.of("phases", "deaths", "objectives", "build", "recent_form", "matchup", "metrics");
+    public static final Set<String> FOCUS_AREAS = Set.of("phases", "deaths", "objectives", "aim_mechanics", "build", "recent_form", "matchup", "metrics");
     public static final Set<String> SEVERITIES = Set.of("minor", "notable", "major");
 
     public AnalysisResult(String strength, String biggestLeak, String nextGameAction, List<String> keyNumbers) {

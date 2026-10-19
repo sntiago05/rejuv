@@ -90,7 +90,9 @@ public record MatchMetadataResponse(
             @JsonProperty("gold_neutral_creep") Long goldNeutralCreep,
             @JsonProperty("gold_denied") Long goldDenied,
             @JsonProperty("gold_death_loss") Long goldDeathLoss,
-            @JsonProperty("boss_damage") Long bossDamage
+            @JsonProperty("boss_damage") Long bossDamage,
+            @JsonProperty("hero_bullets_hit") Long heroBulletsHit,
+            @JsonProperty("hero_bullets_hit_crit") Long heroBulletsHitCrit
     ) { }
 
     @JsonIgnoreProperties(ignoreUnknown = true)

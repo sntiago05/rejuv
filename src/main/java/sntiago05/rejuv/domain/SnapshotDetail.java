@@ -10,5 +10,19 @@ public record SnapshotDetail(int kills, int deaths, int assists,
                              int denies,
                              long playerDamageTaken,
                              long goldLaneCreep, long goldNeutralCreep,
-                             long goldDenied, long goldDeathLoss) {
+                             long goldDenied, long goldDeathLoss,
+                             Long heroBulletsHit,
+                             Long heroBulletsHitCrit) {
+
+    public SnapshotDetail(int kills, int deaths, int assists,
+                          int creepKills, int possibleCreeps,
+                          int shotsHit, int shotsMissed,
+                          int denies,
+                          long playerDamageTaken,
+                          long goldLaneCreep, long goldNeutralCreep,
+                          long goldDenied, long goldDeathLoss) {
+        this(kills, deaths, assists, creepKills, possibleCreeps, shotsHit, shotsMissed,
+                denies, playerDamageTaken, goldLaneCreep, goldNeutralCreep, goldDenied,
+                goldDeathLoss, null, null);
+    }
 }
