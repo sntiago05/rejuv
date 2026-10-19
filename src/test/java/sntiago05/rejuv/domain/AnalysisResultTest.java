@@ -205,6 +205,18 @@ class AnalysisResultTest {
     }
 
     @Test
+    void objectivesFocusAreaIsAccepted() {
+        AnalysisResult result = new AnalysisResult("s", "l", "a", List.of(), "objectives", "major");
+        assertThat(result.focusArea()).isEqualTo("objectives");
+    }
+
+    @Test
+    void objectivesFocusAreaNormalizesWhitespaceAndCase() {
+        AnalysisResult result = new AnalysisResult("s", "l", "a", List.of(), " Objectives ", "notable");
+        assertThat(result.focusArea()).isEqualTo("objectives");
+    }
+
+    @Test
     void severityNormalizesWhitespaceAndCase() {
         AnalysisResult result = new AnalysisResult("s", "l", "a", List.of(), "deaths", " NOTABLE ");
         assertThat(result.severity()).isEqualTo("notable");
