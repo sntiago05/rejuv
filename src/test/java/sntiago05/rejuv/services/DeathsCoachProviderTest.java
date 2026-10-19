@@ -598,6 +598,319 @@ class DeathsCoachProviderTest {
         assertThat(request.player().deaths()).hasSize(2);
     }
 
+    @Test
+    void timeToKillHappyPathOddCountAndP90On7Values() {
+        // 7 valid values shuffled to test sorting: 18.0, 4.0, 22.0, 11.0, 28.0, 7.0, 13.5
+        // Sorted: 4.0, 7.0, 11.0, 13.5, 18.0, 22.0, 28.0
+        // Median (odd, 7/2 = 3): 13.5
+        // p90 nearest-rank: ceil(0.9 * 7) - 1 = ceil(6.3) - 1 = 6 -> sorted[6] = 28.0
+        List<DeathEvent> deaths = List.of(
+                new DeathEvent(100, null, 18.0, 10),
+                new DeathEvent(200, null, 4.0, 10),
+                new DeathEvent(300, null, 22.0, 10),
+                new DeathEvent(400, null, 11.0, 10),
+                new DeathEvent(500, null, 28.0, 10),
+                new DeathEvent(600, null, 7.0, 10),
+                new DeathEvent(700, null, 13.5, 10)
+        );
+        PlayerTelemetry target = createPlayerWithDeaths(deaths);
+        MatchTelemetry telemetry = new MatchTelemetry(MATCH_ID, 1800, List.of(target));
+        CoachRequest request = new CoachRequest(TARGET_ACCOUNT_ID, null, List.of(), telemetry, target, null, List.of(), List.of());
+
+        DeathsPayload payload = (DeathsPayload) provider.provide(request).orElseThrow().payload();
+        assertThat(payload.ttkCounted()).isEqualTo(7);
+        assertThat(payload.ttkMedianS()).isEqualTo(13.5);
+        assertThat(payload.ttkP90S()).isEqualTo(28.0);
+    }
+
+    @Test
+    void timeToKillHappyPathEvenCountAndP90On10Values() {
+        // 10 valid values shuffled:
+        // 20.0, 8.0, 14.0, 5.0, 25.0, 17.0, 10.0, 30.0, 12.0, 18.0
+        // Sorted: 5.0, 8.0, 10.0, 12.0, 14.0, 17.0, 18.0, 20.0, 25.0, 30.0
+        // Median (even, mean of index 4 and 5): (14.0 + 17.0) / 2.0 = 15.5
+        // p90 nearest-rank: ceil(0.9 * 10) - 1 = ceil(9.0) - 1 = 8 -> sorted[8] = 25.0
+        List<DeathEvent> deaths = List.of(
+                new DeathEvent(100, null, 20.0, 10),
+                new DeathEvent(200, null, 8.0, 10),
+                new DeathEvent(300, null, 14.0, 10),
+                new DeathEvent(400, null, 5.0, 10),
+                new DeathEvent(500, null, 25.0, 10),
+                new DeathEvent(600, null, 17.0, 10),
+                new DeathEvent(700, null, 10.0, 10),
+                new DeathEvent(800, null, 30.0, 10),
+                new DeathEvent(900, null, 12.0, 10),
+                new DeathEvent(1000, null, 18.0, 10)
+        );
+        PlayerTelemetry target = createPlayerWithDeaths(deaths);
+        MatchTelemetry telemetry = new MatchTelemetry(MATCH_ID, 1800, List.of(target));
+        CoachRequest request = new CoachRequest(TARGET_ACCOUNT_ID, null, List.of(), telemetry, target, null, List.of(), List.of());
+
+        DeathsPayload payload = (DeathsPayload) provider.provide(request).orElseThrow().payload();
+        assertThat(payload.ttkCounted()).isEqualTo(10);
+        assertThat(payload.ttkMedianS()).isEqualTo(15.5);
+        assertThat(payload.ttkP90S()).isEqualTo(25.0);
+    }
+
+    @Test
+    void timeToKillExclusionsAndBoundaries() {
+        // Exactly 60.0 is included (boundary); 60.1 is excluded (boundary).
+        // -1.0, null, 0.0, NaN, >60.0 are excluded.
+        List<DeathEvent> deaths = List.of(
+                new DeathEvent(100, null, 10.0, 10),                   // valid (1)
+                new DeathEvent(200, null, -1.0, 10),                   // excluded: negative
+                new DeathEvent(300, null, null, 10),                   // excluded: null
+                new DeathEvent(400, null, 0.0, 10),                    // excluded: zero
+                new DeathEvent(500, null, Double.NaN, 10),             // excluded: NaN
+                new DeathEvent(600, null, 20.0, 10),                   // valid (2)
+                new DeathEvent(700, null, 60.0, 10),                   // valid (3) - boundary at TTK_MAX_VALID_S
+                new DeathEvent(800, null, 60.1, 10),                   // excluded - boundary above TTK_MAX_VALID_S
+                new DeathEvent(900, null, 180.0, 10),                  // excluded: outlier
+                new DeathEvent(1000, null, Double.POSITIVE_INFINITY, 10), // excluded: infinite
+                new DeathEvent(1100, null, Double.NEGATIVE_INFINITY, 10)  // excluded: infinite
+        );
+        PlayerTelemetry target = createPlayerWithDeaths(deaths);
+        MatchTelemetry telemetry = new MatchTelemetry(MATCH_ID, 1800, List.of(target));
+        CoachRequest request = new CoachRequest(TARGET_ACCOUNT_ID, null, List.of(), telemetry, target, null, List.of(), List.of());
+
+        DeathsPayload payload = (DeathsPayload) provider.provide(request).orElseThrow().payload();
+        // Valid values: [10.0, 20.0, 60.0] -> counted = 3
+        assertThat(payload.ttkCounted()).isEqualTo(3);
+        assertThat(payload.ttkMedianS()).isEqualTo(20.0);
+        // p90 on 3: ceil(0.9 * 3) - 1 = ceil(2.7) - 1 = 2 -> sorted[2] = 60.0
+        assertThat(payload.ttkP90S()).isEqualTo(60.0);
+    }
+
+    @Test
+    void timeToKillSampleCountThresholdBoundary() {
+        // Fewer than MIN_TTK_SAMPLES (2 vs 3) omits all three fields; all values invalid omits them.
+        // Case 1: 2 valid samples (10.0, 20.0)
+        List<DeathEvent> deaths2 = List.of(
+                new DeathEvent(100, null, 10.0, 10),
+                new DeathEvent(200, null, 20.0, 10),
+                new DeathEvent(300, null, -1.0, 10)
+        );
+        PlayerTelemetry target2 = createPlayerWithDeaths(deaths2);
+        MatchTelemetry tel2 = new MatchTelemetry(MATCH_ID, 1800, List.of(target2));
+        DeathsPayload p2 = (DeathsPayload) provider.provide(new CoachRequest(TARGET_ACCOUNT_ID, null, List.of(), tel2, target2, null, List.of(), List.of())).orElseThrow().payload();
+        assertThat(p2.ttkCounted()).isNull();
+        assertThat(p2.ttkMedianS()).isNull();
+        assertThat(p2.ttkP90S()).isNull();
+
+        // Case 2: 3 valid samples (10.0, 20.0, 30.0) -> exactly MIN_TTK_SAMPLES
+        List<DeathEvent> deaths3 = List.of(
+                new DeathEvent(100, null, 10.0, 10),
+                new DeathEvent(200, null, 20.0, 10),
+                new DeathEvent(300, null, 30.0, 10)
+        );
+        PlayerTelemetry target3 = createPlayerWithDeaths(deaths3);
+        MatchTelemetry tel3 = new MatchTelemetry(MATCH_ID, 1800, List.of(target3));
+        DeathsPayload p3 = (DeathsPayload) provider.provide(new CoachRequest(TARGET_ACCOUNT_ID, null, List.of(), tel3, target3, null, List.of(), List.of())).orElseThrow().payload();
+        assertThat(p3.ttkCounted()).isEqualTo(3);
+        assertThat(p3.ttkMedianS()).isEqualTo(20.0);
+        assertThat(p3.ttkP90S()).isEqualTo(30.0);
+
+        // Case 3: All values invalid
+        List<DeathEvent> deathsInvalid = List.of(
+                new DeathEvent(100, null, -1.0, 10),
+                new DeathEvent(200, null, null, 10),
+                new DeathEvent(300, null, 0.0, 10),
+                new DeathEvent(400, null, 75.0, 10)
+        );
+        PlayerTelemetry targetInvalid = createPlayerWithDeaths(deathsInvalid);
+        MatchTelemetry telInvalid = new MatchTelemetry(MATCH_ID, 1800, List.of(targetInvalid));
+        DeathsPayload pInvalid = (DeathsPayload) provider.provide(new CoachRequest(TARGET_ACCOUNT_ID, null, List.of(), telInvalid, targetInvalid, null, List.of(), List.of())).orElseThrow().payload();
+        assertThat(pInvalid.ttkCounted()).isNull();
+        assertThat(pInvalid.ttkMedianS()).isNull();
+        assertThat(pInvalid.ttkP90S()).isNull();
+    }
+
+    @Test
+    void timeToKillDoesNotAffectSignificanceOrExistingFields() {
+        // significance and other fields are identical with and without valid TTK values
+        List<DeathEvent> deathsWithTtk = List.of(
+                new DeathEvent(100, 6, 12.5, 15),
+                new DeathEvent(300, 6, 15.0, 20),
+                new DeathEvent(500, 6, 18.0, 25),
+                new DeathEvent(700, 7, 22.0, 30),
+                new DeathEvent(900, 8, 25.0, 35)
+        );
+        List<DeathEvent> deathsWithoutTtk = List.of(
+                new DeathEvent(100, 6, null, 15),
+                new DeathEvent(300, 6, null, 20),
+                new DeathEvent(500, 6, null, 25),
+                new DeathEvent(700, 7, null, 30),
+                new DeathEvent(900, 8, null, 35)
+        );
+
+        PlayerTelemetry killer6 = new PlayerTelemetry(2001L, 1, 5, List.of(), List.of(), List.of(), 6, 1, List.of());
+        PlayerTelemetry killer7 = new PlayerTelemetry(2002L, 1, 6, List.of(), List.of(), List.of(), 7, 2, List.of());
+        PlayerTelemetry killer8 = new PlayerTelemetry(2003L, 1, 7, List.of(), List.of(), List.of(), 8, 3, List.of());
+
+        PlayerTelemetry targetWith = createPlayerWithDeaths(deathsWithTtk);
+        PlayerTelemetry targetWithout = createPlayerWithDeaths(deathsWithoutTtk);
+
+        MatchTelemetry telWith = new MatchTelemetry(MATCH_ID, 1800, List.of(targetWith, killer6, killer7, killer8));
+        MatchTelemetry telWithout = new MatchTelemetry(MATCH_ID, 1800, List.of(targetWithout, killer6, killer7, killer8));
+
+        CoachRequest reqWith = new CoachRequest(TARGET_ACCOUNT_ID, null, List.of(), telWith, targetWith, null, List.of(), List.of());
+        CoachRequest reqWithout = new CoachRequest(TARGET_ACCOUNT_ID, null, List.of(), telWithout, targetWithout, null, List.of(), List.of());
+
+        DeathsPayload payloadWith = (DeathsPayload) provider.provide(reqWith).orElseThrow().payload();
+        DeathsPayload payloadWithout = (DeathsPayload) provider.provide(reqWithout).orElseThrow().payload();
+
+        assertThat(payloadWith.significance()).isEqualTo(payloadWithout.significance());
+        assertThat(payloadWith.total()).isEqualTo(payloadWithout.total());
+        assertThat(payloadWith.byPhase()).isEqualTo(payloadWithout.byPhase());
+        assertThat(payloadWith.secondsDead()).isEqualTo(payloadWithout.secondsDead());
+        assertThat(payloadWith.percentOfMatchDead()).isEqualTo(payloadWithout.percentOfMatchDead());
+        assertThat(payloadWith.longestRespawnS()).isEqualTo(payloadWithout.longestRespawnS());
+        assertThat(payloadWith.soulsLostOnDeath()).isEqualTo(payloadWithout.soulsLostOnDeath());
+        assertThat(payloadWith.backToBack()).isEqualTo(payloadWithout.backToBack());
+        assertThat(payloadWith.topKiller()).isEqualTo(payloadWithout.topKiller());
+        assertThat(payloadWith.repeatKiller()).isEqualTo(payloadWithout.repeatKiller());
+        assertThat(payloadWith.deathsWhileBehind()).isEqualTo(payloadWithout.deathsWhileBehind());
+        assertThat(payloadWith.deathsCounted()).isEqualTo(payloadWithout.deathsCounted());
+        assertThat(payloadWith.deathsZ()).isEqualTo(payloadWithout.deathsZ());
+
+        // TTK fields are present on payloadWith and absent on payloadWithout
+        assertThat(payloadWith.ttkCounted()).isEqualTo(5);
+        assertThat(payloadWith.ttkMedianS()).isEqualTo(18.0);
+        assertThat(payloadWith.ttkP90S()).isEqualTo(25.0);
+
+        assertThat(payloadWithout.ttkCounted()).isNull();
+        assertThat(payloadWithout.ttkMedianS()).isNull();
+        assertThat(payloadWithout.ttkP90S()).isNull();
+    }
+
+    @Test
+    void timeToKillSerializationSizeAndOmission() throws Exception {
+        // Serialized payload of a realistic full match (12 players, 8-10 deaths with resolved killers,
+        // top_killer, deaths_while_behind, valid ttk values) is <= 1200 characters and contains ttk fields.
+        int durationS = 2450;
+        int rankTier = 5;
+
+        List<DeathEvent> deaths = List.of(
+                new DeathEvent(200, 6, 12.3, 20),
+                new DeathEvent(300, 6, 15.6, 25),
+                new DeathEvent(800, 6, 18.2, 35),
+                new DeathEvent(850, 7, 9.5, 45),
+                new DeathEvent(1000, 6, 22.1, 50),
+                new DeathEvent(1300, 8, 14.0, 55),
+                new DeathEvent(1350, 9, 28.4, 58),
+                new DeathEvent(1600, 10, 11.7, 60),
+                new DeathEvent(1900, 11, 16.5, 62)
+        );
+
+        List<Integer> times = List.of(300, 600, 900, 1200, 1500, 1800, 2100, 2400);
+        List<StatSnapshot> targetSnapshots = new ArrayList<>();
+        for (int t : times) {
+            int cumulativeDeaths = t < 1800 ? 5 : (t == 1800 ? 8 : 9);
+            long goldLoss = (t == 2400) ? 1850L : 1000L;
+            SnapshotDetail detail = createDetailWithDeathsAndGoldLoss(cumulativeDeaths, goldLoss);
+            targetSnapshots.add(new StatSnapshot(t, 20000L, 10000L, 0L, detail));
+        }
+
+        PlayerTelemetry target = new PlayerTelemetry(
+                TARGET_ACCOUNT_ID, TARGET_TEAM, TARGET_HERO_ID,
+                List.of(), targetSnapshots, List.of(), TARGET_SLOT, 1, deaths
+        );
+
+        Map<Integer, Long> team0Nw = Map.of(
+                300, 10000L,
+                600, 20000L,
+                900, 30000L,
+                1200, 45000L,
+                1500, 50000L,
+                1800, 65000L,
+                2100, 75000L,
+                2400, 85000L
+        );
+        Map<Integer, Long> team1Nw = Map.of(
+                300, 10500L,
+                600, 20500L,
+                900, 30500L,
+                1200, 40000L,
+                1500, 50500L,
+                1800, 60000L,
+                2100, 70000L,
+                2400, 80000L
+        );
+
+        List<PlayerTelemetry> players = create12Players(target, times, team0Nw, team1Nw);
+        MatchTelemetry telemetry = new MatchTelemetry(MATCH_ID, durationS, players);
+
+        List<HeroAsset> heroes = List.of(
+                new HeroAsset(1, "hero_infernus", "Infernus"),
+                new HeroAsset(10, "hero_haze", "Haze")
+        );
+
+        when(deadlockApiClient.getPerformanceCurve(TARGET_HERO_ID, rankTier))
+                .thenReturn(List.of(createCurvePoint(1800, 4.0, 2.5)));
+
+        CoachRequest request = new CoachRequest(
+                TARGET_ACCOUNT_ID, null, List.of(), telemetry, target, rankTier, heroes, List.of()
+        );
+
+        DeathsPayload payload = (DeathsPayload) provider.provide(request).orElseThrow().payload();
+        assertThat(payload.total()).isEqualTo(9);
+        assertThat(payload.topKiller()).isNotNull();
+        assertThat(payload.topKiller().hero()).isEqualTo("Haze");
+        assertThat(payload.deathsWhileBehind()).isEqualTo(5);
+        assertThat(payload.deathsCounted()).isEqualTo(8);
+
+        String json = objectMapper.writeValueAsString(payload);
+        assertThat(json.length()).isLessThanOrEqualTo(1200);
+
+        JsonNode root = objectMapper.readTree(json);
+        assertThat(root.has("ttk_median_s")).isTrue();
+        assertThat(root.has("ttk_p90_s")).isTrue();
+        assertThat(root.has("ttk_counted")).isTrue();
+        assertThat(root.get("ttk_counted").asInt()).isEqualTo(9);
+        assertThat(root.has("top_killer")).isTrue();
+        assertThat(root.has("deaths_while_behind")).isTrue();
+
+        // When TTK fields are omitted (null), they must not appear in the JSON
+        List<DeathEvent> deathsNoTtk = List.of(
+                new DeathEvent(200, 6, null, 20),
+                new DeathEvent(400, 6, null, 25)
+        );
+        PlayerTelemetry targetNoTtk = createPlayerWithDeaths(deathsNoTtk);
+        MatchTelemetry telNoTtk = new MatchTelemetry(MATCH_ID, 1800, List.of(targetNoTtk));
+        DeathsPayload payloadNoTtk = (DeathsPayload) provider.provide(new CoachRequest(TARGET_ACCOUNT_ID, null, List.of(), telNoTtk, targetNoTtk, null, List.of(), List.of())).orElseThrow().payload();
+        String jsonNoTtk = objectMapper.writeValueAsString(payloadNoTtk);
+
+        assertThat(jsonNoTtk.length()).isLessThanOrEqualTo(1200);
+        JsonNode rootNoTtk = objectMapper.readTree(jsonNoTtk);
+        assertThat(rootNoTtk.has("ttk_median_s")).isFalse();
+        assertThat(rootNoTtk.has("ttk_p90_s")).isFalse();
+        assertThat(rootNoTtk.has("ttk_counted")).isFalse();
+    }
+
+    @Test
+    void timeToKillDeterminismAndNoMutation() {
+        List<DeathEvent> deaths = List.of(
+                new DeathEvent(200, 6, 12.0, 20),
+                new DeathEvent(400, 6, 18.0, 25),
+                new DeathEvent(800, 6, 24.0, 30)
+        );
+        PlayerTelemetry target = createPlayerWithDeaths(deaths);
+        MatchTelemetry telemetry = new MatchTelemetry(MATCH_ID, 1800, List.of(target));
+        CoachRequest request = new CoachRequest(TARGET_ACCOUNT_ID, null, List.of(), telemetry, target, null, List.of(), List.of());
+
+        Optional<CoachInsight> first = provider.provide(request);
+        Optional<CoachInsight> second = provider.provide(request);
+
+        assertThat(first).isPresent();
+        assertThat(second).isPresent();
+        assertThat(first.get().payload()).isEqualTo(second.get().payload());
+        DeathsPayload payload = (DeathsPayload) first.get().payload();
+        assertThat(payload.ttkCounted()).isEqualTo(3);
+        assertThat(payload.ttkMedianS()).isEqualTo(18.0);
+        assertThat(payload.ttkP90S()).isEqualTo(24.0);
+        assertThat(request.player().deaths()).hasSize(3);
+    }
+
     // Helper methods for significance testing
 
     private String evaluateSignificanceForZ(double z) {
