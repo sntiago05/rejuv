@@ -140,6 +140,142 @@ body {
     border-radius: 4px;
 }
 
+.card-glance .glance-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+    gap: 0.75rem;
+}
+
+.glance-item dt {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.glance-item dd {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--heading-color);
+}
+
+.table-container {
+    overflow-x: auto;
+}
+
+.metrics-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+    margin-top: 0.5rem;
+}
+
+.metrics-table th,
+.metrics-table td {
+    padding: 0.5rem 0.6rem;
+    text-align: left;
+    border-bottom: 1px solid var(--card-border);
+}
+
+.metrics-table th {
+    color: var(--text-muted);
+    font-weight: 600;
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.metrics-table .metric-value {
+    font-weight: 600;
+    color: var(--heading-color);
+}
+
+.metrics-table .metric-p25,
+.metrics-table .metric-p50 {
+    color: var(--text-muted);
+}
+
+.metrics-table .metric-verdict {
+    color: var(--accent-color);
+    font-size: 0.85rem;
+}
+
+.coach-container {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+}
+
+.coach-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.75rem;
+}
+
+.coach-header h2 {
+    margin-bottom: 0;
+}
+
+.significance-badge {
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    padding: 0.2rem 0.5rem;
+    border-radius: 4px;
+    letter-spacing: 0.05em;
+}
+
+.sig-major {
+    background-color: rgba(242, 63, 66, 0.15);
+    color: #f23f42;
+    border: 1px solid #f23f42;
+}
+
+.sig-notable {
+    background-color: rgba(242, 140, 40, 0.15);
+    color: var(--accent-leak);
+    border: 1px solid var(--accent-leak);
+}
+
+.sig-minor {
+    background-color: rgba(148, 155, 164, 0.15);
+    color: var(--text-muted);
+    border: 1px solid var(--text-muted);
+}
+
+.coach-fields {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 0.6rem 1rem;
+}
+
+.coach-field-item {
+    display: flex;
+    flex-direction: column;
+}
+
+.coach-field-item dt {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+}
+
+.coach-field-item dd {
+    font-size: 0.95rem;
+    color: var(--text-color);
+    word-break: break-word;
+}
+
+.older-analysis-notice {
+    background-color: rgba(148, 155, 164, 0.08);
+    border: 1px dashed var(--card-border);
+    color: var(--text-muted);
+    padding: 0.75rem 1rem;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    text-align: center;
+}
+
 .card-not-found {
     text-align: center;
     padding: 3rem 1.5rem;

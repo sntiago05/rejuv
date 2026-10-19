@@ -167,6 +167,14 @@ class AnalyzeServiceTest {
         inOrder.verify(analysisClient).analyze(inputCaptor.capture());
         assertThat(inputCaptor.getValue().hero()).isEqualTo("Infernus");
         assertThat(inputCaptor.getValue().result()).isEqualTo("win");
+
+        assertThat(saved.getInputJson()).isNotNull();
+        String expectedInputJson = new JsonMapper().writeValueAsString(inputCaptor.getValue());
+        assertThat(saved.getInputJson()).isEqualTo(expectedInputJson);
+        assertThat(saved.getInputJson())
+                .doesNotContain("token")
+                .doesNotContain("key")
+                .doesNotContain("secret");
     }
 
     @Test
@@ -718,5 +726,21 @@ class AnalyzeServiceTest {
         ArgumentCaptor<AnalysisInput> inputCaptor = ArgumentCaptor.forClass(AnalysisInput.class);
         verify(analysisClient).analyze(inputCaptor.capture());
         assertThat(inputCaptor.getValue().coach()).isEqualTo(coachInsights);
+    }
+
+    @Test
+    void overSizedInputJsonStoresNullAndLogsWarning(CapturedOutput output) {
+        stubFresh();
+        String largePadding = "a".repeat(AnalyzeService.MAX_INPUT_JSON_CHARS + 50);
+        when(coachContextService.build(any())).thenReturn(Map.of("padding", largePadding));
+
+        AnalysisReport report = service.analyze(CALLER_ID, ACCOUNT_ID, MatchFilter.LATEST);
+
+        assertThat(report.degraded()).isFalse();
+        ArgumentCaptor<MatchAnalysis> savedCaptor = ArgumentCaptor.forClass(MatchAnalysis.class);
+        verify(repository).save(savedCaptor.capture());
+        MatchAnalysis saved = savedCaptor.getValue();
+        assertThat(saved.getInputJson()).isNull();
+        assertThat(output.getOut()).contains("Analysis input JSON exceeds max length of 20000");
     }
 }

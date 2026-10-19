@@ -145,4 +145,44 @@ class FlywayMigrationTest {
         assertThat(uuids.get(1)).isNotNull();
         assertThat(uuids.get(0)).isNotEqualTo(uuids.get(1));
     }
+
+    @Test
+    void appliesVersion5Successfully() {
+        List<Map<String, Object>> rows = jdbcTemplate.queryForList(
+                "SELECT description, success FROM flyway_schema_history WHERE version = '5'");
+
+        assertThat(rows).hasSize(1);
+        assertThat(rows.get(0).get("description")).isEqualTo("match analysis input json");
+        assertThat(rows.get(0).get("success")).isEqualTo(true);
+    }
+
+    @Test
+    void matchAnalysisHasInputJsonColumnNullable() {
+        List<Map<String, Object>> columns = jdbcTemplate.queryForList("""
+                SELECT column_name, data_type, is_nullable
+                FROM information_schema.columns
+                WHERE table_schema = current_schema() AND table_name = 'match_analysis'
+                  AND column_name = 'input_json'
+                """);
+
+        assertThat(columns)
+                .extracting(column -> tuple(
+                        column.get("column_name"), column.get("data_type"), column.get("is_nullable")))
+                .containsExactly(tuple("input_json", "text", "YES"));
+    }
+
+    @Test
+    void insertWithAndWithoutInputJsonSucceeds() {
+        jdbcTemplate.update("DELETE FROM match_analysis");
+        jdbcTemplate.update("""
+                INSERT INTO match_analysis (account_id, match_id, hero_id, result_json, model, input_tokens, output_tokens, input_json)
+                VALUES (1, 201, 1, '{}', 'model', 10, 10, NULL),
+                       (1, 202, 1, '{}', 'model', 10, 10, '{"hero":"Infernus"}')
+                """);
+
+        List<String> inputs = jdbcTemplate.queryForList(
+                "SELECT input_json FROM match_analysis WHERE account_id = 1 ORDER BY match_id", String.class);
+
+        assertThat(inputs).containsExactly(null, "{\"hero\":\"Infernus\"}");
+    }
 }

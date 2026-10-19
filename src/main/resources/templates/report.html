@@ -46,6 +46,87 @@
             </div>
         </section>
 
+        <section th:if="${report.hasDetailedSections}" class="card card-glance">
+            <h2 th:text="#{report.glance.title}">Match at a Glance</h2>
+            <dl class="glance-list">
+                <div class="glance-item" th:if="${report.hero != null}">
+                    <dt th:text="#{report.glance.hero}">Hero</dt>
+                    <dd th:text="${report.hero}">Hero</dd>
+                </div>
+                <div class="glance-item" th:if="${report.rank != null}">
+                    <dt th:text="#{report.glance.rank}">Rank</dt>
+                    <dd th:text="${report.rank}">Rank</dd>
+                </div>
+                <div class="glance-item" th:if="${report.result != null}">
+                    <dt th:text="#{report.glance.result}">Result</dt>
+                    <dd th:text="${#messages.msgOrNull('report.result.' + report.result) ?: report.result}">Result</dd>
+                </div>
+                <div class="glance-item" th:if="${report.durationMin != null}">
+                    <dt th:text="#{report.glance.duration}">Duration</dt>
+                    <dd th:text="#{report.glance.duration_val(${report.durationMin})}">0 min</dd>
+                </div>
+            </dl>
+        </section>
+
+        <section th:if="${report.hasDetailedSections and report.metricsTable != null and !report.metricsTable.isEmpty()}" class="card card-metrics">
+            <h2 th:text="#{report.metrics.title}">Your Numbers vs Peers</h2>
+            <div class="table-container">
+                <table class="metrics-table">
+                    <thead>
+                        <tr>
+                            <th th:text="#{report.metrics.metric}">Metric</th>
+                            <th th:text="#{report.metrics.your_value}">You</th>
+                            <th th:text="#{report.metrics.p25}">p25</th>
+                            <th th:text="#{report.metrics.p50}">p50</th>
+                            <th th:text="#{report.metrics.verdict}">Verdict</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr th:each="metric : ${report.metricsTable}">
+                            <td class="metric-label" th:text="${#messages.msgOrNull(metric.labelKey) ?: metric.key}">Metric</td>
+                            <td class="metric-value" th:text="${metric.yourValue}">0</td>
+                            <td class="metric-p25" th:text="${metric.p25}">-</td>
+                            <td class="metric-p50" th:text="${metric.p50}">-</td>
+                            <td class="metric-verdict" th:text="${metric.verdict}">-</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <section th:if="${report.hasDetailedSections and report.coachSections != null and !report.coachSections.isEmpty()}" class="coach-container">
+            <div th:each="section : ${report.coachSections}" class="card card-coach" th:classappend="${'coach-' + section.key}">
+                <div class="coach-header">
+                    <h2 th:text="${#messages.msgOrNull(section.titleKey) ?: section.key}">Coach Section</h2>
+                    <span th:if="${section.significance != null}" class="significance-badge"
+                          th:classappend="${'sig-' + section.significance}"
+                          th:text="${#messages.msgOrNull('report.significance.' + section.significance) ?: section.significance}">Notable</span>
+                </div>
+                <dl class="coach-fields">
+                    <div class="coach-field-item" th:each="field : ${section.fields}">
+                        <dt th:text="${#messages.msgOrNull(field.labelKey) ?: field.labelKey}">Field</dt>
+                        <dd th:text="${field.value}">Value</dd>
+                    </div>
+                </dl>
+            </div>
+        </section>
+
+        <section th:if="${report.hasDetailedSections and report.otherSignals != null and !report.otherSignals.isEmpty()}" class="card card-other-signals">
+            <div class="coach-header">
+                <h2 th:text="#{report.coach.other_signals}">Other Signals</h2>
+            </div>
+            <dl class="coach-fields">
+                <div class="coach-field-item" th:each="signal : ${report.otherSignals}">
+                    <dt th:text="${signal.key}">Key</dt>
+                    <dd th:text="${signal.value}">Value</dd>
+                </div>
+            </dl>
+        </section>
+
+        <div th:if="${!report.hasDetailedSections}" class="older-analysis-notice" th:text="#{report.older_analysis_note}">
+            Detailed match metrics and coach sections are only available for newer analyses.
+        </div>
+
         <section th:if="${report.build != null and !report.build.isEmpty()}" class="card card-build">
             <h2 th:text="#{report.build}">Final Build</h2>
             <ul class="build-list">
