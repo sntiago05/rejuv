@@ -2,6 +2,7 @@ package sntiago05.rejuv.services;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -31,7 +32,8 @@ import sntiago05.rejuv.domain.StatSnapshot;
 /**
  * Coach insight provider for the "deaths" layer (Task 032).
  * Analyzes player death timings, phase breakdown, death duration, economic loss,
- * rapid death clustering, killer identities, deaths while behind, and benchmark z-score.
+ * rapid death clustering, killer identities, deaths while behind, benchmark z-score,
+ * and time-to-kill summary.
  */
 @Component
 public class DeathsCoachProvider implements CoachInsightProvider {
@@ -39,6 +41,15 @@ public class DeathsCoachProvider implements CoachInsightProvider {
     private static final Logger log = LoggerFactory.getLogger(DeathsCoachProvider.class);
 
     public static final String KEY = "deaths";
+
+    /**
+     * Values above this threshold are treated as no data (excluded, not clamped).
+     * Conservative cut of observed outliers up to 180 s, not a game rule.
+     */
+    static final double TTK_MAX_VALID_S = 60.0;
+
+    /** Minimum valid time_to_kill_s values as reported by deadlock-api required to emit the summary. */
+    static final int MIN_TTK_SAMPLES = 3;
 
     /** Deaths occurring within 60 seconds of the preceding death are treated as clustered. */
     static final int CLUSTER_WINDOW_S = 60;
@@ -290,7 +301,39 @@ public class DeathsCoachProvider implements CoachInsightProvider {
             }
         }
 
-        // 6. Significance computation
+        // 6. Time-to-kill summary (time_to_kill_s as reported by deadlock-api)
+        Double ttkMedianS = null;
+        Double ttkP90S = null;
+        Integer ttkCounted = null;
+
+        int validTtkCount = 0;
+        double[] ttkBuffer = new double[deaths.size()];
+        for (DeathEvent death : deaths) {
+            Double ttk = death.timeToKillS();
+            if (isValidTtk(ttk)) {
+                ttkBuffer[validTtkCount++] = ttk;
+            }
+        }
+
+        if (validTtkCount >= MIN_TTK_SAMPLES) {
+            double[] sortedTtk = Arrays.copyOf(ttkBuffer, validTtkCount);
+            Arrays.sort(sortedTtk);
+
+            double median;
+            if (validTtkCount % 2 == 1) {
+                median = sortedTtk[validTtkCount / 2];
+            } else {
+                median = (sortedTtk[(validTtkCount / 2) - 1] + sortedTtk[validTtkCount / 2]) / 2.0;
+            }
+
+            int p90Index = (int) Math.ceil(0.9 * validTtkCount) - 1;
+
+            ttkMedianS = round(median);
+            ttkP90S = round(sortedTtk[p90Index]);
+            ttkCounted = validTtkCount;
+        }
+
+        // 7. Significance computation
         String significance;
         if ((deathsZ != null && deathsZ >= MAJOR_DEATHS_Z)
                 || percentOfMatchDead >= MAJOR_PERCENT_DEAD
@@ -319,10 +362,17 @@ public class DeathsCoachProvider implements CoachInsightProvider {
                 repeatKiller,
                 deathsWhileBehind,
                 deathsCounted,
-                deathsZ
+                deathsZ,
+                ttkMedianS,
+                ttkP90S,
+                ttkCounted
         );
 
         return Optional.of(new CoachInsight(KEY, payload));
+    }
+
+    private static boolean isValidTtk(Double ttk) {
+        return ttk != null && Double.isFinite(ttk) && ttk > 0.0 && ttk <= TTK_MAX_VALID_S;
     }
 
     private static String resolveHeroName(int heroId, List<HeroAsset> heroes) {
@@ -376,7 +426,10 @@ public class DeathsCoachProvider implements CoachInsightProvider {
             "repeat_killer",
             "deaths_while_behind",
             "deaths_counted",
-            "deaths_z"
+            "deaths_z",
+            "ttk_median_s",
+            "ttk_p90_s",
+            "ttk_counted"
     })
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public record DeathsPayload(
@@ -392,7 +445,10 @@ public class DeathsCoachProvider implements CoachInsightProvider {
             @JsonProperty("repeat_killer") boolean repeatKiller,
             @JsonProperty("deaths_while_behind") Integer deathsWhileBehind,
             @JsonProperty("deaths_counted") Integer deathsCounted,
-            @JsonProperty("deaths_z") Double deathsZ
+            @JsonProperty("deaths_z") Double deathsZ,
+            @JsonProperty("ttk_median_s") Double ttkMedianS,
+            @JsonProperty("ttk_p90_s") Double ttkP90S,
+            @JsonProperty("ttk_counted") Integer ttkCounted
     ) {
     }
 
