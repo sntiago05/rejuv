@@ -217,6 +217,18 @@ class AnalysisResultTest {
     }
 
     @Test
+    void aimMechanicsFocusAreaIsAccepted() {
+        AnalysisResult result = new AnalysisResult("s", "l", "a", List.of(), "aim_mechanics", "major");
+        assertThat(result.focusArea()).isEqualTo("aim_mechanics");
+    }
+
+    @Test
+    void aimMechanicsFocusAreaNormalizesWhitespaceAndCase() {
+        AnalysisResult result = new AnalysisResult("s", "l", "a", List.of(), " Aim_Mechanics ", "notable");
+        assertThat(result.focusArea()).isEqualTo("aim_mechanics");
+    }
+
+    @Test
     void severityNormalizesWhitespaceAndCase() {
         AnalysisResult result = new AnalysisResult("s", "l", "a", List.of(), "deaths", " NOTABLE ");
         assertThat(result.severity()).isEqualTo("notable");
