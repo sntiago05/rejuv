@@ -238,4 +238,87 @@ class ReportControllerTest {
 
         assertThat(result.getResponse().getContentAsString()).doesNotContain("<script");
     }
+
+    @Test
+    void viewReportWithDetailedSectionsRendersGlanceMetricsCoachAndOtherSignals() throws Exception {
+        AnalysisResult analysis = new AnalysisResult("Strength", "Leak", "Action", List.of());
+        List<ReportView.MetricRow> metrics = List.of(
+                new ReportView.MetricRow("kills", "analyze.metric.kills", "10", "5", "8", "above p50"),
+                new ReportView.MetricRow("deaths", "analyze.metric.deaths", "7", "4", "6", "below p25")
+        );
+        List<ReportView.CoachSection> coach = List.of(
+                new ReportView.CoachSection("phases", "report.coach.phases", "major", List.of(
+                        new ReportView.CoachField("report.coach.phases.weakest_phase", "Laning")
+                )),
+                new ReportView.CoachSection("deaths", "report.coach.deaths", "notable", List.of(
+                        new ReportView.CoachField("report.coach.deaths.total", "7")
+                ))
+        );
+        List<ReportView.OtherSignal> signals = List.of(
+                new ReportView.OtherSignal("custom_signal", "true")
+        );
+
+        ReportView report = new ReportView(KNOWN_ID, 987654321L, "Infernus", 1, "Archon 3", "win",
+                30.5, analysis, List.of(), false, Instant.now(), false,
+                true, metrics, coach, signals);
+        when(reportService.find(KNOWN_ID)).thenReturn(Optional.of(report));
+
+        mockMvc.perform(get("/r/" + KNOWN_ID))
+            .andExpect(status().isOk())
+            .andExpect(content().string(containsString("Match at a Glance")))
+            .andExpect(content().string(containsString("Archon 3")))
+            .andExpect(content().string(containsString("Victory")))
+            .andExpect(content().string(containsString("Your Numbers vs Peers")))
+            .andExpect(content().string(containsString("above p50")))
+            .andExpect(content().string(containsString("below p25")))
+            .andExpect(content().string(containsString("Phases &amp; Momentum")))
+            .andExpect(content().string(containsString("Major")))
+            .andExpect(content().string(containsString("Deaths &amp; Survival")))
+            .andExpect(content().string(containsString("Notable")))
+            .andExpect(content().string(containsString("Other Signals")))
+            .andExpect(content().string(containsString("custom_signal")))
+            .andExpect(content().string(not(containsString("Detailed match metrics and coach sections are only available for newer analyses."))));
+    }
+
+    @Test
+    void viewReportWithoutDetailedSectionsRendersOlderAnalysisNotice() throws Exception {
+        AnalysisResult analysis = new AnalysisResult("Strength", "Leak", "Action", List.of());
+        ReportView report = new ReportView(KNOWN_ID, 987654321L, "Infernus", 1, null, null,
+                30.0, analysis, List.of(), false, Instant.now(), false,
+                false, List.of(), List.of(), List.of());
+        when(reportService.find(KNOWN_ID)).thenReturn(Optional.of(report));
+
+        mockMvc.perform(get("/r/" + KNOWN_ID))
+            .andExpect(status().isOk())
+            .andExpect(content().string(containsString("Detailed match metrics and coach sections are only available for newer analyses.")))
+            .andExpect(content().string(not(containsString("Match at a Glance"))))
+            .andExpect(content().string(not(containsString("Your Numbers vs Peers"))));
+    }
+
+    @Test
+    void viewReportEscapesHtmlSpecialCharactersInCoachAndSignals() throws Exception {
+        AnalysisResult analysis = new AnalysisResult("Strength", "Leak", "Action", List.of());
+        List<ReportView.CoachSection> coach = List.of(
+                new ReportView.CoachSection("phases", "report.coach.phases", "major", List.of(
+                        new ReportView.CoachField("report.coach.phases.weakest_phase", "<script>alert('coach')</script><b>bold</b>")
+                ))
+        );
+        List<ReportView.OtherSignal> signals = List.of(
+                new ReportView.OtherSignal("exploit", "<script>alert('signal')</script>")
+        );
+
+        ReportView report = new ReportView(KNOWN_ID, 987654321L, "Infernus", 1, "Archon 3", "win",
+                30.5, analysis, List.of(), false, Instant.now(), false,
+                true, List.of(), coach, signals);
+        when(reportService.find(KNOWN_ID)).thenReturn(Optional.of(report));
+
+        MvcResult result = mockMvc.perform(get("/r/" + KNOWN_ID))
+            .andExpect(status().isOk())
+            .andExpect(content().string(containsString("&lt;script&gt;")))
+            .andExpect(content().string(containsString("&lt;b&gt;bold&lt;/b&gt;")))
+            .andExpect(content().string(not(containsString("<script"))))
+            .andReturn();
+
+        assertThat(result.getResponse().getContentAsString()).doesNotContain("<script");
+    }
 }

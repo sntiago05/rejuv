@@ -188,4 +188,17 @@ class MatchAnalysisRepositoryTest {
                 """, duplicate))
                 .isInstanceOf(DataIntegrityViolationException.class);
     }
+
+    @Test
+    void savesAndReadsBackWithInputJson() {
+        Instant createdAt = Instant.now().truncatedTo(ChronoUnit.MICROS);
+        String inputJson = "{\"hero\":\"Infernus\",\"result\":\"win\"}";
+        MatchAnalysis saved = matchAnalysisRepository.save(new MatchAnalysis(
+                ACCOUNT_ID, MATCH_ID, HERO_ID, RESULT_JSON, MODEL, INPUT_TOKENS, OUTPUT_TOKENS, createdAt, inputJson));
+
+        Optional<MatchAnalysis> found = matchAnalysisRepository.findById(saved.getId());
+        assertThat(found).hasValueSatisfying(analysis -> {
+            assertThat(analysis.getInputJson()).isEqualTo(inputJson);
+        });
+    }
 }

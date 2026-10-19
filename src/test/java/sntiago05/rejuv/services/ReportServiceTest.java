@@ -526,4 +526,140 @@ class ReportServiceTest {
         reportService.soulCurveSvg(PUBLIC_ID);
         verify(deadlockApiClient, times(2)).getPerformanceCurve(HERO_ID, 6); // 1 in find + 1 in soulCurveSvg
     }
+
+    @Test
+    void findWithInputJsonPopulatesDetailedSectionsAndMetadata() {
+        String inputJson = """
+                {
+                  "hero": "Infernus",
+                  "rank": "Archon 3",
+                  "result": "win",
+                  "duration_min": 30.5,
+                  "metrics": {
+                    "kills": {"value": 10.0, "p25": 5.0, "p50": 8.0},
+                    "deaths": {"value": 7.0, "p25": 4.0, "p50": 6.0}
+                  },
+                  "coach": {
+                    "phases": {
+                      "significance": "major",
+                      "weakest_phase": "laning",
+                      "strongest_phase": "late",
+                      "phases": [{"name": "laning", "change": -1.2}]
+                    },
+                    "deaths": {
+                      "significance": "notable",
+                      "total": 7,
+                      "by_phase": {"laning": 1, "mid": 3, "late": 3},
+                      "seconds_dead": 120,
+                      "percent_of_match_dead": 6.6,
+                      "longest_respawn_s": 35,
+                      "top_killer": {"hero": "Seven", "count": 3},
+                      "repeat_killer": true,
+                      "deaths_while_behind": 4,
+                      "deaths_counted": 7,
+                      "deaths_z": 0.8,
+                      "ttk_median_s": 4.2
+                    },
+                    "custom_future_signal": "active"
+                  }
+                }
+                """;
+        MatchAnalysis stored = new MatchAnalysis(ACCOUNT_ID, MATCH_ID, HERO_ID, RESULT_JSON,
+                "claude-haiku-5-5", 1000, 250, Instant.now(), inputJson);
+        when(repository.findByPublicId(PUBLIC_ID)).thenReturn(Optional.of(stored));
+        when(matchMetadataSource.getMatch(MATCH_ID)).thenThrow(new MatchMetadataNotFoundException("down"));
+
+        Optional<ReportView> result = reportService.find(PUBLIC_ID);
+
+        assertThat(result).isPresent();
+        ReportView view = result.get();
+        assertThat(view.hasDetailedSections()).isTrue();
+        assertThat(view.hero()).isEqualTo("Infernus");
+        assertThat(view.rank()).isEqualTo("Archon 3");
+        assertThat(view.result()).isEqualTo("win");
+        assertThat(view.durationMin()).isEqualTo(30.5);
+
+        // Metrics table
+        assertThat(view.metricsTable()).hasSize(2);
+        ReportView.MetricRow killsRow = view.metricsTable().get(0);
+        assertThat(killsRow.key()).isEqualTo("kills");
+        assertThat(killsRow.yourValue()).isEqualTo("10");
+        assertThat(killsRow.p25()).isEqualTo("5");
+        assertThat(killsRow.p50()).isEqualTo("8");
+        assertThat(killsRow.verdict()).isEqualTo("above p50");
+
+        ReportView.MetricRow deathsRow = view.metricsTable().get(1);
+        assertThat(deathsRow.key()).isEqualTo("deaths");
+        assertThat(deathsRow.yourValue()).isEqualTo("7");
+        assertThat(deathsRow.p25()).isEqualTo("4");
+        assertThat(deathsRow.p50()).isEqualTo("6");
+        assertThat(deathsRow.verdict()).isEqualTo("below p25");
+
+        // Coach sections
+        assertThat(view.coachSections()).hasSize(2);
+        ReportView.CoachSection phases = view.coachSections().get(0);
+        assertThat(phases.key()).isEqualTo("phases");
+        assertThat(phases.significance()).isEqualTo("major");
+        assertThat(phases.fields()).extracting(ReportView.CoachField::labelKey)
+                .contains("report.coach.phases.weakest_phase", "report.coach.phases.strongest_phase", "report.coach.phases.phase_laning");
+
+        ReportView.CoachSection deaths = view.coachSections().get(1);
+        assertThat(deaths.key()).isEqualTo("deaths");
+        assertThat(deaths.significance()).isEqualTo("notable");
+        assertThat(deaths.fields()).extracting(ReportView.CoachField::labelKey)
+                .contains("report.coach.deaths.total", "report.coach.deaths.by_phase", "report.coach.deaths.seconds_dead", "report.coach.deaths.top_killer");
+
+        // Other signals
+        assertThat(view.otherSignals()).hasSize(1);
+        assertThat(view.otherSignals().get(0).key()).isEqualTo("custom_future_signal");
+        assertThat(view.otherSignals().get(0).value()).isEqualTo("active");
+    }
+
+    @Test
+    void findWithCorruptInputJsonLogsWarningAndRendersAsNullInputJson() {
+        MatchAnalysis stored = new MatchAnalysis(ACCOUNT_ID, MATCH_ID, HERO_ID, RESULT_JSON,
+                "claude-haiku-5-5", 1000, 250, Instant.now(), "{not valid json");
+        when(repository.findByPublicId(PUBLIC_ID)).thenReturn(Optional.of(stored));
+        when(gameAssets.heroNames()).thenReturn(Map.of(HERO_ID, "Infernus"));
+        when(matchMetadataSource.getMatch(MATCH_ID)).thenThrow(new MatchMetadataNotFoundException("down"));
+
+        Optional<ReportView> result = reportService.find(PUBLIC_ID);
+
+        assertThat(result).isPresent();
+        ReportView view = result.get();
+        assertThat(view.hasDetailedSections()).isFalse();
+        assertThat(view.rank()).isNull();
+        assertThat(view.result()).isNull();
+        assertThat(view.metricsTable()).isEmpty();
+        assertThat(view.coachSections()).isEmpty();
+        assertThat(view.otherSignals()).isEmpty();
+    }
+
+    @Test
+    void computeVerdictHigherIsBetterCases() {
+        // Higher is better (e.g. kills, p25 = 3.0, p50 = 5.0)
+        assertThat(ReportService.computeVerdict("kills", 2.0, 3.0, 5.0)).isEqualTo("below p25");
+        assertThat(ReportService.computeVerdict("kills", 3.0, 3.0, 5.0)).isEqualTo("between p25 and p50");
+        assertThat(ReportService.computeVerdict("kills", 4.0, 3.0, 5.0)).isEqualTo("between p25 and p50");
+        assertThat(ReportService.computeVerdict("kills", 5.0, 3.0, 5.0)).isEqualTo("between p25 and p50");
+        assertThat(ReportService.computeVerdict("kills", 6.0, 3.0, 5.0)).isEqualTo("above p50");
+    }
+
+    @Test
+    void computeVerdictLowerIsBetterFlippedCases() {
+        // Lower is better (e.g. deaths, p25 = 3.0, p50 = 5.0: higher is worse)
+        assertThat(ReportService.computeVerdict("deaths", 2.0, 3.0, 5.0)).isEqualTo("above p50");
+        assertThat(ReportService.computeVerdict("deaths", 3.0, 3.0, 5.0)).isEqualTo("between p25 and p50");
+        assertThat(ReportService.computeVerdict("deaths", 4.0, 3.0, 5.0)).isEqualTo("between p25 and p50");
+        assertThat(ReportService.computeVerdict("deaths", 5.0, 3.0, 5.0)).isEqualTo("between p25 and p50");
+        assertThat(ReportService.computeVerdict("deaths", 6.0, 3.0, 5.0)).isEqualTo("below p25");
+
+        // Timings: first_permanent_buff_min
+        assertThat(ReportService.computeVerdict("first_permanent_buff_min", 10.0, 12.0, 15.0)).isEqualTo("above p50");
+        assertThat(ReportService.computeVerdict("first_permanent_buff_min", 20.0, 12.0, 15.0)).isEqualTo("below p25");
+
+        // Missing benchmark returns "-"
+        assertThat(ReportService.computeVerdict("deaths_per_10_min", 3.0, null, 5.0)).isEqualTo("-");
+        assertThat(ReportService.computeVerdict("kills", 5.0, 3.0, null)).isEqualTo("-");
+    }
 }
