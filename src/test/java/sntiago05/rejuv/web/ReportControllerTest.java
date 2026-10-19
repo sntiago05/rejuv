@@ -265,7 +265,7 @@ class ReportControllerTest {
 
         mockMvc.perform(get("/r/" + KNOWN_ID))
             .andExpect(status().isOk())
-            .andExpect(content().string(containsString("Match at a Glance")))
+            .andExpect(content().string(containsString("Key Numbers")))
             .andExpect(content().string(containsString("Archon 3")))
             .andExpect(content().string(containsString("Victory")))
             .andExpect(content().string(containsString("Your Numbers vs Peers")))
@@ -291,7 +291,7 @@ class ReportControllerTest {
         mockMvc.perform(get("/r/" + KNOWN_ID))
             .andExpect(status().isOk())
             .andExpect(content().string(containsString("Detailed match metrics and coach sections are only available for newer analyses.")))
-            .andExpect(content().string(not(containsString("Match at a Glance"))))
+            .andExpect(content().string(not(containsString("Key Numbers"))))
             .andExpect(content().string(not(containsString("Your Numbers vs Peers"))));
     }
 
@@ -320,5 +320,126 @@ class ReportControllerTest {
             .andReturn();
 
         assertThat(result.getResponse().getContentAsString()).doesNotContain("<script");
+    }
+
+    @Test
+    void soulLeadSvgEndpointsReturn200AndSecurityHeaders() throws Exception {
+        String svg = "<svg xmlns=\"http://www.w3.org/2000/svg\"><title>Soul Lead</title></svg>";
+        when(reportService.soulLeadSvg(KNOWN_ID)).thenReturn(Optional.of(svg));
+
+        // Primary endpoint
+        mockMvc.perform(get("/r/" + KNOWN_ID + "/soul-lead.svg"))
+                .andExpect(status().isOk())
+                .andExpect(content().contentType("image/svg+xml;charset=UTF-8"))
+                .andExpect(content().string(svg))
+                .andExpect(header().string("X-Robots-Tag", "noindex, nofollow"))
+                .andExpect(header().string("Content-Security-Policy", "default-src 'none'; img-src 'self'; style-src 'self'; base-uri 'none'; frame-ancestors 'none'"))
+                .andExpect(header().string("Referrer-Policy", "no-referrer"))
+                .andExpect(header().string("X-Content-Type-Options", "nosniff"))
+                .andExpect(header().string("Cache-Control", "private, max-age=300"));
+
+        // Alias endpoint
+        mockMvc.perform(get("/r/" + KNOWN_ID + "/lead.svg"))
+                .andExpect(status().isOk())
+                .andExpect(content().contentType("image/svg+xml;charset=UTF-8"))
+                .andExpect(content().string(svg));
+    }
+
+    @Test
+    void phasesSvgEndpointReturns200AndSecurityHeaders() throws Exception {
+        String svg = "<svg xmlns=\"http://www.w3.org/2000/svg\"><title>Phases</title></svg>";
+        when(reportService.phasesSvg(KNOWN_ID)).thenReturn(Optional.of(svg));
+
+        mockMvc.perform(get("/r/" + KNOWN_ID + "/phases.svg"))
+                .andExpect(status().isOk())
+                .andExpect(content().contentType("image/svg+xml;charset=UTF-8"))
+                .andExpect(content().string(svg))
+                .andExpect(header().string("X-Robots-Tag", "noindex, nofollow"))
+                .andExpect(header().string("Content-Security-Policy", "default-src 'none'; img-src 'self'; style-src 'self'; base-uri 'none'; frame-ancestors 'none'"))
+                .andExpect(header().string("Referrer-Policy", "no-referrer"))
+                .andExpect(header().string("X-Content-Type-Options", "nosniff"))
+                .andExpect(header().string("Cache-Control", "private, max-age=300"));
+    }
+
+    @Test
+    void deathsSvgEndpointReturns200AndSecurityHeaders() throws Exception {
+        String svg = "<svg xmlns=\"http://www.w3.org/2000/svg\"><title>Deaths</title></svg>";
+        when(reportService.deathsSvg(KNOWN_ID)).thenReturn(Optional.of(svg));
+
+        mockMvc.perform(get("/r/" + KNOWN_ID + "/deaths.svg"))
+                .andExpect(status().isOk())
+                .andExpect(content().contentType("image/svg+xml;charset=UTF-8"))
+                .andExpect(content().string(svg))
+                .andExpect(header().string("X-Robots-Tag", "noindex, nofollow"))
+                .andExpect(header().string("Content-Security-Policy", "default-src 'none'; img-src 'self'; style-src 'self'; base-uri 'none'; frame-ancestors 'none'"))
+                .andExpect(header().string("Referrer-Policy", "no-referrer"))
+                .andExpect(header().string("X-Content-Type-Options", "nosniff"))
+                .andExpect(header().string("Cache-Control", "private, max-age=300"));
+    }
+
+    @Test
+    void metricsSvgEndpointReturns200AndSecurityHeaders() throws Exception {
+        String svg = "<svg xmlns=\"http://www.w3.org/2000/svg\"><title>Metrics</title></svg>";
+        when(reportService.metricsSvg(KNOWN_ID)).thenReturn(Optional.of(svg));
+
+        mockMvc.perform(get("/r/" + KNOWN_ID + "/metrics.svg"))
+                .andExpect(status().isOk())
+                .andExpect(content().contentType("image/svg+xml;charset=UTF-8"))
+                .andExpect(content().string(svg))
+                .andExpect(header().string("X-Robots-Tag", "noindex, nofollow"))
+                .andExpect(header().string("Content-Security-Policy", "default-src 'none'; img-src 'self'; style-src 'self'; base-uri 'none'; frame-ancestors 'none'"))
+                .andExpect(header().string("Referrer-Policy", "no-referrer"))
+                .andExpect(header().string("X-Content-Type-Options", "nosniff"))
+                .andExpect(header().string("Cache-Control", "private, max-age=300"));
+    }
+
+    @Test
+    void allNewSvgEndpointsReturn404WhenEmptyOrMalformedWithoutEcho() throws Exception {
+        List<String> paths = List.of("soul-lead.svg", "lead.svg", "phases.svg", "deaths.svg", "metrics.svg");
+
+        for (String path : paths) {
+            // Unknown ID returns 404 with empty body
+            mockMvc.perform(get("/r/" + UNKNOWN_ID + "/" + path))
+                    .andExpect(status().isNotFound())
+                    .andExpect(content().string(""))
+                    .andExpect(header().string("X-Robots-Tag", "noindex, nofollow"))
+                    .andExpect(header().string("Content-Security-Policy", "default-src 'none'; img-src 'self'; style-src 'self'; base-uri 'none'; frame-ancestors 'none'"));
+
+            // Malformed ID returns 404 with empty body and does not echo malformed input
+            MvcResult malformedResult = mockMvc.perform(get("/r/not-a-valid-uuid/" + path))
+                    .andExpect(status().isNotFound())
+                    .andExpect(content().string(""))
+                    .andReturn();
+            assertThat(malformedResult.getResponse().getContentAsString()).doesNotContain("not-a-valid-uuid");
+        }
+    }
+
+    @Test
+    void viewReportContainsZeroInlineStylesAndZeroScripts() throws Exception {
+        AnalysisResult analysis = new AnalysisResult("Strength", "Leak", "Action", List.of("10 kills"));
+        ReportView report = new ReportView(KNOWN_ID, 987654321L, "Infernus", 1, "Archon 3", "win",
+                30.5, analysis, List.of(), true, Instant.now(), true,
+                true,
+                List.of(new ReportView.MetricRow("kills", "analyze.metric.kills", "10", "5", "8", "above p50", "w60")),
+                List.of(new ReportView.CoachSection("phases", "report.coach.phases", "major", List.of(
+                        new ReportView.CoachField("report.coach.phases.weakest_phase", "Laning")
+                ))),
+                List.of(),
+                true, true, true, true,
+                "Soul lead alt", "Soul curve alt", "Phases alt", "Deaths alt", "Metrics alt");
+        when(reportService.find(KNOWN_ID)).thenReturn(Optional.of(report));
+
+        MvcResult result = mockMvc.perform(get("/r/" + KNOWN_ID))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        String html = result.getResponse().getContentAsString();
+        assertThat(html).doesNotContain("<script");
+        assertThat(html).doesNotContain("style=");
+
+        java.nio.file.Path targetDir = java.nio.file.Path.of("target/samples");
+        java.nio.file.Files.createDirectories(targetDir);
+        java.nio.file.Files.writeString(targetDir.resolve("report.html"), html);
+        assertThat(java.nio.file.Files.exists(targetDir.resolve("report.html"))).isTrue();
     }
 }
