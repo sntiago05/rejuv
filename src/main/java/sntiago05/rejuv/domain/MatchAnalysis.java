@@ -45,12 +45,21 @@ public class MatchAnalysis {
     @Column(name = "public_id", nullable = false, updatable = false)
     private UUID publicId;
 
+    @Column(name = "input_json")
+    private String inputJson;
+
     protected MatchAnalysis() {
         // required by JPA
     }
 
     public MatchAnalysis(long accountId, long matchId, int heroId, String resultJson,
                          String model, int inputTokens, int outputTokens, Instant createdAt) {
+        this(accountId, matchId, heroId, resultJson, model, inputTokens, outputTokens, createdAt, null);
+    }
+
+    public MatchAnalysis(long accountId, long matchId, int heroId, String resultJson,
+                         String model, int inputTokens, int outputTokens, Instant createdAt,
+                         String inputJson) {
         this.accountId = accountId;
         this.matchId = matchId;
         this.heroId = heroId;
@@ -60,6 +69,7 @@ public class MatchAnalysis {
         this.outputTokens = outputTokens;
         this.createdAt = createdAt;
         this.publicId = UUID.randomUUID();
+        this.inputJson = inputJson;
     }
 
     public Long getId() {
@@ -100,5 +110,9 @@ public class MatchAnalysis {
 
     public UUID getPublicId() {
         return publicId;
+    }
+
+    public String getInputJson() {
+        return inputJson;
     }
 }

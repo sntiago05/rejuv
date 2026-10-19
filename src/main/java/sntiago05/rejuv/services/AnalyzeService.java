@@ -42,6 +42,7 @@ public class AnalyzeService {
 
     private static final Logger log = LoggerFactory.getLogger(AnalyzeService.class);
     private static final ObjectMapper JSON_MAPPER = new JsonMapper();
+    public static final int MAX_INPUT_JSON_CHARS = 20000;
 
     private final DeadlockApiClient deadlockApiClient;
     private final MatchMetadataSource matchMetadataSource;
@@ -183,8 +184,21 @@ public class AnalyzeService {
             throw new RuntimeException("Failed to serialize analysis result", ex);
         }
 
+        String inputJson = null;
+        try {
+            String serialized = JSON_MAPPER.writeValueAsString(input);
+            if (serialized.length() > MAX_INPUT_JSON_CHARS) {
+                log.warn("Analysis input JSON exceeds max length of {}, length={}", MAX_INPUT_JSON_CHARS, serialized.length());
+            } else {
+                inputJson = serialized;
+            }
+        } catch (Exception ex) {
+            log.warn("Failed to serialize analysis input: {}", ex.getMessage());
+        }
+
         MatchAnalysis entity = new MatchAnalysis(accountId, match.matchId(), match.heroId(),
-                json, outcome.model(), outcome.inputTokens(), outcome.outputTokens(), Instant.now());
+                json, outcome.model(), outcome.inputTokens(), outcome.outputTokens(), Instant.now(),
+                inputJson);
         try {
             repository.save(entity);
             usageService.recordAnalysis(discordUserId, match.matchId());
