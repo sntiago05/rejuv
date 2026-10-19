@@ -9,6 +9,7 @@ import java.util.TreeSet;
 
 import org.springframework.stereotype.Service;
 import sntiago05.rejuv.clients.dto.ItemAsset;
+import sntiago05.rejuv.domain.DeathEvent;
 import sntiago05.rejuv.domain.ItemPurchase;
 import sntiago05.rejuv.domain.MatchTelemetry;
 import sntiago05.rejuv.domain.MatchVisuals;
@@ -121,6 +122,9 @@ public class MatchVisualsService {
                 avg.add(teammates / teammateCount);
             }
         }
-        return new MatchVisuals.ChartData(times, lead, own, avg);
+        List<Integer> playerDeathTimesS = self.deaths() != null
+                ? self.deaths().stream().map(DeathEvent::gameTimeS).toList()
+                : List.of();
+        return new MatchVisuals.ChartData(times, lead, own, avg, playerDeathTimesS);
     }
 }

@@ -16,6 +16,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -176,14 +177,14 @@ class AnalyzeCommandTest {
         assertThat(embed.getTitle()).isEqualTo("Infernus - Victory (30.0 min)");
         assertThat(embed.getDescription()).isNull();
         assertThat(embed.getFields()).hasSize(4);
-        assertThat(embed.getFields().get(0).getName()).isEqualTo("Key Strength");
-        assertThat(embed.getFields().get(0).getValue()).isEqualTo("Great farming");
-        assertThat(embed.getFields().get(1).getName()).isEqualTo("Biggest Leak");
-        assertThat(embed.getFields().get(1).getValue()).isEqualTo("Too many deaths");
-        assertThat(embed.getFields().get(2).getName()).isEqualTo("Next Game Focus");
-        assertThat(embed.getFields().get(2).getValue()).isEqualTo("Ward more");
-        assertThat(embed.getFields().get(3).getName()).isEqualTo("Key Numbers");
-        assertThat(embed.getFields().get(3).getValue()).isEqualTo("10 kills\n20k souls");
+        assertThat(embed.getFields().get(0).getName()).isEqualTo(messages.get("analyze.field.leak"));
+        assertThat(embed.getFields().get(0).getValue()).isEqualTo("Too many deaths");
+        assertThat(embed.getFields().get(1).getName()).isEqualTo(messages.get("analyze.field.next_action"));
+        assertThat(embed.getFields().get(1).getValue()).isEqualTo("Ward more");
+        assertThat(embed.getFields().get(2).getName()).isEqualTo(messages.get("analyze.field.strength"));
+        assertThat(embed.getFields().get(2).getValue()).isEqualTo("Great farming");
+        assertThat(embed.getFields().get(3).getName()).isEqualTo(messages.get("analyze.field.key_numbers"));
+        assertThat(embed.getFields().get(3).getValue()).isEqualTo("```\n10 kills\n20k souls\n```");
         assertThat(embed.getFooter()).isNotNull();
         assertThat(embed.getFooter().getText()).isEqualTo(messages.get("analyze.footer", "Infernus", "Archon 3"));
     }
@@ -305,7 +306,7 @@ class AnalyzeCommandTest {
         assertThat(embed.getTitle()).isEqualTo("Infernus - Defeat (25.4 min)");
         assertThat(embed.getDescription()).isEqualTo(messages.get("analyze.fallback_note"));
         assertThat(embed.getFields()).hasSize(1);
-        assertThat(embed.getFields().get(0).getName()).isEqualTo("Key Numbers");
+        assertThat(embed.getFields().get(0).getName()).isEqualTo(messages.get("analyze.field.key_numbers"));
 
         String keyNumbersValue = embed.getFields().get(0).getValue();
         assertThat(keyNumbersValue).contains("Kills: 10 (median 5)");
@@ -367,7 +368,7 @@ class AnalyzeCommandTest {
         command.handle(event);
 
         MessageEmbed embed = capturedEmbed(hook);
-        String strength = embed.getFields().get(0).getValue();
+        String strength = embed.getFields().get(2).getValue();
         assertThat(strength.length()).isLessThanOrEqualTo(1024);
         assertThat(strength).endsWith("...");
     }
@@ -832,7 +833,7 @@ class AnalyzeCommandTest {
         command.handle(event);
 
         MessageEmbed embed = capturedEmbed(hook);
-        MessageEmbed.Field leakField = embed.getFields().get(1);
+        MessageEmbed.Field leakField = embed.getFields().get(0);
         assertThat(leakField.getName()).isEqualTo(messages.get("analyze.field.leak"));
         assertThat(leakField.getValue()).isEqualTo(messages.get("analyze.severity.major") + " Too many deaths");
     }
@@ -853,7 +854,7 @@ class AnalyzeCommandTest {
         command.handle(event);
 
         MessageEmbed embed = capturedEmbed(hook);
-        MessageEmbed.Field leakField = embed.getFields().get(1);
+        MessageEmbed.Field leakField = embed.getFields().get(0);
         assertThat(leakField.getValue().length()).isLessThanOrEqualTo(1024);
         assertThat(leakField.getValue()).startsWith(messages.get("analyze.severity.major") + " ");
         assertThat(leakField.getValue()).endsWith("...");
@@ -874,7 +875,7 @@ class AnalyzeCommandTest {
         command.handle(event);
 
         MessageEmbed embed = capturedEmbed(hook);
-        MessageEmbed.Field leakField = embed.getFields().get(1);
+        MessageEmbed.Field leakField = embed.getFields().get(0);
         assertThat(leakField.getValue()).isEqualTo("Too many deaths");
     }
 
@@ -964,6 +965,111 @@ class AnalyzeCommandTest {
 
         cmdEnabled.handle(event2);
         verify(edit, never()).setActionRow((ItemComponent[]) any());
+    }
+
+    @Test
+    void embedFieldOrderMatchesTask047Spec() {
+        SlashCommandInteractionEvent event = mockEvent();
+        when(profileService.findLinkedAccountId(CALLER_ID)).thenReturn(OptionalLong.of(ACCOUNT_ID));
+        deferFor(event);
+        InteractionHook hook = hookFor(event);
+
+        AnalysisResult aiResult = new AnalysisResult(
+                "Great farming", "Too many deaths", "Ward more", List.of("Kills: 10 / 5"));
+        MatchVisuals visuals = visualsWithTwoItems(CHART);
+        AnalysisReport report = new AnalysisReport(1, "Infernus", "Archon 3", "win", 30.0, aiResult, Map.of(), false, visuals, null);
+        when(analyzeService.analyze(eq(CALLER_ID), eq(ACCOUNT_ID), any())).thenReturn(report);
+
+        command.handle(event);
+
+        MessageEmbed embed = capturedEmbed(hook);
+        List<MessageEmbed.Field> fields = embed.getFields();
+        assertThat(fields).hasSize(5);
+        assertThat(fields.get(0).getName()).isEqualTo(messages.get("analyze.field.leak"));
+        assertThat(fields.get(1).getName()).isEqualTo(messages.get("analyze.field.next_action"));
+        assertThat(fields.get(2).getName()).isEqualTo(messages.get("analyze.field.strength"));
+        assertThat(fields.get(3).getName()).isEqualTo(messages.get("analyze.field.key_numbers"));
+        assertThat(fields.get(4).getName()).isEqualTo(messages.get("analyze.field.build"));
+    }
+
+    @Test
+    void fieldNamesHaveEmojiPrefixes() {
+        assertThat(messages.get("analyze.field.leak")).startsWith("⚠️ ");
+        assertThat(messages.get("analyze.field.next_action")).startsWith("🎯 ");
+        assertThat(messages.get("analyze.field.strength")).startsWith("💪 ");
+        assertThat(messages.get("analyze.field.key_numbers")).startsWith("📊 ");
+        assertThat(messages.get("analyze.field.build")).startsWith("🎒 ");
+    }
+
+    @Test
+    void keyNumbersTableAlignsColumnsAndKeepsMalformedLinesVerbatim() {
+        List<String> rawLines = List.of(
+                "Kills: 10 / 5",
+                "Souls / min: 750.5 / 600.0",
+                "Custom note without pattern",
+                "Deaths: 2 / 3"
+        );
+        String table = EmbedStyle.formatKeyNumbersTable(rawLines);
+
+        assertThat(table).startsWith("```\n").endsWith("\n```");
+        assertThat(table).contains("Kills       | 10    | 5");
+        assertThat(table).contains("Souls / min | 750.5 | 600.0");
+        assertThat(table).contains("Custom note without pattern");
+        assertThat(table).contains("Deaths      | 2     | 3");
+
+        assertThat(EmbedStyle.formatKeyNumbersTable(null)).isEmpty();
+        assertThat(EmbedStyle.formatKeyNumbersTable(List.of())).isEmpty();
+    }
+
+    @Test
+    void keyNumbersTableDropsWholeTrailingLinesAtLimit() {
+        List<String> lines = new ArrayList<>();
+        for (int i = 0; i < 25; i++) {
+            lines.add("Metric " + String.format("%02d", i) + ": 100 / 200");
+        }
+        String table = EmbedStyle.formatKeyNumbersTable(lines);
+
+        assertThat(table.length()).isLessThanOrEqualTo(1024);
+        assertThat(table).startsWith("```\n").endsWith("\n```");
+        assertThat(table).contains("Metric 00");
+    }
+
+    @Test
+    void titleDescriptionAndFooterAreCappedAtDiscordLimits() {
+        String longTitle = "A".repeat(300);
+        String cappedTitle = AnalyzeCommand.truncate(longTitle, AnalyzeCommand.MAX_TITLE_LENGTH);
+        assertThat(cappedTitle.length()).isLessThanOrEqualTo(AnalyzeCommand.MAX_TITLE_LENGTH);
+        assertThat(cappedTitle).endsWith("...");
+
+        String longDescription = "B".repeat(5000);
+        String cappedDesc = AnalyzeCommand.truncate(longDescription, AnalyzeCommand.MAX_DESCRIPTION_LENGTH);
+        assertThat(cappedDesc.length()).isLessThanOrEqualTo(AnalyzeCommand.MAX_DESCRIPTION_LENGTH);
+        assertThat(cappedDesc).endsWith("...");
+
+        String longFooter = "C".repeat(2500);
+        String cappedFooter = AnalyzeCommand.truncate(longFooter, AnalyzeCommand.MAX_FOOTER_LENGTH);
+        assertThat(cappedFooter.length()).isLessThanOrEqualTo(AnalyzeCommand.MAX_FOOTER_LENGTH);
+        assertThat(cappedFooter).endsWith("...");
+
+        SlashCommandInteractionEvent event = mockEvent();
+        when(profileService.findLinkedAccountId(CALLER_ID)).thenReturn(OptionalLong.of(ACCOUNT_ID));
+        deferFor(event);
+        InteractionHook hook = hookFor(event);
+
+        String hugeHero = "VeryLongHeroName ".repeat(25);
+        String hugeRank = "VeryLongRankName ".repeat(200);
+        AnalysisResult aiResult = new AnalysisResult("Strength", "Leak", "Action", List.of());
+        AnalysisReport report = new AnalysisReport(1, hugeHero, hugeRank, "win", 30.0, aiResult, Map.of(), true);
+        when(analyzeService.analyze(eq(CALLER_ID), eq(ACCOUNT_ID), any())).thenReturn(report);
+
+        command.handle(event);
+
+        MessageEmbed embed = capturedEmbed(hook);
+        assertThat(embed.getTitle().length()).isLessThanOrEqualTo(AnalyzeCommand.MAX_TITLE_LENGTH);
+        assertThat(embed.getTitle()).endsWith("...");
+        assertThat(embed.getDescription().length()).isLessThanOrEqualTo(AnalyzeCommand.MAX_DESCRIPTION_LENGTH);
+        assertThat(embed.getFooter().getText().length()).isLessThanOrEqualTo(AnalyzeCommand.MAX_FOOTER_LENGTH);
+        assertThat(embed.getFooter().getText()).endsWith("...");
     }
 
     private SlashCommandInteractionEvent mockEvent() {

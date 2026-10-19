@@ -57,6 +57,9 @@ import sntiago05.rejuv.services.UsageLimitExceededException;
 @EnableConfigurationProperties(WebProperties.class)
 public class AnalyzeCommand implements SlashCommand {
 
+    static final int MAX_TITLE_LENGTH = 256;
+    static final int MAX_DESCRIPTION_LENGTH = 4096;
+    static final int MAX_FOOTER_LENGTH = 2048;
     static final int MAX_FIELD_LENGTH = 1024;
     static final String CHART_FILE = "match.png";
     static final String TRUNCATION_SUFFIX = "...";
@@ -293,27 +296,35 @@ public class AnalyzeCommand implements SlashCommand {
         String result = "win".equalsIgnoreCase(report.result())
                 ? messages.get("analyze.result.win")
                 : messages.get("analyze.result.loss");
-        builder.setTitle(messages.get("analyze.title", report.hero(), result, CommandSupport.oneDecimal(report.durationMin())));
+        String titleText = messages.get("analyze.title", report.hero(), result, CommandSupport.oneDecimal(report.durationMin()));
+        builder.setTitle(truncate(titleText, MAX_TITLE_LENGTH));
 
+        String description = null;
         if (report.degraded() && report.analysis() == null) {
-            builder.setDescription(messages.get("analyze.degraded_note") + "\n" + messages.get("analyze.fallback_note"));
+            description = messages.get("analyze.degraded_note") + "\n" + messages.get("analyze.fallback_note");
         } else if (report.degraded()) {
-            builder.setDescription(messages.get("analyze.degraded_note"));
+            description = messages.get("analyze.degraded_note");
         } else if (report.analysis() == null) {
-            builder.setDescription(messages.get("analyze.fallback_note"));
+            description = messages.get("analyze.fallback_note");
+        }
+        if (description != null) {
+            builder.setDescription(truncate(description, MAX_DESCRIPTION_LENGTH));
         }
 
         if (report.analysis() != null) {
             AnalysisResult analysis = report.analysis();
-            builder.addField(messages.get("analyze.field.strength"), truncate(analysis.strength()), false);
             String leak = analysis.biggestLeak();
             if (analysis.severity() != null) {
                 leak = messages.get("analyze.severity." + analysis.severity()) + " " + (leak != null ? leak : "");
             }
             builder.addField(messages.get("analyze.field.leak"), truncate(leak), false);
             builder.addField(messages.get("analyze.field.next_action"), truncate(analysis.nextGameAction()), false);
+            builder.addField(messages.get("analyze.field.strength"), truncate(analysis.strength()), false);
             if (analysis.keyNumbers() != null && !analysis.keyNumbers().isEmpty()) {
-                builder.addField(messages.get("analyze.field.key_numbers"), truncate(String.join("\n", analysis.keyNumbers())), false);
+                String table = EmbedStyle.formatKeyNumbersTable(analysis.keyNumbers());
+                if (!table.isEmpty()) {
+                    builder.addField(messages.get("analyze.field.key_numbers"), table, false);
+                }
             }
         } else {
             buildFallbackKeyNumbers(builder, report.metrics());
@@ -324,11 +335,10 @@ public class AnalyzeCommand implements SlashCommand {
             builder.setImage("attachment://" + CHART_FILE);
         }
 
-        if (report.rank() != null) {
-            builder.setFooter(messages.get("analyze.footer", report.hero(), report.rank()));
-        } else {
-            builder.setFooter(messages.get("analyze.footer_no_rank"));
-        }
+        String footerText = report.rank() != null
+                ? messages.get("analyze.footer", report.hero(), report.rank())
+                : messages.get("analyze.footer_no_rank");
+        builder.setFooter(truncate(footerText, MAX_FOOTER_LENGTH));
 
         return builder.build();
     }
@@ -395,18 +405,25 @@ public class AnalyzeCommand implements SlashCommand {
         return formatted;
     }
 
-    static String truncate(String text) {
+    static String truncate(String text, int maxLength) {
         if (text == null) {
             return "";
         }
-        if (text.length() <= MAX_FIELD_LENGTH) {
+        if (text.length() <= maxLength) {
             return text;
         }
-        int maxContentLength = MAX_FIELD_LENGTH - TRUNCATION_SUFFIX.length();
+        int maxContentLength = maxLength - TRUNCATION_SUFFIX.length();
+        if (maxContentLength <= 0) {
+            return text.substring(0, maxLength);
+        }
         int lastSpace = text.lastIndexOf(' ', maxContentLength);
         if (lastSpace > 0) {
             return text.substring(0, lastSpace) + TRUNCATION_SUFFIX;
         }
         return text.substring(0, maxContentLength) + TRUNCATION_SUFFIX;
+    }
+
+    static String truncate(String text) {
+        return truncate(text, MAX_FIELD_LENGTH);
     }
 }

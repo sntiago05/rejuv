@@ -13,6 +13,7 @@ import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import sntiago05.rejuv.clients.dto.ItemAsset;
+import sntiago05.rejuv.domain.DeathEvent;
 import sntiago05.rejuv.domain.ItemPurchase;
 import sntiago05.rejuv.domain.MatchTelemetry;
 import sntiago05.rejuv.domain.MatchVisuals;
@@ -167,5 +168,33 @@ class MatchVisualsServiceTest {
 
         assertThat(c.soulLead()).containsExactly(0L, 5000L - 5400L);
         assertThat(c.teammatesAvgNetWorth()).containsExactly(0L, 1000L);
+    }
+
+    @Test
+    void playerDeathTimesFilledFromTelemetry() {
+        List<DeathEvent> deaths = List.of(
+                new DeathEvent(120, 2, 5.0, 15),
+                new DeathEvent(450, 3, 3.2, 25)
+        );
+        MatchTelemetry t = match(
+                new PlayerTelemetry(ME, 0, 1, List.of(), snaps(0, 1000, 2000), List.of(), 0, 1, deaths, null),
+                player(2, 0, List.of(), snaps(0, 1000, 2000)),
+                player(3, 1, List.of(), snaps(0, 1000, 2000))
+        );
+
+        MatchVisuals.ChartData c = service.build(ME, t).orElseThrow().chart();
+        assertThat(c.playerDeathTimesS()).containsExactly(120, 450);
+    }
+
+    @Test
+    void playerDeathTimesEmptyWhenTelemetryHasNoDeaths() {
+        MatchTelemetry t = match(
+                player(ME, 0, List.of(), snaps(0, 1000, 2000)),
+                player(2, 0, List.of(), snaps(0, 1000, 2000)),
+                player(3, 1, List.of(), snaps(0, 1000, 2000))
+        );
+
+        MatchVisuals.ChartData c = service.build(ME, t).orElseThrow().chart();
+        assertThat(c.playerDeathTimesS()).isEmpty();
     }
 }
