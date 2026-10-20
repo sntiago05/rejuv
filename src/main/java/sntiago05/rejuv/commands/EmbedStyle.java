@@ -2,7 +2,6 @@ package sntiago05.rejuv.commands;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 import java.util.Optional;
 
 import net.dv8tion.jda.api.EmbedBuilder;
@@ -34,66 +33,35 @@ final class EmbedStyle {
         return text;
     }
 
+    /** One key number split into metric, your value and the reference value. */
+    record KeyNumber(String metric, String yours, String reference) {
+    }
+
     /**
-     * Formats a list of key numbers lines into a single monospace code block with aligned
-     * columns {@code metric | yours | reference}. Lines matching {@code "<metric>: <yours> / <reference>"}
-     * (split once on {@code ": "} and on the last {@code " / "}) are aligned by column width.
-     * Malformed lines are kept verbatim as their own line. The result is wrapped in a code block
-     * and fits within 1024 characters by dropping whole lines from the end. Returns empty string
-     * if no line fits or the input is empty.
+     * Splits a key number line of the form {@code "<metric>: <yours> / <reference>"} (split once on {@code ": "} and
+     * on the last {@code " / "}). Empty when the line does not match or any part is blank; the caller then shows
+     * the line as it is.
      */
-    static String formatKeyNumbersTable(List<String> rawLines) {
-        if (rawLines == null || rawLines.isEmpty()) {
-            return "";
+    static Optional<KeyNumber> parseKeyNumber(String raw) {
+        if (raw == null) {
+            return Optional.empty();
         }
-        record ParsedRow(String metric, String yours, String ref) {}
-        List<Object> rows = new ArrayList<>(rawLines.size());
-        int maxMetricLen = 0;
-        int maxYoursLen = 0;
-
-        for (String raw : rawLines) {
-            if (raw == null) {
-                continue;
-            }
-            int colonIdx = raw.indexOf(": ");
-            if (colonIdx > 0) {
-                String rest = raw.substring(colonIdx + 2);
-                int slashIdx = rest.lastIndexOf(" / ");
-                if (slashIdx >= 0) {
-                    String metric = raw.substring(0, colonIdx).trim();
-                    String yours = rest.substring(0, slashIdx).trim();
-                    String ref = rest.substring(slashIdx + 3).trim();
-                    if (!metric.isEmpty() && !yours.isEmpty() && !ref.isEmpty()) {
-                        rows.add(new ParsedRow(metric, yours, ref));
-                        maxMetricLen = Math.max(maxMetricLen, metric.length());
-                        maxYoursLen = Math.max(maxYoursLen, yours.length());
-                        continue;
-                    }
-                }
-            }
-            rows.add(raw);
+        int colonIdx = raw.indexOf(": ");
+        if (colonIdx <= 0) {
+            return Optional.empty();
         }
-
-        if (rows.isEmpty()) {
-            return "";
+        String rest = raw.substring(colonIdx + 2);
+        int slashIdx = rest.lastIndexOf(" / ");
+        if (slashIdx < 0) {
+            return Optional.empty();
         }
-
-        List<String> formattedLines = new ArrayList<>(rows.size());
-        for (Object row : rows) {
-            if (row instanceof ParsedRow p) {
-                String paddedMetric = String.format(Locale.ROOT, "%-" + maxMetricLen + "s", p.metric);
-                String paddedYours = String.format(Locale.ROOT, "%-" + maxYoursLen + "s", p.yours);
-                formattedLines.add(paddedMetric + " | " + paddedYours + " | " + p.ref);
-            } else {
-                formattedLines.add((String) row);
-            }
+        String metric = raw.substring(0, colonIdx).trim();
+        String yours = rest.substring(0, slashIdx).trim();
+        String reference = rest.substring(slashIdx + 3).trim();
+        if (metric.isEmpty() || yours.isEmpty() || reference.isEmpty()) {
+            return Optional.empty();
         }
-
-        String content = fitLines(formattedLines, MAX_FIELD_LENGTH - 8);
-        if (content.isEmpty()) {
-            return "";
-        }
-        return "```\n" + content + "\n```";
+        return Optional.of(new KeyNumber(metric, yours, reference));
     }
 
     /**
