@@ -1,12 +1,17 @@
 package sntiago05.rejuv.services;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -46,6 +51,10 @@ public class ReportService {
     private final SoulCurveSvg soulCurveSvg;
     private final ReportChartsSvg reportChartsSvg;
     private final ReportIconService iconService;
+    private final Cache<UUID, IconScope> iconScopes = Caffeine.newBuilder()
+            .maximumSize(500)
+            .expireAfterWrite(Duration.ofMinutes(10))
+            .build();
 
     public ReportService(MatchAnalysisRepository repository,
                          MatchMetadataSource matchMetadataSource,
@@ -285,30 +294,53 @@ public class ReportService {
 
     /** Hero icon, only when that hero played in the report's match. */
     public Optional<ReportIconService.Icon> heroIcon(UUID publicId, int heroId) {
-        return matchTelemetry(publicId)
-                .filter(t -> t.players().stream().anyMatch(p -> p.heroId() == heroId))
-                .flatMap(t -> iconService.hero(heroId));
+        return iconScope(publicId)
+                .filter(scope -> scope.heroIds().contains(heroId))
+                .flatMap(scope -> iconService.hero(heroId));
     }
 
     /** Item icon, only when a player of the report's match bought that item. */
     public Optional<ReportIconService.Icon> itemIcon(UUID publicId, long itemId) {
-        return matchTelemetry(publicId)
-                .filter(t -> t.players().stream().anyMatch(p -> p.items().stream().anyMatch(i -> i.itemId() == itemId)))
-                .flatMap(t -> iconService.item(itemId));
+        return iconScope(publicId)
+                .filter(scope -> scope.itemIds().contains(itemId))
+                .flatMap(scope -> iconService.item(itemId));
     }
 
-    private Optional<MatchTelemetry> matchTelemetry(UUID publicId) {
+    /**
+     * Ids an icon request may ask for. A page view requests up to about 150 icons, so the scope is cached for a
+     * few minutes instead of reading the database and the match metadata once per icon. Misses are not cached.
+     */
+    private Optional<IconScope> iconScope(UUID publicId) {
         if (publicId == null) {
             return Optional.empty();
         }
-        return repository.findByPublicId(publicId).flatMap(stored -> {
+        IconScope cached = iconScopes.getIfPresent(publicId);
+        if (cached != null) {
+            return Optional.of(cached);
+        }
+        Optional<IconScope> scope = repository.findByPublicId(publicId).flatMap(stored -> {
             try {
                 return Optional.ofNullable(matchMetadataSource.getMatch(stored.getMatchId()));
             } catch (RuntimeException ex) {
                 log.warn("Match metadata unavailable for icons of {}: {}", publicId, ex.getClass().getSimpleName());
                 return Optional.empty();
             }
-        });
+        }).map(ReportService::toIconScope);
+        scope.ifPresent(value -> iconScopes.put(publicId, value));
+        return scope;
+    }
+
+    private static IconScope toIconScope(MatchTelemetry telemetry) {
+        Set<Integer> heroIds = new HashSet<>();
+        Set<Long> itemIds = new HashSet<>();
+        for (PlayerTelemetry player : telemetry.players()) {
+            heroIds.add(player.heroId());
+            player.items().forEach(item -> itemIds.add(item.itemId()));
+        }
+        return new IconScope(Set.copyOf(heroIds), Set.copyOf(itemIds));
+    }
+
+    private record IconScope(Set<Integer> heroIds, Set<Long> itemIds) {
     }
 
     /**
