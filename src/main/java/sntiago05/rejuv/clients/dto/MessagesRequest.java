@@ -25,9 +25,19 @@ public record MessagesRequest(
                     "next_game_action", Map.of("type", "string"),
                     "key_numbers", Map.of("type", "array", "items", Map.of("type", "string")),
                     "focus_area", Map.of("type", "string", "enum", AnalysisResult.FOCUS_AREAS.stream().sorted().toList()),
-                    "severity", Map.of("type", "string", "enum", AnalysisResult.SEVERITIES.stream().sorted().toList())
+                    "severity", Map.of("type", "string", "enum", AnalysisResult.SEVERITIES.stream().sorted().toList()),
+                    "tips", Map.of("type", "array", "items", Map.of(
+                            "type", "object",
+                            "properties", Map.of(
+                                    "tip", Map.of("type", "string"),
+                                    "evidence", Map.of("type", "string"),
+                                    "drill", Map.of("type", "string")
+                            ),
+                            "required", List.of("tip", "evidence", "drill"),
+                            "additionalProperties", false
+                    ))
             ),
-            "required", List.of("strength", "biggest_leak", "next_game_action", "key_numbers", "focus_area", "severity"),
+            "required", List.of("strength", "biggest_leak", "next_game_action", "key_numbers", "focus_area", "severity", "tips"),
             "additionalProperties", false
     );
 

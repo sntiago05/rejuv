@@ -164,6 +164,54 @@ class AnalysisClientTest {
     }
 
     @Test
+    void requestSchemaRequiresTipsWithThreeStringFields() {
+        server.expect(once(), requestTo(BASE_URL + "/v1/messages"))
+                .andExpect(request -> {
+                    JsonNode root = objectMapper.readTree(((MockClientHttpRequest) request).getBodyAsString());
+                    JsonNode schema = root.path("output_config").path("format").path("schema");
+                    List<String> required = new ArrayList<>();
+                    schema.path("required").forEach(node -> required.add(node.asText()));
+                    assertThat(required).contains("tips");
+                    JsonNode items = schema.path("properties").path("tips").path("items");
+                    assertThat(schema.path("properties").path("tips").path("type").asText()).isEqualTo("array");
+                    assertThat(items.path("additionalProperties").asBoolean(true)).isFalse();
+                    List<String> itemRequired = new ArrayList<>();
+                    items.path("required").forEach(node -> itemRequired.add(node.asText()));
+                    assertThat(itemRequired).containsExactlyInAnyOrder("tip", "evidence", "drill");
+                    assertThat(schema.path("properties").path("tips").has("minItems")).isFalse();
+                })
+                .andRespond(withSuccess(fixture("messages-success.json"), MediaType.APPLICATION_JSON));
+
+        assertThat(client.analyze(sampleInput()).isFallback()).isFalse();
+    }
+
+    @Test
+    void successWithTipsReturnsThreeTips() {
+        server.expect(once(), requestTo(BASE_URL + "/v1/messages"))
+                .andRespond(withSuccess(fixture("messages-with-tips.json"), MediaType.APPLICATION_JSON));
+
+        AnalysisOutcome outcome = client.analyze(sampleInput());
+
+        assertThat(outcome.isFallback()).isFalse();
+        assertThat(outcome.result().tips()).hasSize(3);
+        assertThat(outcome.result().tips().get(0).tip()).startsWith("Retreat to your lane");
+        assertThat(outcome.result().tips().get(0).evidence()).isEqualTo("deaths: 9 / 5 median.");
+        assertThat(outcome.result().tips().get(0).drill()).contains("at most 5 deaths");
+    }
+
+    @Test
+    void successWithoutTipsStillSucceedsWithEmptyTips() {
+        server.expect(once(), requestTo(BASE_URL + "/v1/messages"))
+                .andRespond(withSuccess(fixture("messages-success.json"), MediaType.APPLICATION_JSON));
+
+        AnalysisOutcome outcome = client.analyze(sampleInput());
+
+        assertThat(outcome.isFallback()).isFalse();
+        assertThat(outcome.attempts()).isEqualTo(1);
+        assertThat(outcome.result().tips()).isEmpty();
+    }
+
+    @Test
     void successReturnsParsedResultIgnoringThinkingBlocks() {
         server.expect(once(), requestTo(BASE_URL + "/v1/messages"))
                 .andExpect(method(HttpMethod.POST))

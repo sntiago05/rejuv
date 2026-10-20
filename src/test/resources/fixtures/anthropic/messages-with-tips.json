@@ -1,0 +1,18 @@
+{
+  "id": "msg_01TIPS",
+  "type": "message",
+  "role": "assistant",
+  "model": "claude-haiku-5-5-20251001",
+  "content": [
+    {
+      "type": "text",
+      "text": "{\"strength\": \"Strong farming: 750 souls per minute against a 680 median.\", \"biggest_leak\": \"Deaths were 9 against a median of 5.\", \"next_game_action\": \"Stay behind your front line in mid-game fights.\", \"key_numbers\": [\"souls_per_min: 750 / 680\", \"deaths: 9 / 5\"], \"focus_area\": \"deaths\", \"severity\": \"major\", \"tips\": [{\"tip\": \"Retreat to your lane when you are below half health.\", \"evidence\": \"deaths: 9 / 5 median.\", \"drill\": \"Finish the next game with at most 5 deaths.\"}, {\"tip\": \"Buy Extra Health earlier.\", \"evidence\": \"Bought at 2.5 min against 3.0 min popular.\", \"drill\": \"Buy it before minute 3.\"}, {\"tip\": \"Keep farming the lane after kills.\", \"evidence\": \"souls_per_min: 750 / 680.\", \"drill\": \"Stay above 700 souls per minute.\"}]}"
+    }
+  ],
+  "stop_reason": "end_turn",
+  "stop_sequence": null,
+  "usage": {
+    "input_tokens": 900,
+    "output_tokens": 380
+  }
+}

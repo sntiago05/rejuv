@@ -228,7 +228,8 @@ public class AnalysisClient {
                 result.nextGameAction().trim(),
                 result.keyNumbers().stream().map(String::trim).toList(),
                 result.focusArea(),
-                result.severity()
+                result.severity(),
+                result.tips()
         );
 
         return AttemptResult.success(trimmedResult, responseModel, inputTokens, outputTokens);
