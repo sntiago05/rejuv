@@ -350,6 +350,16 @@ class ReportControllerTest {
         String html = result.getResponse().getContentAsString();
         assertThat(html).doesNotContain("<script");
         assertThat(html).doesNotContain("style=");
+
+        int footerStart = html.indexOf("<footer");
+        int footerEnd = html.indexOf("</footer>") + "</footer>".length();
+        if (footerStart != -1 && footerEnd != -1) {
+            java.nio.file.Files.writeString(
+                    java.nio.file.Path.of("target/rendered-footer-sample.html"),
+                    html.substring(footerStart, footerEnd),
+                    java.nio.charset.StandardCharsets.UTF_8
+            );
+        }
     }
 
     @Test

@@ -41,6 +41,10 @@ Required environment variables in `.env`:
 - `USAGE_LIMITS_ENABLED`: Feature flag to enable weekly analysis limits (`true` or `false`).
 - `USAGE_WEEKLY_FREE_ANALYSES`: Number of free analyses per user per week (e.g., `3`).
 
+Optional donation link variables:
+- `DONATION_URL`: HTTP or HTTPS URL to accept optional user donations (e.g., Ko-fi, Patreon). When omitted or blank, donation buttons and links are hidden everywhere.
+- `DONATION_LABEL`: Display text for the donation button and link (defaults to `Support Rejuv`, capped at 80 characters).
+
 > [!CAUTION]
 > Never commit or share `.env`. Keep file permissions restricted (`chmod 600 .env`).
 
