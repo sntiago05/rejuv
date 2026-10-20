@@ -76,13 +76,16 @@ public class ReportService {
         }
         MatchAnalysis stored = storedOpt.get();
         AnalysisResult analysis;
+        JsonNode resultTree = null;
         try {
-            analysis = JSON_MAPPER.readValue(stored.getResultJson(), AnalysisResult.class);
+            resultTree = JSON_MAPPER.readTree(stored.getResultJson());
+            analysis = JSON_MAPPER.treeToValue(resultTree, AnalysisResult.class);
         } catch (Exception ex) {
             log.warn("Corrupted match analysis JSON for publicId={}", publicId);
             return Optional.empty();
         }
 
+        List<ReportView.Tip> tips = parseTips(resultTree);
         String heroName = resolveHeroName(stored.getHeroId());
 
         Double durationMin = null;
@@ -90,8 +93,10 @@ public class ReportService {
         boolean hasChart = false;
         boolean hasSoulCurve = false;
         boolean hasSoulLead = false;
+        boolean hasBuildTimeline = false;
         String soulLeadAlt = "";
         String soulCurveAlt = "";
+        String buildAlt = "";
 
         try {
             MatchTelemetry telemetry = matchMetadataSource.getMatch(stored.getMatchId());
@@ -105,6 +110,13 @@ public class ReportService {
                     if (chartData != null && chartData.soulLead() != null && chartData.soulLead().size() >= 2) {
                         hasSoulLead = true;
                         soulLeadAlt = reportChartsSvg.computeSoulLeadAlt(chartData.timesS(), chartData.soulLead());
+                    }
+                    if (build != null && build.size() >= 3) {
+                        long validCount = build.stream().filter(i -> i.boughtAtS() >= 0).count();
+                        if (validCount >= 3) {
+                            hasBuildTimeline = true;
+                            buildAlt = reportChartsSvg.computeBuildAlt(build);
+                        }
                     }
                 }
                 Optional<SoulCurveData> soulCurveDataOpt = computeSoulCurveData(stored, telemetry);
@@ -123,8 +135,10 @@ public class ReportService {
             hasChart = false;
             hasSoulCurve = false;
             hasSoulLead = false;
+            hasBuildTimeline = false;
             soulLeadAlt = "";
             soulCurveAlt = "";
+            buildAlt = "";
         }
 
         String rank = null;
@@ -222,11 +236,14 @@ public class ReportService {
                 hasPhasesChart,
                 hasDeathsChart,
                 hasMetricsChart,
+                hasBuildTimeline,
                 soulLeadAlt,
                 soulCurveAlt,
                 phasesAlt,
                 deathsAlt,
-                metricsAlt
+                metricsAlt,
+                buildAlt,
+                tips
         ));
     }
 
@@ -396,6 +413,116 @@ public class ReportService {
             log.warn("Failed to parse metrics for SVG publicId={}: {}", publicId, ex.getMessage());
             return Optional.empty();
         }
+    }
+
+    /**
+     * Renders the build timeline as SVG. Empty when no report, no build, or fewer than 3 items.
+     */
+    public Optional<String> buildSvg(UUID publicId) {
+        if (publicId == null) {
+            return Optional.empty();
+        }
+        Optional<MatchAnalysis> storedOpt = repository.findByPublicId(publicId);
+        if (storedOpt.isEmpty()) {
+            return Optional.empty();
+        }
+        MatchAnalysis stored = storedOpt.get();
+
+        MatchTelemetry telemetry;
+        try {
+            telemetry = matchMetadataSource.getMatch(stored.getMatchId());
+        } catch (RuntimeException ex) {
+            log.warn("Match metadata unavailable for build timeline publicId={}: {}", publicId, ex.getClass().getSimpleName());
+            return Optional.empty();
+        }
+        if (telemetry == null) {
+            return Optional.empty();
+        }
+
+        Optional<MatchVisuals> visuals = visualsService.build(stored.getAccountId(), telemetry);
+        if (visuals.isEmpty() || visuals.get().items() == null) {
+            return Optional.empty();
+        }
+        List<MatchVisuals.PurchasedItem> items = visuals.get().items();
+        if (items.size() < 3) {
+            return Optional.empty();
+        }
+        return reportChartsSvg.renderBuildTimeline(items);
+    }
+
+    List<ReportView.Tip> parseTips(JsonNode resultTree) {
+        if (resultTree == null || !resultTree.has("tips")) {
+            return List.of();
+        }
+        JsonNode tipsNode = resultTree.get("tips");
+        if (!tipsNode.isArray()) {
+            return List.of();
+        }
+        List<ReportView.Tip> tips = new ArrayList<>(3);
+        for (JsonNode item : tipsNode) {
+            if (item == null || !item.isObject()) {
+                continue;
+            }
+            JsonNode tipField = item.get("tip");
+            if (tipField == null || !tipField.isTextual() || tipField.asText().isBlank()) {
+                continue;
+            }
+            String tip = tipField.asText().trim();
+            String evidence = item.hasNonNull("evidence") ? item.get("evidence").asText("").trim() : "";
+            String drill = item.hasNonNull("drill") ? item.get("drill").asText("").trim() : "";
+            tips.add(new ReportView.Tip(tip, evidence, drill));
+            if (tips.size() == 3) {
+                break;
+            }
+        }
+        return List.copyOf(tips);
+    }
+
+    public static String severityBadgeClass(String severity) {
+        if (severity == null) {
+            return "sig-none";
+        }
+        return switch (severity.toLowerCase(Locale.ROOT)) {
+            case "major" -> "sig-major";
+            case "notable" -> "sig-notable";
+            case "minor" -> "sig-minor";
+            default -> "sig-none";
+        };
+    }
+
+    public static String leakBorderClass(String severity) {
+        if (severity == null) {
+            return "";
+        }
+        return switch (severity.toLowerCase(Locale.ROOT)) {
+            case "major" -> "leak-major";
+            case "notable" -> "leak-notable";
+            case "minor" -> "leak-minor";
+            default -> "";
+        };
+    }
+
+    public static String verdictClass(String verdict) {
+        if (verdict == null) {
+            return "verdict-neutral";
+        }
+        return switch (verdict) {
+            case "above p50" -> "verdict-above";
+            case "below p25" -> "verdict-below";
+            case "between p25 and p50" -> "verdict-between";
+            default -> "verdict-neutral";
+        };
+    }
+
+    public static String resultBadgeClass(String result) {
+        if (result == null) {
+            return "";
+        }
+        return switch (result.toLowerCase(Locale.ROOT)) {
+            case "win" -> "result-win";
+            case "loss" -> "result-loss";
+            default -> "";
+        };
     }
 
     private record SoulCurveData(

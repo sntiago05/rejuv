@@ -98,6 +98,11 @@ public class ReportController {
         return serveSvg(publicIdRaw, reportService::metricsSvg);
     }
 
+    @GetMapping("/r/{publicId}/build.svg")
+    public ResponseEntity<String> buildSvg(@PathVariable("publicId") String publicIdRaw) {
+        return serveSvg(publicIdRaw, reportService::buildSvg);
+    }
+
     private ResponseEntity<String> serveSvg(String publicIdRaw, java.util.function.Function<UUID, Optional<String>> loader) {
         HttpHeaders headers = createSecurityHeaders();
         Optional<UUID> uuid = parseUuid(publicIdRaw);

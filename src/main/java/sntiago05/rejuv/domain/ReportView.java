@@ -24,22 +24,53 @@ public record ReportView(UUID publicId,
                          boolean hasPhasesChart,
                          boolean hasDeathsChart,
                          boolean hasMetricsChart,
+                         boolean hasBuildTimeline,
                          String soulLeadAlt,
                          String soulCurveAlt,
                          String phasesAlt,
                          String deathsAlt,
-                         String metricsAlt) {
+                         String metricsAlt,
+                         String buildAlt,
+                         List<Tip> tips) {
 
     public ReportView {
         build = build == null ? List.of() : List.copyOf(build);
         metricsTable = metricsTable == null ? List.of() : List.copyOf(metricsTable);
         coachSections = coachSections == null ? List.of() : List.copyOf(coachSections);
         otherSignals = otherSignals == null ? List.of() : List.copyOf(otherSignals);
+        tips = tips == null ? List.of() : List.copyOf(tips);
         soulLeadAlt = soulLeadAlt == null ? "" : soulLeadAlt;
         soulCurveAlt = soulCurveAlt == null ? "" : soulCurveAlt;
         phasesAlt = phasesAlt == null ? "" : phasesAlt;
         deathsAlt = deathsAlt == null ? "" : deathsAlt;
         metricsAlt = metricsAlt == null ? "" : metricsAlt;
+        buildAlt = buildAlt == null ? "" : buildAlt;
+    }
+
+    /**
+     * Backward-compatible constructor for 25-parameter caller tests.
+     */
+    public ReportView(UUID publicId, long matchId, String hero, int heroId, String rank,
+                      String result, Double durationMin, AnalysisResult analysis,
+                      List<MatchVisuals.PurchasedItem> build, boolean hasChart,
+                      Instant analyzedAt, boolean hasSoulCurve, boolean hasDetailedSections,
+                      List<MetricRow> metricsTable, List<CoachSection> coachSections,
+                      List<OtherSignal> otherSignals, boolean hasSoulLead, boolean hasPhasesChart,
+                      boolean hasDeathsChart, boolean hasMetricsChart, String soulLeadAlt,
+                      String soulCurveAlt, String phasesAlt, String deathsAlt, String metricsAlt) {
+        this(publicId, matchId, hero, heroId, rank, result, durationMin, analysis, build,
+                hasChart, analyzedAt, hasSoulCurve, hasDetailedSections, metricsTable,
+                coachSections, otherSignals, hasSoulLead, hasPhasesChart, hasDeathsChart,
+                hasMetricsChart, false, soulLeadAlt, soulCurveAlt, phasesAlt, deathsAlt,
+                metricsAlt, "", List.of());
+    }
+
+    public record Tip(String tip, String evidence, String drill) {
+        public Tip {
+            tip = tip == null ? "" : tip;
+            evidence = evidence == null ? "" : evidence;
+            drill = drill == null ? "" : drill;
+        }
     }
 
     public record MetricRow(String key, String labelKey, String yourValue, String p25, String p50, String verdict, String widthClass) {

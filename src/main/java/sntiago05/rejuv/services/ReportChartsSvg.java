@@ -1,13 +1,12 @@
 package sntiago05.rejuv.services;
 
-import java.io.StringReader;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
-import javax.xml.parsers.DocumentBuilderFactory;
 
 import org.springframework.stereotype.Component;
-import org.xml.sax.InputSource;
+import sntiago05.rejuv.domain.MatchVisuals;
 import sntiago05.rejuv.domain.ReportView;
 
 /**
@@ -18,17 +17,8 @@ import sntiago05.rejuv.domain.ReportView;
 @Component
 public class ReportChartsSvg {
 
-    // Shared palette constants (matching task 047 / ADR-0018)
-    public static final String COLOR_BG_DARK = "#1e1f22";
-    public static final String COLOR_BG_LIGHT = "#ffffff";
-    public static final String COLOR_GRID_DARK = "#2b2d31";
-    public static final String COLOR_GRID_LIGHT = "#e5e7eb";
-    public static final String COLOR_TEXT_DARK = "#dbdee1";
-    public static final String COLOR_TEXT_LIGHT = "#111827";
-    public static final String COLOR_MUTED_DARK = "#949ba4";
-    public static final String COLOR_MUTED_LIGHT = "#6b7280";
-
-    public static final String COLOR_YOU_GOLD = "#ffc83d";
+    // Shared theme tokens (matching src/main/tailwind/report.css @theme)
+    public static final String COLOR_YOU_GOLD = "#e5a93c";
     public static final String COLOR_YOU_GOLD_LIGHT = "#d97706";
     public static final String COLOR_REF_GREY = "#9aa0a6";
     public static final String COLOR_REF_GREY_LIGHT = "#6b7280";
@@ -40,6 +30,15 @@ public class ReportChartsSvg {
     public static final String COLOR_BETTER_GREEN_LIGHT = "#16a34a";
     public static final String COLOR_WORSE_RED = "#ed4245";
     public static final String COLOR_WORSE_RED_LIGHT = "#dc2626";
+
+    public static final String COLOR_BG_DARK = "#1e1f22";
+    public static final String COLOR_BG_LIGHT = "#ffffff";
+    public static final String COLOR_GRID_DARK = "#2b2d31";
+    public static final String COLOR_GRID_LIGHT = "#e5e7eb";
+    public static final String COLOR_TEXT_DARK = "#dbdee1";
+    public static final String COLOR_TEXT_LIGHT = "#111827";
+    public static final String COLOR_MUTED_DARK = "#949ba4";
+    public static final String COLOR_MUTED_LIGHT = "#6b7280";
 
     // Phase boundary constants matching DeathsCoachProvider / ChartRenderer
     public static final int LANING_PHASE_END_S = 720;
@@ -136,16 +135,16 @@ public class ReportChartsSvg {
         // Phase labels
         builder.append(String.format(Locale.ROOT,
                 "<text class=\"phase-text\" x=\"%.1f\" y=\"%.1f\" text-anchor=\"middle\">%s</text>\n",
-                (plotLeft + Math.min(x12, plotRight)) / 2.0, plotTop + 13.0, messages.get("analyze.chart.phase.laning")));
+                (plotLeft + Math.min(x12, plotRight)) / 2.0, plotTop + 14.0, messages.get("analyze.chart.phase.laning")));
         if (x12 < plotRight) {
             builder.append(String.format(Locale.ROOT,
                     "<text class=\"phase-text\" x=\"%.1f\" y=\"%.1f\" text-anchor=\"middle\">%s</text>\n",
-                    (x12 + Math.min(x20, plotRight)) / 2.0, plotTop + 13.0, messages.get("analyze.chart.phase.mid")));
+                    (x12 + Math.min(x20, plotRight)) / 2.0, plotTop + 14.0, messages.get("analyze.chart.phase.mid")));
         }
         if (x20 < plotRight) {
             builder.append(String.format(Locale.ROOT,
                     "<text class=\"phase-text\" x=\"%.1f\" y=\"%.1f\" text-anchor=\"middle\">%s</text>\n",
-                    (x20 + plotRight) / 2.0, plotTop + 13.0, messages.get("analyze.chart.phase.late")));
+                    (x20 + plotRight) / 2.0, plotTop + 14.0, messages.get("analyze.chart.phase.late")));
         }
 
         // Y grid lines and ticks
@@ -173,7 +172,7 @@ public class ReportChartsSvg {
                     "<line class=\"grid\" x1=\"%.1f\" y1=\"%.1f\" x2=\"%.1f\" y2=\"%.1f\" />\n",
                     x, plotTop, x, plotBottom));
             builder.append(String.format(Locale.ROOT,
-                    "<text class=\"axis-text\" x=\"%.1f\" y=\"%.1f\" text-anchor=\"middle\">%d</text>\n",
+                    "<text class=\"axis-text\" x=\"%.1f\" y=\"%.1f\" text-anchor=\"middle\">%d min</text>\n",
                     x, plotBottom + 16.0, (long) m));
         }
 
@@ -183,10 +182,10 @@ public class ReportChartsSvg {
                 plotLeft, centerY, plotRight, centerY));
         builder.append(String.format(Locale.ROOT,
                 "<text class=\"side-you\" x=\"%.1f\" y=\"%.1f\">%s</text>\n",
-                plotLeft + 6.0, centerY - 5.0, messages.get("analyze.chart.side_you")));
+                plotLeft + 6.0, centerY - 6.0, messages.get("analyze.chart.side_you")));
         builder.append(String.format(Locale.ROOT,
                 "<text class=\"side-enemy\" x=\"%.1f\" y=\"%.1f\">%s</text>\n",
-                plotLeft + 6.0, centerY + 14.0, messages.get("analyze.chart.side_enemy")));
+                plotLeft + 6.0, centerY + 15.0, messages.get("analyze.chart.side_enemy")));
 
         // Map data points
         double[] xs = new double[n];
@@ -243,14 +242,12 @@ public class ReportChartsSvg {
         long biggestSwing = 0;
         int swingStartMin = 0;
         int swingEndMin = 0;
-        int swingIdx = 0;
         for (int i = 0; i < n - 1; i++) {
             long delta = soulLead.get(i + 1) - soulLead.get(i);
             if (Math.abs(delta) > Math.abs(biggestSwing)) {
                 biggestSwing = delta;
                 swingStartMin = timesS.get(i) / 60;
                 swingEndMin = timesS.get(i + 1) / 60;
-                swingIdx = i + 1;
             }
         }
 
@@ -650,9 +647,124 @@ public class ReportChartsSvg {
     }
 
     // -------------------------------------------------------------------------
-    // Shared private SVG builder
+    // 5. Build timeline
     // -------------------------------------------------------------------------
-    private static class SvgBuilder {
+    public Optional<String> renderBuildTimeline(List<MatchVisuals.PurchasedItem> items) {
+        if (items == null || items.size() < 3) {
+            return Optional.empty();
+        }
+
+        // Cap at 12 items, earliest first
+        List<MatchVisuals.PurchasedItem> timeline = items.stream()
+                .filter(i -> i.boughtAtS() >= 0)
+                .sorted(Comparator.comparingInt(MatchVisuals.PurchasedItem::boughtAtS))
+                .limit(12)
+                .toList();
+
+        if (timeline.size() < 3) {
+            return Optional.empty();
+        }
+
+        int width = 640;
+        int height = 240;
+        double plotLeft = 55.0;
+        double plotRight = 585.0;
+        double plotW = plotRight - plotLeft;
+        double centerY = 120.0;
+
+        int lastSec = timeline.get(timeline.size() - 1).boughtAtS();
+        double lastMin = lastSec / 60.0;
+        double maxAxisMin = Math.max(10.0, Math.ceil(Math.max(lastMin, 5.0) / 5.0) * 5.0);
+
+        SvgBuilder builder = new SvgBuilder(width, height,
+                messages.get("report.chart.build.title"),
+                messages.get("report.chart.build.title"));
+
+        // Horizontal axis line
+        builder.append(String.format(Locale.ROOT,
+                "<line class=\"zero-line\" x1=\"%.1f\" y1=\"%.1f\" x2=\"%.1f\" y2=\"%.1f\" />\n",
+                plotLeft, centerY, plotRight, centerY));
+
+        // Axis ticks every 5 or 10 min
+        double stepMin = (maxAxisMin <= 20.0) ? 5.0 : 10.0;
+        for (double m = 0; m <= maxAxisMin + 0.001; m += stepMin) {
+            double x = plotLeft + (m / maxAxisMin) * plotW;
+            builder.append(String.format(Locale.ROOT,
+                    "<line class=\"grid\" x1=\"%.1f\" y1=\"%.1f\" x2=\"%.1f\" y2=\"%.1f\" />\n",
+                    x, centerY - 6.0, x, centerY + 6.0));
+            builder.append(String.format(Locale.ROOT,
+                    "<text class=\"axis-text\" x=\"%.1f\" y=\"%.1f\" text-anchor=\"middle\">%dm</text>\n",
+                    x, centerY + 20.0, (int) m));
+        }
+
+        // Axis label
+        builder.append(String.format(Locale.ROOT,
+                "<text class=\"axis-title\" x=\"%.1f\" y=\"%.1f\" text-anchor=\"end\">%s</text>\n",
+                plotRight, centerY + 36.0, escapeXml(messages.get("report.curve.axis.minutes"))));
+
+        // Alternating items
+        for (int i = 0; i < timeline.size(); i++) {
+            MatchVisuals.PurchasedItem item = timeline.get(i);
+            double itemMin = item.boughtAtS() / 60.0;
+            double x = plotLeft + Math.clamp(itemMin / maxAxisMin, 0.0, 1.0) * plotW;
+            boolean above = (i % 2 == 0);
+
+            // Tick circle on axis
+            builder.append(String.format(Locale.ROOT,
+                    "<circle cx=\"%.1f\" cy=\"%.1f\" r=\"4.5\" class=\"dot-neutral\" />\n",
+                    x, centerY));
+
+            double textY;
+            double lineY1;
+            double lineY2;
+            if (above) {
+                lineY1 = centerY - 5.0;
+                lineY2 = centerY - 32.0;
+                textY = centerY - 38.0;
+            } else {
+                lineY1 = centerY + 5.0;
+                lineY2 = centerY + 32.0;
+                textY = centerY + 54.0;
+            }
+
+            // Connecting guide line
+            builder.append(String.format(Locale.ROOT,
+                    "<line class=\"guide-dashed\" x1=\"%.1f\" y1=\"%.1f\" x2=\"%.1f\" y2=\"%.1f\" />\n",
+                    x, lineY1, x, lineY2));
+
+            // Item name and buy minute
+            String anchor = (x <= plotLeft + 45.0) ? "start" : ((x >= plotRight - 45.0) ? "end" : "middle");
+            String label = String.format(Locale.ROOT, "%s (%dm)", escapeXml(item.name()), (int) itemMin);
+            builder.append(String.format(Locale.ROOT,
+                    "<text class=\"annotation-text\" x=\"%.1f\" y=\"%.1f\" text-anchor=\"%s\">%s</text>\n",
+                    x, textY, anchor, label));
+        }
+
+        return Optional.of(builder.build());
+    }
+
+    public String computeBuildAlt(List<MatchVisuals.PurchasedItem> items) {
+        if (items == null || items.size() < 3) {
+            return messages.get("report.chart.build.alt_empty");
+        }
+        List<MatchVisuals.PurchasedItem> timeline = items.stream()
+                .filter(i -> i.boughtAtS() >= 0)
+                .sorted(Comparator.comparingInt(MatchVisuals.PurchasedItem::boughtAtS))
+                .limit(12)
+                .toList();
+        if (timeline.size() < 3) {
+            return messages.get("report.chart.build.alt_empty");
+        }
+        int firstMin = timeline.get(0).boughtAtS() / 60;
+        int lastMin = timeline.get(timeline.size() - 1).boughtAtS() / 60;
+        return messages.get("report.chart.build.alt",
+                String.valueOf(timeline.size()), String.valueOf(firstMin), String.valueOf(lastMin));
+    }
+
+    // -------------------------------------------------------------------------
+    // Shared SVG builder (package-private for reuse across SVG chart generators)
+    // -------------------------------------------------------------------------
+    static class SvgBuilder {
         private final StringBuilder sb = new StringBuilder(4096);
 
         SvgBuilder(int width, int height, String title, String ariaLabel) {
@@ -666,14 +778,14 @@ public class ReportChartsSvg {
             sb.append(".grid { stroke: ").append(COLOR_GRID_DARK).append("; stroke-width: 1; }\n");
             sb.append(".zero-line { stroke: #4e5058; stroke-width: 1.5; }\n");
             sb.append(".guide-dashed { stroke: #4e5058; stroke-width: 1; stroke-dasharray: 4 4; }\n");
-            sb.append(".axis-text { fill: ").append(COLOR_MUTED_DARK).append("; font-size: 11px; font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, sans-serif; }\n");
-            sb.append(".axis-title { fill: ").append(COLOR_MUTED_DARK).append("; font-size: 11px; font-weight: 600; font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, sans-serif; }\n");
-            sb.append(".annotation-text { fill: ").append(COLOR_TEXT_DARK).append("; font-size: 11px; font-weight: 600; font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, sans-serif; }\n");
+            sb.append(".axis-text { fill: ").append(COLOR_MUTED_DARK).append("; font-size: 12px; font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, sans-serif; }\n");
+            sb.append(".axis-title { fill: ").append(COLOR_MUTED_DARK).append("; font-size: 12px; font-weight: 600; font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, sans-serif; }\n");
+            sb.append(".annotation-text { fill: ").append(COLOR_TEXT_DARK).append("; font-size: 12px; font-weight: 600; font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, sans-serif; }\n");
             sb.append(".phase-band { fill: rgba(255, 255, 255, 0.02); stroke: none; }\n");
             sb.append(".phase-band-alt { fill: rgba(255, 255, 255, 0.05); stroke: none; }\n");
-            sb.append(".phase-text { fill: #72767d; font-size: 11px; font-weight: 600; font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, sans-serif; }\n");
-            sb.append(".side-you { fill: ").append(COLOR_SIDE_BLUE).append("; font-size: 10px; font-weight: 600; font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, sans-serif; }\n");
-            sb.append(".side-enemy { fill: ").append(COLOR_SIDE_ORANGE).append("; font-size: 10px; font-weight: 600; font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, sans-serif; }\n");
+            sb.append(".phase-text { fill: #72767d; font-size: 12px; font-weight: 600; font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, sans-serif; }\n");
+            sb.append(".side-you { fill: ").append(COLOR_SIDE_BLUE).append("; font-size: 12px; font-weight: 600; font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, sans-serif; }\n");
+            sb.append(".side-enemy { fill: ").append(COLOR_SIDE_ORANGE).append("; font-size: 12px; font-weight: 600; font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, sans-serif; }\n");
             sb.append(".lead-line { stroke: ").append(COLOR_YOU_GOLD).append("; stroke-width: 2.4; fill: none; stroke-linecap: round; stroke-linejoin: round; }\n");
             sb.append(".lead-fill-you { fill: ").append(COLOR_SIDE_BLUE).append("; fill-opacity: 0.18; stroke: none; }\n");
             sb.append(".lead-fill-enemy { fill: ").append(COLOR_SIDE_ORANGE).append("; fill-opacity: 0.18; stroke: none; }\n");
@@ -681,17 +793,26 @@ public class ReportChartsSvg {
             sb.append(".bar-better { fill: ").append(COLOR_BETTER_GREEN).append("; }\n");
             sb.append(".bar-worse { fill: ").append(COLOR_WORSE_RED).append("; }\n");
             sb.append(".bar-death { fill: ").append(COLOR_WORSE_RED).append("; fill-opacity: 0.85; }\n");
-            sb.append(".phase-head-worse { fill: ").append(COLOR_WORSE_RED).append("; font-size: 11px; font-weight: 600; font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, sans-serif; }\n");
-            sb.append(".phase-head-better { fill: ").append(COLOR_BETTER_GREEN).append("; font-size: 11px; font-weight: 600; font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, sans-serif; }\n");
+            sb.append(".phase-head-worse { fill: ").append(COLOR_WORSE_RED).append("; font-size: 12px; font-weight: 600; font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, sans-serif; }\n");
+            sb.append(".phase-head-better { fill: ").append(COLOR_BETTER_GREEN).append("; font-size: 12px; font-weight: 600; font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, sans-serif; }\n");
             sb.append(".bar-row-label { fill: ").append(COLOR_TEXT_DARK).append("; font-size: 12px; font-weight: 600; font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, sans-serif; }\n");
-            sb.append(".bar-value-text { fill: ").append(COLOR_TEXT_DARK).append("; font-size: 11px; font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, sans-serif; }\n");
-            sb.append(".metric-row-label { fill: ").append(COLOR_TEXT_DARK).append("; font-size: 11px; font-weight: 500; font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, sans-serif; }\n");
+            sb.append(".bar-value-text { fill: ").append(COLOR_TEXT_DARK).append("; font-size: 12px; font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, sans-serif; }\n");
+            sb.append(".metric-row-label { fill: ").append(COLOR_TEXT_DARK).append("; font-size: 12px; font-weight: 500; font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, sans-serif; }\n");
             sb.append(".metric-track { fill: #2b2d31; }\n");
             sb.append(".metric-range-band { fill: #4e5058; }\n");
             sb.append(".dot-better { fill: ").append(COLOR_BETTER_GREEN).append("; stroke: #1e1f22; stroke-width: 1.5; }\n");
             sb.append(".dot-neutral { fill: ").append(COLOR_YOU_GOLD).append("; stroke: #1e1f22; stroke-width: 1.5; }\n");
             sb.append(".dot-worse { fill: ").append(COLOR_WORSE_RED).append("; stroke: #1e1f22; stroke-width: 1.5; }\n");
-            sb.append(".metric-val-text { fill: ").append(COLOR_MUTED_DARK).append("; font-size: 11px; font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, sans-serif; }\n");
+            sb.append(".metric-val-text { fill: ").append(COLOR_MUTED_DARK).append("; font-size: 12px; font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, sans-serif; }\n");
+            sb.append(".band { fill: ").append(COLOR_SIDE_BLUE).append("; fill-opacity: 0.18; stroke: none; }\n");
+            sb.append(".avg-line { stroke: ").append(COLOR_SIDE_BLUE).append("; stroke-width: 2; stroke-dasharray: 6 4; fill: none; }\n");
+            sb.append(".player-line { stroke: ").append(COLOR_YOU_GOLD).append("; stroke-width: 3; fill: none; stroke-linecap: round; stroke-linejoin: round; }\n");
+            sb.append(".direct-label-player { fill: ").append(COLOR_YOU_GOLD).append("; font-size: 12px; font-weight: 700; font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, sans-serif; }\n");
+            sb.append(".direct-label-avg { fill: ").append(COLOR_SIDE_BLUE).append("; font-size: 12px; font-weight: 600; font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, sans-serif; }\n");
+            sb.append(".verdict-text { fill: ").append(COLOR_TEXT_DARK).append("; font-size: 12px; font-weight: 600; font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, sans-serif; }\n");
+            sb.append(".legend-text { fill: ").append(COLOR_TEXT_DARK).append("; font-size: 12px; font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, sans-serif; }\n");
+            sb.append(".caption { fill: ").append(COLOR_TEXT_DARK).append("; font-size: 13px; font-weight: 600; font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, sans-serif; }\n");
+
             sb.append("@media (prefers-color-scheme: light) {\n");
             sb.append("  .bg { fill: ").append(COLOR_BG_LIGHT).append("; }\n");
             sb.append("  .grid { stroke: ").append(COLOR_GRID_LIGHT).append("; }\n");
@@ -723,6 +844,14 @@ public class ReportChartsSvg {
             sb.append("  .dot-neutral { fill: ").append(COLOR_YOU_GOLD_LIGHT).append("; stroke: #ffffff; }\n");
             sb.append("  .dot-worse { fill: ").append(COLOR_WORSE_RED_LIGHT).append("; stroke: #ffffff; }\n");
             sb.append("  .metric-val-text { fill: ").append(COLOR_MUTED_LIGHT).append("; }\n");
+            sb.append("  .band { fill: ").append(COLOR_SIDE_BLUE_LIGHT).append("; fill-opacity: 0.15; }\n");
+            sb.append("  .avg-line { stroke: ").append(COLOR_SIDE_BLUE_LIGHT).append("; }\n");
+            sb.append("  .player-line { stroke: ").append(COLOR_YOU_GOLD_LIGHT).append("; }\n");
+            sb.append("  .direct-label-player { fill: ").append(COLOR_YOU_GOLD_LIGHT).append("; }\n");
+            sb.append("  .direct-label-avg { fill: ").append(COLOR_SIDE_BLUE_LIGHT).append("; }\n");
+            sb.append("  .verdict-text { fill: ").append(COLOR_TEXT_LIGHT).append("; }\n");
+            sb.append("  .legend-text { fill: #374151; }\n");
+            sb.append("  .caption { fill: ").append(COLOR_TEXT_LIGHT).append("; }\n");
             sb.append("}\n");
             sb.append("</style>\n");
 
