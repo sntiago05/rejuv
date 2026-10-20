@@ -1,5 +1,7 @@
 # Task 020: Patreon Premium role check
 
+> Superseded: the premium tier, Patreon check and usage limits were removed by task 051 (ADR-0019). This report is kept as history.
+
 ## Status
 
 Implemented and verified locally. `.\mvnw.cmd clean verify` passes with 699 tests (675 baseline + 24 new, 0 failures, 2 skipped benchmark tests). Not pushed, not merged.
