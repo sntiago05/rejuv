@@ -1126,34 +1126,42 @@ class AnalyzeCommandTest {
                 matchSearchService, gameAssets, heroResolver, iconCatalog, chartRenderer,
                 new WebProperties(null), donationService);
 
-        SlashCommandInteractionEvent event = mockEvent();
         when(profileService.findLinkedAccountId(CALLER_ID)).thenReturn(OptionalLong.of(ACCOUNT_ID));
-        deferFor(event);
-        InteractionHook hook = hookFor(event);
-
-        // Craft embed fields so total embed length is just under 6000 (e.g. ~5960),
-        // but adding the support field (~55 chars) would exceed 6000.
         String leak = "word ".repeat(204);
         String action = "word ".repeat(204);
         String strength = "word ".repeat(204);
-        // Build items fill additional field length
         List<MatchVisuals.PurchasedItem> items = new ArrayList<>();
         for (int i = 0; i < 24; i++) {
             items.add(new MatchVisuals.PurchasedItem((long) (100 + i), "Item Name " + i, 300));
         }
         MatchVisuals visuals = new MatchVisuals(items, null);
-        // Rank fills the footer up to MAX_FOOTER_LENGTH (2048)
         String hugeRank = "Rank ".repeat(450);
         List<String> keyNumbers = List.of("Note: " + "word ".repeat(60));
-
         AnalysisResult aiResult = new AnalysisResult(strength, leak, action, keyNumbers);
         AnalysisReport report = new AnalysisReport(1, "Infernus", hugeRank, "win", 30.0, aiResult, Map.of(), false, visuals, null);
         when(analyzeService.analyze(eq(CALLER_ID), eq(ACCOUNT_ID), any())).thenReturn(report);
 
+        // Baseline: same report with donations disabled. It must fit, but only just.
+        SlashCommandInteractionEvent baselineEvent = mockEvent();
+        deferFor(baselineEvent);
+        InteractionHook baselineHook = hookFor(baselineEvent);
+        command.handle(baselineEvent);
+        MessageEmbed baseline = capturedEmbed(baselineHook);
+
+        int supportLength = messages.get("analyze.field.support").length()
+                + messages.get("analyze.support.line", "Support Us", "https://example.com/donate").length();
+        assertThat(baseline.getLength()).isLessThanOrEqualTo(MessageEmbed.EMBED_MAX_LENGTH_BOT);
+        assertThat(baseline.getLength() + supportLength).isGreaterThan(MessageEmbed.EMBED_MAX_LENGTH_BOT);
+        assertThat(baseline.getFields().size()).isLessThan(25);
+
+        // With donations enabled the support field is skipped and the embed is unchanged.
+        SlashCommandInteractionEvent event = mockEvent();
+        deferFor(event);
+        InteractionHook hook = hookFor(event);
         cmd.handle(event);
 
         MessageEmbed embed = capturedEmbed(hook);
-        assertThat(embed.getLength()).isLessThanOrEqualTo(MessageEmbed.EMBED_MAX_LENGTH_BOT);
+        assertThat(embed.getLength()).isEqualTo(baseline.getLength());
         assertThat(embed.getFields()).noneMatch(f -> f.getName().equals(messages.get("analyze.field.support")));
     }
 

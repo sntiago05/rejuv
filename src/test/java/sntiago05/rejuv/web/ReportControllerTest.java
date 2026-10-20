@@ -352,14 +352,18 @@ class ReportControllerTest {
         assertThat(html).doesNotContain("style=");
 
         int footerStart = html.indexOf("<footer");
-        int footerEnd = html.indexOf("</footer>") + "</footer>".length();
-        if (footerStart != -1 && footerEnd != -1) {
-            java.nio.file.Files.writeString(
-                    java.nio.file.Path.of("target/rendered-footer-sample.html"),
-                    html.substring(footerStart, footerEnd),
-                    java.nio.charset.StandardCharsets.UTF_8
-            );
-        }
+        int footerEnd = html.indexOf("</footer>");
+        assertThat(footerStart).isNotNegative();
+        assertThat(footerEnd).isGreaterThan(footerStart);
+        String footer = html.substring(footerStart, footerEnd + "</footer>".length());
+        assertThat(footer).contains(
+                "<a href=\"https://example.com/donate\" rel=\"noopener noreferrer nofollow\">Support Rejuv</a>");
+
+        // Sample for the task report (not committed).
+        java.nio.file.Files.writeString(
+                java.nio.file.Path.of("target/rendered-footer-sample.html"),
+                footer,
+                java.nio.charset.StandardCharsets.UTF_8);
     }
 
     @Test
