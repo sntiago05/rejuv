@@ -55,6 +55,7 @@ import sntiago05.rejuv.domain.MatchAnalysis;
 import sntiago05.rejuv.domain.MatchFilter;
 import sntiago05.rejuv.repositories.LinkedAccountRepository;
 import sntiago05.rejuv.repositories.MatchAnalysisRepository;
+import sntiago05.rejuv.services.AnalysisSpendGuard;
 import sntiago05.rejuv.services.AnalyzeService;
 import sntiago05.rejuv.services.AssetImages;
 import sntiago05.rejuv.services.BuildCoachProvider;
@@ -104,6 +105,11 @@ class UpstreamCallCountBenchmarkTest {
         private final DeadlockApiProperties properties = new DeadlockApiProperties(BASE_URL, Duration.ofSeconds(3),
                 Duration.ofSeconds(10), Duration.ofSeconds(2), Duration.ofSeconds(10));
         private final RestClient.Builder builder = DeadlockApiConfig.restClientBuilder(properties);
+
+        @Bean
+        AnalysisSpendGuard analysisSpendGuard() {
+            return org.mockito.Mockito.mock(AnalysisSpendGuard.class);
+        }
 
         @Bean
         MockRestServiceServer mockRestServiceServer() {

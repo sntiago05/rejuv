@@ -92,6 +92,7 @@ class AnalyzeServiceTest {
     private MatchAnalysisRepository repository;
     private MatchVisualsService visualsService;
     private CoachContextService coachContextService;
+    private AnalysisSpendGuard spendGuard;
     private AnalyzeService service;
 
     @BeforeEach
@@ -104,11 +105,12 @@ class AnalyzeServiceTest {
         visualsService = mock(MatchVisualsService.class);
         coachContextService = mock(CoachContextService.class);
         when(coachContextService.build(any())).thenReturn(Map.of());
+        spendGuard = mock(AnalysisSpendGuard.class);
         GameAssets gameAssets = mock(GameAssets.class);
         when(gameAssets.heroNames()).thenReturn(Map.of(HERO_ID, "Infernus", 2, "Seven"));
         MatchSearchService matchSearchService = new MatchSearchService(deadlockApiClient, gameAssets);
         AnthropicPricingProperties pricing = new AnthropicPricingProperties(0, 0);
-        service = new AnalyzeService(deadlockApiClient, matchMetadataSource, metricsService, analysisClient, repository, matchSearchService, pricing, visualsService, coachContextService);
+        service = new AnalyzeService(deadlockApiClient, matchMetadataSource, metricsService, analysisClient, repository, matchSearchService, pricing, visualsService, coachContextService, spendGuard);
     }
 
     @Test
@@ -203,6 +205,63 @@ class AnalyzeServiceTest {
         verify(analysisClient, never()).analyze(any());
         verify(repository, never()).save(any());
         verify(coachContextService, never()).build(any());
+    }
+
+    @Test
+    void storedPathDoesNotConsumeSpendGuardQuota() throws Exception {
+        String resultJson = new JsonMapper().writeValueAsString(AI_RESULT);
+        MatchAnalysis stored = new MatchAnalysis(
+                ACCOUNT_ID, MATCH_ID, HERO_ID, resultJson, "claude-haiku-5-5", 800, 200, Instant.now());
+        when(deadlockApiClient.getMatchHistory(ACCOUNT_ID)).thenReturn(List.of(MATCH));
+        when(repository.findByAccountIdAndMatchId(ACCOUNT_ID, MATCH_ID)).thenReturn(Optional.of(stored));
+
+        service.analyze(CALLER_ID, ACCOUNT_ID, MatchFilter.LATEST);
+
+        verify(spendGuard, never()).reserve(anyLong());
+    }
+
+    @Test
+    void freshAiPathReservesQuotaOnceForTheCaller() {
+        when(deadlockApiClient.getMatchHistory(ACCOUNT_ID)).thenReturn(List.of(MATCH));
+        when(deadlockApiClient.getPlayerRank(ACCOUNT_ID)).thenReturn(RANK);
+        when(deadlockApiClient.getHeroes()).thenReturn(HEROES);
+        when(deadlockApiClient.getRanks()).thenReturn(RANKS);
+        when(repository.findByAccountIdAndMatchId(ACCOUNT_ID, MATCH_ID)).thenReturn(Optional.empty());
+        when(matchMetadataSource.getMatch(MATCH_ID)).thenReturn(TELEMETRY);
+        when(deadlockApiClient.getBenchmarks(HERO_ID, 7)).thenReturn(BENCHMARKS);
+        when(deadlockApiClient.getItemStats(HERO_ID, 7)).thenReturn(ITEM_STATS);
+        when(deadlockApiClient.getItems()).thenReturn(ITEMS);
+        when(analysisClient.analyze(any())).thenReturn(new AnalysisOutcome(AI_RESULT, "claude-haiku-5-5", 1, 1000, 250));
+
+        service.analyze(CALLER_ID, ACCOUNT_ID, MatchFilter.LATEST);
+
+        verify(spendGuard, times(1)).reserve(CALLER_ID);
+        verify(analysisClient, times(1)).analyze(any());
+    }
+
+    @Test
+    void spendGuardRefusalSkipsAiCallAndStoresNothing() {
+        when(deadlockApiClient.getMatchHistory(ACCOUNT_ID)).thenReturn(List.of(MATCH));
+        when(deadlockApiClient.getPlayerRank(ACCOUNT_ID)).thenReturn(RANK);
+        when(deadlockApiClient.getHeroes()).thenReturn(HEROES);
+        when(deadlockApiClient.getRanks()).thenReturn(RANKS);
+        when(repository.findByAccountIdAndMatchId(ACCOUNT_ID, MATCH_ID)).thenReturn(Optional.empty());
+        when(matchMetadataSource.getMatch(MATCH_ID)).thenReturn(TELEMETRY);
+        when(deadlockApiClient.getBenchmarks(HERO_ID, 7)).thenReturn(BENCHMARKS);
+        when(deadlockApiClient.getItemStats(HERO_ID, 7)).thenReturn(ITEM_STATS);
+        when(deadlockApiClient.getItems()).thenReturn(ITEMS);
+        when(analysisClient.analyze(any())).thenReturn(new AnalysisOutcome(AI_RESULT, "claude-haiku-5-5", 1, 1000, 250));
+        doThrow(new AnalysisLimitExceededException(
+                AnalysisLimitExceededException.Reason.COOLDOWN, java.time.Duration.ofSeconds(30), 0))
+                .when(spendGuard).reserve(CALLER_ID);
+
+        assertThatThrownBy(() -> service.analyze(CALLER_ID, ACCOUNT_ID, MatchFilter.LATEST))
+                .isInstanceOf(AnalysisLimitExceededException.class)
+                .extracting(e -> ((AnalysisLimitExceededException) e).reason())
+                .isEqualTo(AnalysisLimitExceededException.Reason.COOLDOWN);
+
+        verify(analysisClient, never()).analyze(any());
+        verify(repository, never()).save(any());
     }
 
     @Test
@@ -635,14 +694,14 @@ class AnalyzeServiceTest {
         // Zero pricing
         AnalyzeService zeroService = new AnalyzeService(
                 deadlockApiClient, matchMetadataSource, metricsService, analysisClient, repository,
-                searchService, new AnthropicPricingProperties(0, 0), visualsService, coachContextService);
+                searchService, new AnthropicPricingProperties(0, 0), visualsService, coachContextService, spendGuard);
         assertThat(zeroService.estimatedCostUsd(1000, 250)).isEqualTo("unknown");
 
         // Configured pricing: e.g. input $0.80 / 1M, output $4.00 / 1M
         // 1000 / 1e6 * 0.80 + 250 / 1e6 * 4.00 = 0.0008 + 0.0010 = 0.001800
         AnalyzeService pricedService = new AnalyzeService(
                 deadlockApiClient, matchMetadataSource, metricsService, analysisClient, repository,
-                searchService, new AnthropicPricingProperties(0.80, 4.00), visualsService, coachContextService);
+                searchService, new AnthropicPricingProperties(0.80, 4.00), visualsService, coachContextService, spendGuard);
         assertThat(pricedService.estimatedCostUsd(1000, 250)).isEqualTo("0.001800");
 
         // Trigger AI analysis with pricedService and check log output
