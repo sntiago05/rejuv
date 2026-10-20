@@ -30,6 +30,7 @@ import sntiago05.rejuv.TestcontainersConfiguration;
 import sntiago05.rejuv.domain.AnalysisResult;
 import sntiago05.rejuv.domain.ReportView;
 import sntiago05.rejuv.services.DonationService;
+import sntiago05.rejuv.services.ReportIconService;
 import sntiago05.rejuv.services.ReportService;
 
 @SpringBootTest(properties = {"bot.token=", "bot.dev-guild-id="})
@@ -441,6 +442,40 @@ class ReportControllerTest {
                 .andExpect(header().string("Referrer-Policy", "no-referrer"))
                 .andExpect(header().string("X-Content-Type-Options", "nosniff"))
                 .andExpect(header().string("Cache-Control", "private, max-age=300"));
+    }
+
+    @Test
+    void iconEndpointsReturnBytesWithSecurityHeadersAndLongCache() throws Exception {
+        byte[] png = new byte[] {(byte) 0x89, 'P', 'N', 'G', 1, 2, 3, 4, 5, 6, 7, 8};
+        ReportIconService.Icon icon = new ReportIconService.Icon(png, "image/png");
+        when(reportService.heroIcon(KNOWN_ID, 7)).thenReturn(Optional.of(icon));
+        when(reportService.itemIcon(KNOWN_ID, 4242L)).thenReturn(Optional.of(icon));
+
+        for (String path : List.of("hero/7.png", "item/4242.png")) {
+            mockMvc.perform(get("/r/" + KNOWN_ID + "/img/" + path))
+                    .andExpect(status().isOk())
+                    .andExpect(content().contentType("image/png"))
+                    .andExpect(content().bytes(png))
+                    .andExpect(header().string("X-Robots-Tag", "noindex, nofollow"))
+                    .andExpect(header().string("Content-Security-Policy", "default-src 'none'; img-src 'self'; style-src 'self'; base-uri 'none'; frame-ancestors 'none'"))
+                    .andExpect(header().string("Referrer-Policy", "no-referrer"))
+                    .andExpect(header().string("X-Content-Type-Options", "nosniff"))
+                    .andExpect(header().string("Cache-Control", "private, max-age=86400"));
+        }
+    }
+
+    @Test
+    void iconEndpointsReturn404ForUnknownIdsAndMalformedReports() throws Exception {
+        for (String path : List.of("hero/7.png", "item/4242.png")) {
+            mockMvc.perform(get("/r/" + UNKNOWN_ID + "/img/" + path))
+                    .andExpect(status().isNotFound())
+                    .andExpect(content().string(""))
+                    .andExpect(header().string("Content-Security-Policy", "default-src 'none'; img-src 'self'; style-src 'self'; base-uri 'none'; frame-ancestors 'none'"));
+            MvcResult malformed = mockMvc.perform(get("/r/not-a-valid-uuid/img/" + path))
+                    .andExpect(status().isNotFound())
+                    .andReturn();
+            assertThat(malformed.getResponse().getContentAsString()).doesNotContain("not-a-valid-uuid");
+        }
     }
 
     @Test
