@@ -29,6 +29,7 @@ import org.springframework.web.context.WebApplicationContext;
 import sntiago05.rejuv.TestcontainersConfiguration;
 import sntiago05.rejuv.domain.AnalysisResult;
 import sntiago05.rejuv.domain.ReportView;
+import sntiago05.rejuv.services.DonationService;
 import sntiago05.rejuv.services.ReportService;
 
 @SpringBootTest(properties = {"bot.token=", "bot.dev-guild-id="})
@@ -45,6 +46,9 @@ class ReportControllerTest {
 
     @MockitoBean
     private ReportService reportService;
+
+    @MockitoBean
+    private DonationService donationService;
 
     @BeforeEach
     void setUp() {
@@ -320,5 +324,50 @@ class ReportControllerTest {
             .andReturn();
 
         assertThat(result.getResponse().getContentAsString()).doesNotContain("<script");
+    }
+
+    @Test
+    void viewReportRendersFooterDonationLinkWhenPresent() throws Exception {
+        AnalysisResult analysis = new AnalysisResult("Strength", "Leak", "Action", List.of());
+        ReportView report = new ReportView(KNOWN_ID, 987654321L, "Infernus", 1, null, null,
+                30.5, analysis, List.of(), false, Instant.parse("2026-10-18T12:00:00Z"));
+        when(reportService.find(KNOWN_ID)).thenReturn(Optional.of(report));
+        when(donationService.get()).thenReturn(Optional.of(new DonationService.Donation("https://example.com/donate", "Support Rejuv")));
+
+        MvcResult result = mockMvc.perform(get("/r/" + KNOWN_ID))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("href=\"https://example.com/donate\"")))
+                .andExpect(content().string(containsString("rel=\"noopener noreferrer nofollow\"")))
+                .andExpect(content().string(containsString("Support Rejuv")))
+                .andExpect(content().string(containsString("Rejuv is free. If it helped you, you can support it:")))
+                .andExpect(header().string("Content-Security-Policy", "default-src 'none'; img-src 'self'; style-src 'self'; base-uri 'none'; frame-ancestors 'none'"))
+                .andExpect(header().string("X-Robots-Tag", "noindex, nofollow"))
+                .andExpect(header().string("Referrer-Policy", "no-referrer"))
+                .andExpect(header().string("X-Content-Type-Options", "nosniff"))
+                .andExpect(header().string("Cache-Control", "private, max-age=300"))
+                .andReturn();
+
+        String html = result.getResponse().getContentAsString();
+        assertThat(html).doesNotContain("<script");
+        assertThat(html).doesNotContain("style=");
+    }
+
+    @Test
+    void viewReportOmitsFooterDonationLinkWhenAbsent() throws Exception {
+        AnalysisResult analysis = new AnalysisResult("Strength", "Leak", "Action", List.of());
+        ReportView report = new ReportView(KNOWN_ID, 987654321L, "Infernus", 1, null, null,
+                30.5, analysis, List.of(), false, Instant.parse("2026-10-18T12:00:00Z"));
+        when(reportService.find(KNOWN_ID)).thenReturn(Optional.of(report));
+        when(donationService.get()).thenReturn(Optional.empty());
+
+        MvcResult result = mockMvc.perform(get("/r/" + KNOWN_ID))
+                .andExpect(status().isOk())
+                .andExpect(content().string(not(containsString("donate-footer"))))
+                .andExpect(content().string(not(containsString("Rejuv is free. If it helped you, you can support it:"))))
+                .andReturn();
+
+        String html = result.getResponse().getContentAsString();
+        assertThat(html).doesNotContain("<script");
+        assertThat(html).doesNotContain("style=");
     }
 }
