@@ -1,6 +1,6 @@
 # Manual testing guide
 
-How to run Rejuv locally and check, in the dev Discord server, what the merged tasks do. Updated for `main` after PR #71 (tasks 001-034, 036, 038 merged; 035 and 037 are not). The Discord steps themselves are **not yet verified end to end** except where marked.
+How to run Rejuv locally and check, in the dev Discord server, what the merged tasks do. Updated for `main` with tasks 001-051 merged (049 report redesign, 050 donations and 051 free model are the newest; sections 2.0 to 2.2 below cover them). The Discord steps themselves are **not yet verified end to end** except where marked.
 
 ## 1. Setup
 
@@ -9,7 +9,7 @@ How to run Rejuv locally and check, in the dev Discord server, what the merged t
 | Docker running | PostgreSQL 17 from `compose.yaml` (also needed by `./mvnw verify`) |
 | `.env` (never commit it) | `DISCORD_TOKEN`, `DEV_GUILD_ID`, `POSTGRES_PASSWORD`, `ANTHROPIC_API_KEY`; copy the keys from `.env.example` |
 | Discord Developer Portal | **Server Members Intent** enabled (Bot > Privileged Gateway Intents), needed by `/leaderboard server` |
-| Optional env (see sections below) | `WEB_BASE_URL` (web report) |
+| Optional env (see sections below) | `WEB_BASE_URL` (web report), `DONATION_URL` and `DONATION_LABEL` (donation link) |
 | A linked account | run `/link` once with your Deadlock account id (SteamID64, profile URL or account id) |
 
 Start (Windows: `.\mvnw.cmd` instead of `./mvnw`; see the `MAVEN_USER_HOME` note in `PROJECT_CONTEXT.md` if the wrapper fails):
@@ -19,7 +19,9 @@ docker compose up -d postgres
 ./mvnw spring-boot:run
 ```
 
-Expected in the log: Flyway applies `V1`..`V4` on a fresh database, then the commands are registered in the dev guild. The first start also syncs about 315 hero and item emojis in the background (1-3 minutes); until it finishes, embeds have no icons, which is normal.
+Expected in the log: Flyway applies `V1`..`V6` on a fresh database (on an existing one, only the missing versions, for example `V6 drop analysis usage`), then the commands are registered in the dev guild. The first start also syncs about 315 hero and item emojis in the background (1-3 minutes); until it finishes, embeds have no icons, which is normal.
+
+Always build with `clean` after switching branches or merging (`./mvnw clean spring-boot:run`): old compiled classes of deleted code (for example `AnalysisUsage.class`) stay in `target/` and make the start fail with "missing table analysis_usage".
 
 Restart the bot after any change to environment variables or code. Commands are re-registered on every start; if a command looks old, wait a few seconds and reload Discord (Ctrl+R).
 
@@ -30,6 +32,38 @@ docker exec dev-postgres-1 sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c 
 ```
 
 ## 2. Checks by feature
+
+### 2.0 Free model and migration V6 (Task 051, not yet checked)
+Needs a database that still has the old `analysis_usage` table (any database created before this task). A fresh database also works.
+1. Start the bot. Expected in the log: Flyway applies `V6__drop_analysis_usage` and there is no error. **The old usage counts are deleted for good.**
+2. Run the database check from "Handy database checks". Expected: `V6 drop analysis usage` with success, and `\dt` shows only `linked_account`, `match_analysis` and Flyway's own table, with no `analysis_usage`.
+3. In Discord, type `/`. Expected: `/usage` is gone from the list (the dev guild updates at the start; Ctrl+R if it still shows).
+4. `/help`. Expected: no `/usage` line; `/items` has a backpack icon and `/compare` a VS icon; neither says "(Premium)".
+5. `/items hero:<name>` and `/compare` with a normal account that has **no special role**. Expected: normal replies. There is no "requires Premium" message.
+6. `/analyze` on three different fresh matches in a row. Expected: all three work, with no "weekly limit" message and no database error in the log.
+7. `/leaderboard server` in a server with linked players. Expected: same output as before (the Server Members Intent is still used).
+
+### 2.1 Donation link (Task 050, not yet checked)
+Without `DONATION_URL` (the default):
+1. `/donate`. Expected (ephemeral, text only): *"Donations are not set up yet. Thanks for your interest!"*, no button.
+2. `/help`, a fresh `/analyze` and an open report page. Expected: no donation text or link anywhere.
+
+With a link: set in `.env` `DONATION_URL=https://example.com/donate` and `DONATION_LABEL=Support Us`, then restart.
+3. `/donate`. Expected (ephemeral): embed "💛 Support Rejuv" with the text "Rejuv is free to use...", and a link button "Support Us" that opens the URL.
+4. `/help`. Expected: the last line is *"💛 Support Rejuv: Support Us"* with a working link.
+5. `/analyze` on a fresh match. Expected: the **last** embed field is "💛 Support Rejuv" with the link, and the analysis text is unchanged. (The field is skipped if the embed would be too long: that is correct.)
+6. Open the report page (`/r/<publicId>`). Expected: in the footer, the text "Rejuv is free. If it helped you, you can support it:" and the link "Support Us". Check the link has `rel="noopener noreferrer nofollow"` (view source).
+7. Leave `DONATION_LABEL` empty and restart. Expected: the label becomes "Support Rejuv".
+8. Set `DONATION_URL=ftp://example.com` (or `javascript:alert(1)`) and restart. Expected: one WARN about an invalid donation URL in the log, and the behavior of steps 1 and 2 (no link). The bot still starts.
+
+### 2.2 Report page redesign and charts (Task 049, not yet checked)
+Set `WEB_BASE_URL=http://localhost:8080`, restart, run `/analyze` on a fresh match (the match needs stored input, so use one analyzed after Task 048) and open the report. Check in a desktop browser **and** at 360 px width (browser developer tools):
+1. Layout order: hero banner, verdict strip, key numbers (bars), charts, collapsible sections, final build, footer. No JavaScript runs and no horizontal scroll at 360 px.
+2. Charts block: soul lead, net worth vs lobby average, phase scorecard, deaths timeline, metrics vs peers. Each chart has a title, a caption and readable text. The deaths chart shows the three phase counts only.
+3. Direct chart files: `/r/<publicId>/soul-lead.svg` (also `/lead.svg`), `/phases.svg`, `/deaths.svg`, `/metrics.svg` and `/soul-curve.svg` return an SVG. Response headers include `Content-Security-Policy` and `X-Robots-Tag: noindex, nofollow`. An unknown id returns 404.
+4. Collapsible sections: "Detailed Numbers vs Peers" is open first; coach sections and "Additional Match Signals" open and close.
+5. Dark mode (OS or browser) and print preview (Ctrl+P): the page stays readable; in print, details are expanded and the page is black on white.
+6. An **older** analysis (made before Task 048) opens without error and shows the note that detailed metrics exist only for newer analyses.
 
 ### `/analyze` and match selection (Tasks 009, 025, 027)
 1. `/analyze` with no options. Expected: a deferred public embed with Key Strength, Biggest Leak, Next Game Focus and Key Numbers, hero thumbnail, footer with hero and rank.
@@ -48,12 +82,12 @@ docker exec dev-postgres-1 sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c 
 ### Web report (Tasks 017, 018, not yet checked)
 Set `WEB_BASE_URL=http://localhost:8080` in `.env` and restart (blank = no button).
 1. `/analyze` on a fresh match. Expected: a **View full report** button under the embed. With `WEB_BASE_URL` blank there is no button.
-2. Open the link (`/r/<publicId>`). Expected: analysis text, final build and the PNG chart; no JavaScript, `noindex` header. An unknown id returns 404.
+2. Open the link (`/r/<publicId>`). Expected: analysis text, final build and the charts (see section 2.2 for the redesigned page); no JavaScript, `noindex` header. An unknown id returns 404.
 3. Task 018: the page also shows the **soul curve** (SVG: your net worth solid line vs lobby average dashed line with a +/-1 std band, minutes on X, souls in thousands on Y), also served at `/r/<publicId>/soul-curve.svg`. If the metadata, lobby badge or performance curve is missing, the section is simply absent and the page still loads (log shows one WARN).
 4. Dark mode (browser/OS) changes the curve colors. The two lines must stay distinguishable without color (solid vs dashed).
 5. Optional HTTPS (Task 018): `DOMAIN=<your domain>` and `docker compose -f compose.prod.yaml --profile https up -d` starts Caddy on 80/443; see `docs/deployment.md`. Only testable on a server with DNS.
 
-### `/items` and `/compare` (Tasks 021, 038, not yet checked)
+### `/items` and `/compare` (Tasks 021, 038; open to everyone since 051; not yet checked)
 1. `/items hero:<name>` lists items costing you wins and items working for you, with win rate vs meta and buy time. Unlinked user: ephemeral "not linked".
 2. `/compare` (no options: hero of your latest match) and `/compare hero:<name>`. Expected: embed "Souls / min, Kills, Deaths, Assists, Last hits, Denies" as `you X · top median Y (+-Z%)` against tier 11, plus your rank median when you are ranked 1-10. Footer says last 30 days.
 3. `/compare` on a hero with fewer than 5 matches of 10+ minutes. Expected: the "not enough games" message with the minimum. Unlinked user: ephemeral "not linked". Unknown hero: "Hero not recognized".
@@ -77,7 +111,7 @@ Set `WEB_BASE_URL=http://localhost:8080` in `.env` and restart (blank = no butto
 `/mates` (or `user:`). Expected: top 5 teammates of the last 90 days with at least 5 games together, each as `Name (#accountId)`; a teammate without a Steam profile shows `Player #accountId`. A user without a linked account gets the ephemeral "not linked" message.
 
 ### Other commands (earlier tasks, no new changes)
-`/ping`, `/help` (lists every command, including `/items` and `/compare`), `/link`, `/unlink`, `/profile`, `/heroes`, `/meta`, `/build`, `/counter`, `/leaderboard server`. A quick pass is enough after the build.
+`/ping`, `/help` (lists every command, including `/items` and `/compare`; `/usage` no longer exists), `/donate` (section 2.1), `/link`, `/unlink`, `/profile`, `/heroes`, `/meta`, `/build`, `/counter`, `/leaderboard server`. A quick pass is enough after the build.
 
 ## 3. Metadata fallback (Task 023)
 Hard to trigger by hand. With a healthy API, no WARN `JSON match metadata failed` should appear. When the JSON metadata endpoint answers 503 or 429, expect that WARN once and the analysis still succeeding from the raw protobuf endpoint. The result is cached for 24 hours, so a second `/analyze` of the same match makes no new request.
@@ -94,6 +128,9 @@ Hard to trigger by hand. With a healthy API, no WARN `JSON match metadata failed
 | No icons in embeds | first emoji sync still running |
 | No View full report button | `WEB_BASE_URL` blank |
 | Embed without image | chart rendering failed (fonts) or no metadata; see the log WARN |
+| Start fails with "missing table analysis_usage" | stale classes in `target/`; run `./mvnw clean ...` |
+| No donation link anywhere | `DONATION_URL` blank or invalid (look for the WARN `Invalid donation URL`), or the bot was not restarted |
+| Report page has no charts | the analysis was made before Task 048 (no stored input) or the cached metadata expired |
 
 ## 5. Report back
 When something fails, note: the exact command and options, the time, and the log lines around it (never paste tokens or `.env`). Findings go to a new task spec; do not fix them ad hoc on `main`.
