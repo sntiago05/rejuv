@@ -72,7 +72,6 @@ import sntiago05.rejuv.services.MatchupCoachProvider;
 import sntiago05.rejuv.services.MetricsService;
 import sntiago05.rejuv.services.PhasesCoachProvider;
 import sntiago05.rejuv.services.ProfileService;
-import sntiago05.rejuv.services.UsageService;
 
 /**
  * Task 039: counts the deadlock-api HTTP requests that the service calls behind each command make, cold (empty
@@ -169,11 +168,6 @@ class UpstreamCallCountBenchmarkTest {
             LinkedAccountRepository repository = mock(LinkedAccountRepository.class);
             when(repository.findById(USER_ID)).thenReturn(Optional.of(new LinkedAccount(USER_ID, ACCOUNT_ID, null)));
             return repository;
-        }
-
-        @Bean
-        UsageService usageService() {
-            return mock(UsageService.class);
         }
     }
 

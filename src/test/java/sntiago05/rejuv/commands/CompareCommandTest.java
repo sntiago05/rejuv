@@ -40,7 +40,6 @@ import sntiago05.rejuv.services.Messages;
 import sntiago05.rejuv.services.MessagesFixture;
 import sntiago05.rejuv.services.NoMatchHistoryException;
 import sntiago05.rejuv.services.NotEnoughGamesException;
-import sntiago05.rejuv.services.PremiumFeatureGate;
 import sntiago05.rejuv.services.ProfileService;
 
 class CompareCommandTest {
@@ -50,7 +49,6 @@ class CompareCommandTest {
 
     private CompareService compareService;
     private ProfileService profileService;
-    private PremiumFeatureGate premiumFeatureGate;
     private Messages messages;
     private AssetImages assetImages;
     private IconCatalog iconCatalog;
@@ -64,12 +62,11 @@ class CompareCommandTest {
     void setUp() {
         compareService = mock(CompareService.class);
         profileService = mock(ProfileService.class);
-        premiumFeatureGate = mock(PremiumFeatureGate.class);
         messages = MessagesFixture.english();
         assetImages = mock(AssetImages.class);
         iconCatalog = new IconCatalog();
 
-        command = new CompareCommand(compareService, profileService, premiumFeatureGate, messages, assetImages, iconCatalog);
+        command = new CompareCommand(compareService, profileService, messages, assetImages, iconCatalog);
 
         caller = mock(User.class);
         when(caller.getIdLong()).thenReturn(CALLER_ID);
@@ -154,30 +151,12 @@ class CompareCommandTest {
     }
 
     @Test
-    void notPremiumRepliesEphemerallyWithoutDeferralOrServiceCall() {
-        SlashCommandInteractionEvent event = event("Infernus");
-        ReplyCallbackAction reply = replyFor(event);
-        when(profileService.findLinkedAccountId(CALLER_ID)).thenReturn(OptionalLong.of(ACCOUNT_ID));
-        when(premiumFeatureGate.allowed(CALLER_ID)).thenReturn(false);
-
-        command.handle(event);
-
-        verify(event).reply(messages.get("compare.premium_required"));
-        verify(reply).setEphemeral(true);
-        verify(reply).queue();
-        verify(event, never()).deferReply();
-        verify(event, never()).deferReply(anyBoolean());
-        verify(compareService, never()).compare(anyLong(), anyString());
-    }
-
-    @Test
     void happyPathEmbedWithFieldsThumbnailAndIcons() {
         SlashCommandInteractionEvent event = event("Infernus");
         ReplyCallbackAction defer = deferFor(event);
         InteractionHook hook = hookFor(event);
 
         when(profileService.findLinkedAccountId(CALLER_ID)).thenReturn(OptionalLong.of(ACCOUNT_ID));
-        when(premiumFeatureGate.allowed(CALLER_ID)).thenReturn(true);
         when(assetImages.heroCardUrl(1)).thenReturn(Optional.of("https://assets-bucket.deadlock-api.com/inferno_card.png"));
         iconCatalog.replace(Map.of(IconCatalog.heroEmojiName(1), "<:h_1:111>"));
 
@@ -219,7 +198,6 @@ class CompareCommandTest {
         InteractionHook hook = hookFor(event);
 
         when(profileService.findLinkedAccountId(CALLER_ID)).thenReturn(OptionalLong.of(ACCOUNT_ID));
-        when(premiumFeatureGate.allowed(CALLER_ID)).thenReturn(true);
         when(assetImages.heroCardUrl(1)).thenReturn(Optional.empty());
         // iconCatalog is empty
         iconCatalog.replace(Map.of());
@@ -252,7 +230,6 @@ class CompareCommandTest {
         InteractionHook hook = hookFor(event);
 
         when(profileService.findLinkedAccountId(CALLER_ID)).thenReturn(OptionalLong.of(ACCOUNT_ID));
-        when(premiumFeatureGate.allowed(CALLER_ID)).thenReturn(true);
 
         CompareReport report = new CompareReport(1, "Infernus", 5, 11, null, List.of());
         when(compareService.compare(ACCOUNT_ID, "Infernus")).thenReturn(report);
@@ -269,7 +246,6 @@ class CompareCommandTest {
         InteractionHook hook = hookFor(event);
 
         when(profileService.findLinkedAccountId(CALLER_ID)).thenReturn(OptionalLong.of(ACCOUNT_ID));
-        when(premiumFeatureGate.allowed(CALLER_ID)).thenReturn(true);
         when(compareService.compare(ACCOUNT_ID, "UnknownHero")).thenThrow(new HeroNotFoundException("UnknownHero"));
 
         command.handle(event);
@@ -284,7 +260,6 @@ class CompareCommandTest {
         InteractionHook hook = hookFor(event);
 
         when(profileService.findLinkedAccountId(CALLER_ID)).thenReturn(OptionalLong.of(ACCOUNT_ID));
-        when(premiumFeatureGate.allowed(CALLER_ID)).thenReturn(true);
         when(compareService.compare(ACCOUNT_ID, "Infernus")).thenThrow(new NoMatchHistoryException(ACCOUNT_ID));
 
         command.handle(event);
@@ -299,7 +274,6 @@ class CompareCommandTest {
         InteractionHook hook = hookFor(event);
 
         when(profileService.findLinkedAccountId(CALLER_ID)).thenReturn(OptionalLong.of(ACCOUNT_ID));
-        when(premiumFeatureGate.allowed(CALLER_ID)).thenReturn(true);
         when(compareService.compare(ACCOUNT_ID, "Infernus")).thenThrow(new NotEnoughGamesException(3, 5));
 
         command.handle(event);
@@ -314,7 +288,6 @@ class CompareCommandTest {
         InteractionHook hook = hookFor(event);
 
         when(profileService.findLinkedAccountId(CALLER_ID)).thenReturn(OptionalLong.of(ACCOUNT_ID));
-        when(premiumFeatureGate.allowed(CALLER_ID)).thenReturn(true);
         when(compareService.compare(ACCOUNT_ID, "Infernus")).thenThrow(new DeadlockApiUnavailableException("busy", null, null));
 
         command.handle(event);
@@ -329,7 +302,6 @@ class CompareCommandTest {
         InteractionHook hook = hookFor(event);
 
         when(profileService.findLinkedAccountId(CALLER_ID)).thenReturn(OptionalLong.of(ACCOUNT_ID));
-        when(premiumFeatureGate.allowed(CALLER_ID)).thenReturn(true);
         when(compareService.compare(ACCOUNT_ID, "Infernus")).thenThrow(new RuntimeException("failed"));
 
         command.handle(event);
@@ -345,7 +317,6 @@ class CompareCommandTest {
                 "compare.description",
                 "compare.option.hero",
                 "compare.not_linked",
-                "compare.premium_required",
                 "compare.hero_not_found",
                 "compare.no_matches",
                 "compare.not_enough_games",

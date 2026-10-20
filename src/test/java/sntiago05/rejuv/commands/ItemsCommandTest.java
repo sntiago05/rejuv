@@ -40,7 +40,6 @@ import sntiago05.rejuv.services.ItemsService;
 import sntiago05.rejuv.services.Messages;
 import sntiago05.rejuv.services.MessagesFixture;
 import sntiago05.rejuv.services.NoRankException;
-import sntiago05.rejuv.services.PremiumFeatureGate;
 import sntiago05.rejuv.services.ProfileService;
 
 class ItemsCommandTest {
@@ -51,7 +50,6 @@ class ItemsCommandTest {
     private final Messages messages = MessagesFixture.english();
     private ItemsService itemsService;
     private ProfileService profileService;
-    private PremiumFeatureGate premiumFeatureGate;
     private AssetImages assetImages;
     private IconCatalog iconCatalog;
     private ItemsCommand command;
@@ -63,10 +61,9 @@ class ItemsCommandTest {
     void setUp() {
         itemsService = mock(ItemsService.class);
         profileService = mock(ProfileService.class);
-        premiumFeatureGate = mock(PremiumFeatureGate.class);
         assetImages = mock(AssetImages.class);
         iconCatalog = new IconCatalog();
-        command = new ItemsCommand(itemsService, profileService, premiumFeatureGate, messages, assetImages, iconCatalog);
+        command = new ItemsCommand(itemsService, profileService, messages, assetImages, iconCatalog);
         caller = mock(User.class);
         when(caller.getIdLong()).thenReturn(CALLER_ID);
 
@@ -165,23 +162,6 @@ class ItemsCommandTest {
         verify(reply).setEphemeral(true);
         verify(reply).queue();
         verify(event, never()).deferReply();
-        verify(premiumFeatureGate, never()).allowed(anyLong());
-        verify(itemsService, never()).compare(anyLong(), anyString(), any());
-    }
-
-    @Test
-    void notPremiumUserGetsEphemeralRefusalWithoutDeferralOrApiCall() {
-        SlashCommandInteractionEvent event = event("Infernus", null);
-        ReplyCallbackAction reply = replyFor(event);
-        when(profileService.findLinkedAccountId(CALLER_ID)).thenReturn(OptionalLong.of(ACCOUNT_ID));
-        when(premiumFeatureGate.allowed(CALLER_ID)).thenReturn(false);
-
-        command.handle(event);
-
-        verify(event).reply(messages.get("items.premium_required"));
-        verify(reply).setEphemeral(true);
-        verify(reply).queue();
-        verify(event, never()).deferReply();
         verify(itemsService, never()).compare(anyLong(), anyString(), any());
     }
 
@@ -192,7 +172,6 @@ class ItemsCommandTest {
         InteractionHook hook = hookFor(event);
 
         when(profileService.findLinkedAccountId(CALLER_ID)).thenReturn(OptionalLong.of(ACCOUNT_ID));
-        when(premiumFeatureGate.allowed(CALLER_ID)).thenReturn(true);
         when(assetImages.heroCardUrl(1)).thenReturn(Optional.of("https://assets-bucket.deadlock-api.com/inferno_card.png"));
         iconCatalog.replace(Map.of(
                 "i_101", "<:i_101:111>",
@@ -240,7 +219,6 @@ class ItemsCommandTest {
         InteractionHook hook = hookFor(event);
 
         when(profileService.findLinkedAccountId(CALLER_ID)).thenReturn(OptionalLong.of(ACCOUNT_ID));
-        when(premiumFeatureGate.allowed(CALLER_ID)).thenReturn(true);
         when(assetImages.heroCardUrl(1)).thenReturn(Optional.empty());
         iconCatalog.replace(Map.of());
 
@@ -266,7 +244,6 @@ class ItemsCommandTest {
         InteractionHook hook = hookFor(event);
 
         when(profileService.findLinkedAccountId(CALLER_ID)).thenReturn(OptionalLong.of(ACCOUNT_ID));
-        when(premiumFeatureGate.allowed(CALLER_ID)).thenReturn(true);
 
         ItemsReport report = new ItemsReport(1, "Infernus", 7, List.of(), List.of(), 5);
         when(itemsService.compare(ACCOUNT_ID, "Infernus", 7)).thenReturn(report);
@@ -283,7 +260,6 @@ class ItemsCommandTest {
         InteractionHook hook = hookFor(event);
 
         when(profileService.findLinkedAccountId(CALLER_ID)).thenReturn(OptionalLong.of(ACCOUNT_ID));
-        when(premiumFeatureGate.allowed(CALLER_ID)).thenReturn(true);
         when(itemsService.compare(ACCOUNT_ID, "UnknownHero", null)).thenThrow(new HeroNotFoundException("UnknownHero"));
 
         command.handle(event);
@@ -298,7 +274,6 @@ class ItemsCommandTest {
         InteractionHook hook = hookFor(event);
 
         when(profileService.findLinkedAccountId(CALLER_ID)).thenReturn(OptionalLong.of(ACCOUNT_ID));
-        when(premiumFeatureGate.allowed(CALLER_ID)).thenReturn(true);
         when(itemsService.compare(ACCOUNT_ID, "Infernus", null)).thenThrow(new NoRankException(ACCOUNT_ID));
 
         command.handle(event);
@@ -313,7 +288,6 @@ class ItemsCommandTest {
         InteractionHook hook = hookFor(event);
 
         when(profileService.findLinkedAccountId(CALLER_ID)).thenReturn(OptionalLong.of(ACCOUNT_ID));
-        when(premiumFeatureGate.allowed(CALLER_ID)).thenReturn(true);
         when(itemsService.compare(ACCOUNT_ID, "Infernus", 7)).thenThrow(new DeadlockApiUnavailableException("busy", null, null));
 
         command.handle(event);
@@ -328,7 +302,6 @@ class ItemsCommandTest {
         InteractionHook hook = hookFor(event);
 
         when(profileService.findLinkedAccountId(CALLER_ID)).thenReturn(OptionalLong.of(ACCOUNT_ID));
-        when(premiumFeatureGate.allowed(CALLER_ID)).thenReturn(true);
         when(itemsService.compare(ACCOUNT_ID, "Infernus", 7)).thenThrow(new RuntimeException("database failed"));
 
         command.handle(event);
@@ -345,7 +318,6 @@ class ItemsCommandTest {
                 "items.option.hero",
                 "items.option.rank",
                 "items.not_linked",
-                "items.premium_required",
                 "items.no_rank",
                 "items.hero_not_found",
                 "items.no_data",

@@ -75,7 +75,6 @@ class HelpCommandTest {
                 "/heroes",
                 "/mates",
                 "/leaderboard server",
-                "/usage",
                 "/items",
                 "/compare",
                 "/help",
