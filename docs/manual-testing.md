@@ -120,6 +120,14 @@ Set `WEB_BASE_URL=http://localhost:8080` in `.env` and restart (blank = no butto
 4. Analyses made before task 052 show no tips field; nothing else changes.
 5. Confirm that Anthropic accepts `effort: medium` and `max_tokens: 4000` (a successful new analysis proves it).
 
+## 2.3 Report v2: Tailwind, Top Tips and Build Timeline (Task 053, not yet checked)
+Needs a report of an analysis made after Task 052 (it has `tips`) and `WEB_BASE_URL=http://localhost:8080`. Check in a desktop browser and at 360 px width:
+1. The page is styled (not plain HTML). In the browser network tab only `report.css` and the SVG images load; no script and no external request.
+2. A "Top Tips" card lists up to 3 tips, each with Evidence and Drill. An older analysis (before 052) opens without that card and without an error.
+3. A "Build Timeline" chart shows the first 12 purchases on a minute axis. `/r/<publicId>/build.svg` returns an SVG with the usual `Content-Security-Policy` and `X-Robots-Tag` headers. A match with fewer than 3 items has no timeline and `build.svg` answers 404.
+4. All chart text is readable at 360 px (at least 12 px); the other charts show `min` units on the time axis. Light mode, dark mode and print preview stay readable.
+5. After editing a template class, run `scripts/build-css.sh` and commit `static/report.css`; `scripts/build-css.sh --check` must print `OK`.
+
 ## 3. Metadata fallback (Task 023)
 Hard to trigger by hand. With a healthy API, no WARN `JSON match metadata failed` should appear. When the JSON metadata endpoint answers 503 or 429, expect that WARN once and the analysis still succeeding from the raw protobuf endpoint. The result is cached for 24 hours, so a second `/analyze` of the same match makes no new request.
 
@@ -138,6 +146,8 @@ Hard to trigger by hand. With a healthy API, no WARN `JSON match metadata failed
 | Start fails with "missing table analysis_usage" | stale classes in `target/`; run `./mvnw clean ...` |
 | No donation link anywhere | `DONATION_URL` blank or invalid (look for the WARN `Invalid donation URL`), or the bot was not restarted |
 | "Please wait N seconds" or "daily limit" on `/analyze` | spend guard (task 052); stored analyses are never limited; raise `ANALYSIS_*` values or restart |
+| CI fails at `build-css.sh --check` | `report.css` is out of date; run `scripts/build-css.sh` and commit the file |
+| Report page has no Top Tips card or no Build Timeline | the analysis was made before Task 052, or the match has fewer than 3 items |
 | Report page has no charts | the analysis was made before Task 048 (no stored input) or the cached metadata expired |
 
 ## 5. Report back
