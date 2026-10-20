@@ -67,14 +67,10 @@ public class ReportController {
         }
 
         Optional<byte[]> png = reportService.chartPng(uuid.get());
-        if (png.isEmpty()) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).headers(headers).build();
-        }
-
-        return ResponseEntity.ok()
+        return png.map(bytes -> ResponseEntity.ok()
                 .headers(headers)
                 .contentType(MediaType.IMAGE_PNG)
-                .body(png.get());
+                .body(bytes)).orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND).headers(headers).build());
     }
 
     @GetMapping("/r/{publicId}/soul-curve.svg")
@@ -110,14 +106,10 @@ public class ReportController {
         }
 
         Optional<String> svg = loader.apply(uuid.get());
-        if (svg.isEmpty()) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).headers(headers).build();
-        }
-
-        return ResponseEntity.ok()
+        return svg.map(s -> ResponseEntity.ok()
                 .headers(headers)
                 .contentType(MediaType.parseMediaType("image/svg+xml;charset=UTF-8"))
-                .body(svg.get());
+                .body(s)).orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND).headers(headers).build());
     }
 
     private void applySecurityHeaders(HttpServletResponse response) {
