@@ -101,6 +101,7 @@ class HelpCommandTest {
                 "/matches",
                 "/meta",
                 "/build",
+                "/heroinfo",
                 "/counter",
                 "/heroes",
                 "/mates",
