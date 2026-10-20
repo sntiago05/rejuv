@@ -293,6 +293,20 @@ class DeadlockApiClientCachingTest {
     }
 
     @Test
+    void heroDetailIsCachedPerNameIgnoringCaseAndNotFoundIsCachedToo() {
+        server.expect(once(), requestTo(BASE_URL + "/v1/assets/heroes/by-name/Infernus"))
+                .andRespond(withSuccess(fixture("hero-detail-infernus.json"), MediaType.APPLICATION_JSON));
+        server.expect(once(), requestTo(BASE_URL + "/v1/assets/heroes/by-name/Haze"))
+                .andRespond(withSuccess(fixture("hero-detail-infernus.json"), MediaType.APPLICATION_JSON));
+
+        for (int round = 0; round < 2; round++) {
+            assertThat(client.getHeroDetail("Infernus")).isPresent();
+            assertThat(client.getHeroDetail("INFERNUS")).isPresent();
+            assertThat(client.getHeroDetail("Haze")).isPresent();
+        }
+    }
+
+    @Test
     void heroSynergiesAreCachedPerTierAndTimestamp() {
         server.expect(once(), requestTo(startsWith(BASE_URL + "/v1/analytics/hero-synergy-stats?")))
                 .andExpect(queryParam("min_average_badge", "70"))
@@ -556,6 +570,7 @@ class DeadlockApiClientCachingTest {
                 Map.entry(CacheConfig.DEADLOCK_ABILITY_ORDER, Duration.ofHours(3)),
                 Map.entry(CacheConfig.DEADLOCK_HERO_COUNTERS, Duration.ofHours(3)),
                 Map.entry(CacheConfig.DEADLOCK_HERO_SYNERGIES, Duration.ofHours(3)),
+                Map.entry(CacheConfig.DEADLOCK_HERO_DETAIL, Duration.ofHours(2)),
                 Map.entry(CacheConfig.DEADLOCK_COUNTER_ITEMS, Duration.ofHours(3)),
                 Map.entry(CacheConfig.DEADLOCK_PLAYER_HERO_STATS, Duration.ofMinutes(5)),
                 Map.entry(CacheConfig.DEADLOCK_MATE_STATS, Duration.ofMinutes(5)),
@@ -577,6 +592,7 @@ class DeadlockApiClientCachingTest {
                 Map.entry(CacheConfig.DEADLOCK_ABILITY_ORDER, 200L),
                 Map.entry(CacheConfig.DEADLOCK_HERO_COUNTERS, 50L),
                 Map.entry(CacheConfig.DEADLOCK_HERO_SYNERGIES, 50L),
+                Map.entry(CacheConfig.DEADLOCK_HERO_DETAIL, 100L),
                 Map.entry(CacheConfig.DEADLOCK_COUNTER_ITEMS, 200L),
                 Map.entry(CacheConfig.DEADLOCK_PLAYER_HERO_STATS, 500L),
                 Map.entry(CacheConfig.DEADLOCK_MATE_STATS, 500L),

@@ -39,6 +39,7 @@ import sntiago05.rejuv.clients.dto.HeroAsset;
 import sntiago05.rejuv.clients.dto.HeroCounterStat;
 import sntiago05.rejuv.clients.dto.HeroImages;
 import sntiago05.rejuv.clients.dto.HeroStat;
+import sntiago05.rejuv.clients.dto.HeroDetail;
 import sntiago05.rejuv.clients.dto.HeroSynergyStat;
 import sntiago05.rejuv.clients.dto.ItemAsset;
 import sntiago05.rejuv.clients.dto.ItemFlowNode;
@@ -298,6 +299,60 @@ class DeadlockApiClientTest {
         List<HeroStat> stats = client.getHeroStats(null, 1789000000L);
 
         assertThat(stats).containsExactly(new HeroStat(1, 1500, 810, 690, 0, 0, 0));
+    }
+
+    @Test
+    void heroDetailParsesFieldsAndIgnoresUnknownOnes() {
+        server.expect(once(), requestTo(BASE_URL + "/v1/assets/heroes/by-name/Infernus"))
+                .andExpect(method(org.springframework.http.HttpMethod.GET))
+                .andRespond(withSuccess(fixture("hero-detail-infernus.json"), MediaType.APPLICATION_JSON));
+
+        HeroDetail hero = client.getHeroDetail("Infernus").orElseThrow();
+
+        assertThat(hero.id()).isEqualTo(1);
+        assertThat(hero.name()).isEqualTo("Infernus");
+        assertThat(hero.description().role()).isEqualTo("Lights up enemies and watches them burn");
+        assertThat(hero.heroType()).isEqualTo("marksman");
+        assertThat(hero.complexity()).isEqualTo(1);
+        assertThat(hero.gunTag()).isEqualTo("Rapid Fire");
+        assertThat(hero.tags()).containsExactly("Arsonist", "Explosive", "Burn Rubber");
+        assertThat(hero.playerSelectable()).isTrue();
+        assertThat(hero.disabled()).isFalse();
+        assertThat(hero.inDevelopment()).isFalse();
+        assertThat(hero.colors().styleHex()).isEqualTo("#C93C26");
+        assertThat(hero.images().iconHeroCard()).endsWith("inferno_card.png");
+        assertThat(hero.startingStats().get("max_health").value()).isEqualTo(830.0);
+        assertThat(hero.startingStats().get("max_move_speed").value()).isEqualTo(6.7);
+    }
+
+    @Test
+    void heroDetailEncodesSpacesAndSymbolsInTheName() {
+        server.expect(once(), requestTo(BASE_URL + "/v1/assets/heroes/by-name/Lady%20Geist"))
+                .andRespond(withSuccess(fixture("hero-detail-infernus.json"), MediaType.APPLICATION_JSON));
+        server.expect(once(), requestTo(BASE_URL + "/v1/assets/heroes/by-name/Mo%20%26%20Krill"))
+                .andRespond(withSuccess(fixture("hero-detail-infernus.json"), MediaType.APPLICATION_JSON));
+
+        assertThat(client.getHeroDetail("Lady Geist")).isPresent();
+        assertThat(client.getHeroDetail("Mo & Krill")).isPresent();
+    }
+
+    @Test
+    void heroDetailNotFoundIsEmpty() {
+        server.expect(once(), requestTo(BASE_URL + "/v1/assets/heroes/by-name/Nobody"))
+                .andRespond(withStatus(HttpStatus.NOT_FOUND).contentType(MediaType.APPLICATION_JSON)
+                        .body("{\"status\":404,\"error\":\"Unknown hero name: Nobody\"}"));
+
+        assertThat(client.getHeroDetail("Nobody")).isEmpty();
+    }
+
+    @Test
+    void heroDetailServiceUnavailableIsRetriedOnceThenMapped() {
+        server.expect(twice(), requestTo(BASE_URL + "/v1/assets/heroes/by-name/Haze"))
+                .andRespond(withStatus(HttpStatus.SERVICE_UNAVAILABLE).header("Retry-After", "1"));
+
+        assertThatThrownBy(() -> client.getHeroDetail("Haze"))
+                .isInstanceOf(DeadlockApiUnavailableException.class);
+        assertThat(sleeps).containsExactly(Duration.ofSeconds(1));
     }
 
     @Test

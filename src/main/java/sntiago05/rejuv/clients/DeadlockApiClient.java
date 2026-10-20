@@ -4,6 +4,7 @@ import java.net.URI;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -18,6 +19,7 @@ import sntiago05.rejuv.clients.dto.AbilityOrderStat;
 import sntiago05.rejuv.clients.dto.AccountRank;
 import sntiago05.rejuv.clients.dto.HeroAsset;
 import sntiago05.rejuv.clients.dto.HeroCounterStat;
+import sntiago05.rejuv.clients.dto.HeroDetail;
 import sntiago05.rejuv.clients.dto.HeroStat;
 import sntiago05.rejuv.clients.dto.HeroSynergyStat;
 import sntiago05.rejuv.clients.dto.ItemAsset;
@@ -63,12 +65,14 @@ public class DeadlockApiClient {
     private static final String ABILITY_ORDER_PATH = "/v1/analytics/ability-order-stats";
     private static final String RANKS_PATH = "/v1/assets/ranks";
     private static final String HEROES_PATH = "/v1/assets/heroes";
+    private static final String HERO_BY_NAME_PATH = "/v1/assets/heroes/by-name/{name}";
     private static final String ITEMS_PATH = "/v1/assets/items";
     private static final String PERFORMANCE_CURVE_PATH = "/v1/analytics/player-performance-curve";
 
     // Same mapper configuration as the RestClient's default JSON converter, so the DTOs are read identically.
     private static final BodyReader<List<MatchHistoryEntry>> HISTORY_READER = DeadlockApiRequests.jsonArrayPrefix(
             new JacksonJsonHttpMessageConverter().getMapper().readerFor(MatchHistoryEntry.class), MAX_HISTORY_ENTRIES);
+    private static final BodyReader<HeroDetail> HERO_DETAIL_READER = DeadlockApiRequests.json(new ParameterizedTypeReference<>() { });
     private static final BodyReader<PlayerRank> RANK_READER = DeadlockApiRequests.json(new ParameterizedTypeReference<>() { });
     private static final BodyReader<List<AccountRank>> PLAYER_RANKS_READER = DeadlockApiRequests.json(new ParameterizedTypeReference<>() { });
     private static final BodyReader<List<SteamProfile>> STEAM_PROFILES_READER = DeadlockApiRequests.json(new ParameterizedTypeReference<>() { });
@@ -207,6 +211,28 @@ public class DeadlockApiClient {
     @Cacheable(cacheNames = CacheConfig.DEADLOCK_ASSETS, sync = true, key = "'heroes'")
     public List<HeroAsset> getHeroes() {
         return List.copyOf(requests.get(HEROES_PATH, uri -> uri.path(HEROES_PATH).build(), HEROES_READER));
+    }
+
+    /**
+     * Details of one hero by its exact name (the caller passes the canonical name, never raw user text). Empty when
+     * the API answers HTTP 404. The name is a URI variable, so spaces and symbols are encoded by the builder.
+     */
+    @Cacheable(cacheNames = CacheConfig.DEADLOCK_HERO_DETAIL, sync = true, key = "#canonicalHeroName.toLowerCase()")
+    public Optional<HeroDetail> getHeroDetail(String canonicalHeroName) {
+        try {
+            return Optional.of(requests.get(HERO_BY_NAME_PATH,
+                    uri -> uri.path(HERO_BY_NAME_PATH).build(canonicalHeroName), HERO_DETAIL_READER, false,
+                    HeroDetailNotFound::new));
+        } catch (HeroDetailNotFound ex) {
+            return Optional.empty();
+        }
+    }
+
+    /** Marks an HTTP 404 of the hero-by-name call; never leaves this class. */
+    private static final class HeroDetailNotFound extends RuntimeException {
+        HeroDetailNotFound() {
+            super("GET " + HERO_BY_NAME_PATH + " returned HTTP 404", null, false, false);
+        }
     }
 
     @Cacheable(cacheNames = CacheConfig.DEADLOCK_ASSETS, sync = true, key = "'items'")
