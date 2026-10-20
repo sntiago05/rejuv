@@ -787,7 +787,6 @@ class AnalyzeCommandTest {
                 "analyze.match_not_found",
                 "analyze.match_invalid",
                 "analyze.autocomplete.match",
-                "analyze.limit_reached",
                 "analyze.report_button",
                 "analyze.severity.major",
                 "analyze.severity.notable",
