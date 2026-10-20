@@ -39,6 +39,7 @@ import sntiago05.rejuv.clients.dto.HeroAsset;
 import sntiago05.rejuv.clients.dto.HeroCounterStat;
 import sntiago05.rejuv.clients.dto.HeroImages;
 import sntiago05.rejuv.clients.dto.HeroStat;
+import sntiago05.rejuv.clients.dto.HeroSynergyStat;
 import sntiago05.rejuv.clients.dto.ItemAsset;
 import sntiago05.rejuv.clients.dto.ItemFlowNode;
 import sntiago05.rejuv.clients.dto.ItemFlowStats;
@@ -460,6 +461,59 @@ class DeadlockApiClientTest {
                 .andRespond(withStatus(HttpStatus.SERVICE_UNAVAILABLE).header("Retry-After", "60"));
 
         assertThatThrownBy(() -> client.getHeroCounterStats(7, 1789000000L))
+                .isInstanceOfSatisfying(DeadlockApiUnavailableException.class,
+                        e -> assertThat(e.retryAfter()).contains(Duration.ofSeconds(60)));
+        assertThat(sleeps).isEmpty();
+    }
+
+    @Test
+    void heroSynergySendsRankBadgeRangeAndTimestamp() {
+        server.expect(once(), requestTo(startsWith(BASE_URL + "/v1/analytics/hero-synergy-stats?")))
+                .andExpect(queryParam("min_average_badge", "70"))
+                .andExpect(queryParam("max_average_badge", "79"))
+                .andExpect(queryParam("min_unix_timestamp", "1789000000"))
+                .andExpect(noQueryParam("hero_id"))
+                .andExpect(noQueryParam("hero_ids"))
+                .andExpect(noQueryParam("bucket"))
+                .andRespond(withSuccess(fixture("hero-synergy-stats.json"), MediaType.APPLICATION_JSON));
+
+        List<HeroSynergyStat> stats = client.getHeroSynergyStats(7, 1789000000L);
+
+        assertThat(stats).hasSize(6);
+        assertThat(stats.get(0)).isEqualTo(new HeroSynergyStat(1, 2, 60, 100));
+        assertThat(stats.get(1)).isEqualTo(new HeroSynergyStat(1, 3, 40, 100));
+    }
+
+    @Test
+    void heroSynergyWithoutRankSendNoBadgeFilter() {
+        server.expect(once(), requestTo(startsWith(BASE_URL + "/v1/analytics/hero-synergy-stats?")))
+                .andExpect(queryParam("min_unix_timestamp", "1789000000"))
+                .andExpect(noQueryParam("min_average_badge"))
+                .andExpect(noQueryParam("max_average_badge"))
+                .andExpect(noQueryParam("hero_id"))
+                .andExpect(noQueryParam("hero_ids"))
+                .andExpect(noQueryParam("bucket"))
+                .andRespond(withSuccess(fixture("hero-synergy-stats.json"), MediaType.APPLICATION_JSON));
+
+        List<HeroSynergyStat> stats = client.getHeroSynergyStats(null, 1789000000L);
+
+        assertThat(stats).hasSize(6);
+    }
+
+    @Test
+    void heroSynergyRejectTierOutOfRange() {
+        assertThatThrownBy(() -> client.getHeroSynergyStats(-1, 1789000000L))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> client.getHeroSynergyStats(12, 1789000000L))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void heroSynergyServiceUnavailableIsMapped() {
+        server.expect(once(), requestTo(startsWith(BASE_URL + "/v1/analytics/hero-synergy-stats?")))
+                .andRespond(withStatus(HttpStatus.SERVICE_UNAVAILABLE).header("Retry-After", "60"));
+
+        assertThatThrownBy(() -> client.getHeroSynergyStats(7, 1789000000L))
                 .isInstanceOfSatisfying(DeadlockApiUnavailableException.class,
                         e -> assertThat(e.retryAfter()).contains(Duration.ofSeconds(60)));
         assertThat(sleeps).isEmpty();
