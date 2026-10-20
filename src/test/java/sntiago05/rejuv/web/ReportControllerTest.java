@@ -428,8 +428,24 @@ class ReportControllerTest {
     }
 
     @Test
+    void buildSvgEndpointReturns200AndSecurityHeaders() throws Exception {
+        String svg = "<svg xmlns=\"http://www.w3.org/2000/svg\"><title>Build Timeline</title></svg>";
+        when(reportService.buildSvg(KNOWN_ID)).thenReturn(Optional.of(svg));
+
+        mockMvc.perform(get("/r/" + KNOWN_ID + "/build.svg"))
+                .andExpect(status().isOk())
+                .andExpect(content().contentType("image/svg+xml;charset=UTF-8"))
+                .andExpect(content().string(svg))
+                .andExpect(header().string("X-Robots-Tag", "noindex, nofollow"))
+                .andExpect(header().string("Content-Security-Policy", "default-src 'none'; img-src 'self'; style-src 'self'; base-uri 'none'; frame-ancestors 'none'"))
+                .andExpect(header().string("Referrer-Policy", "no-referrer"))
+                .andExpect(header().string("X-Content-Type-Options", "nosniff"))
+                .andExpect(header().string("Cache-Control", "private, max-age=300"));
+    }
+
+    @Test
     void allNewSvgEndpointsReturn404WhenEmptyOrMalformedWithoutEcho() throws Exception {
-        List<String> paths = List.of("soul-lead.svg", "lead.svg", "phases.svg", "deaths.svg", "metrics.svg");
+        List<String> paths = List.of("soul-lead.svg", "lead.svg", "phases.svg", "deaths.svg", "metrics.svg", "build.svg");
 
         for (String path : paths) {
             // Unknown ID returns 404 with empty body
@@ -527,5 +543,43 @@ class ReportControllerTest {
         String html = result.getResponse().getContentAsString();
         assertThat(html).doesNotContain("<script");
         assertThat(html).doesNotContain("style=");
+    }
+
+    @Test
+    void viewReportRendersTopTipsCardWhenTipsPresent() throws Exception {
+        ReportView.Tip tip1 = new ReportView.Tip("Prioritize souls in lane", "Behind 1.5k at 10m", "Practice last-hitting in sandbox");
+        ReportView.Tip tip2 = new ReportView.Tip("Watch flank routes", "Died 3 times to ganks", "Check minimap every 5s");
+        ReportView report = new ReportView(
+                KNOWN_ID, 987654321L, "Infernus", 1, "Archon", "win", 30.5,
+                new AnalysisResult("Strength", "Leak", "Action", List.of()),
+                List.of(), false, Instant.now(), false, false,
+                List.of(), List.of(), List.of(),
+                false, false, false, false, false,
+                "", "", "", "", "", "",
+                List.of(tip1, tip2)
+        );
+        when(reportService.find(KNOWN_ID)).thenReturn(Optional.of(report));
+
+        MvcResult result = mockMvc.perform(get("/r/" + KNOWN_ID))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("Top Tips")))
+                .andExpect(content().string(containsString("Prioritize souls in lane")))
+                .andExpect(content().string(containsString("Behind 1.5k at 10m")))
+                .andExpect(content().string(containsString("Practice last-hitting in sandbox")))
+                .andExpect(content().string(containsString("Watch flank routes")))
+                .andReturn();
+
+        String html = result.getResponse().getContentAsString();
+        assertThat(html).doesNotContain("<script");
+        assertThat(html).doesNotContain("style=");
+    }
+
+    @Test
+    void viewReportOmitsTopTipsCardWhenTipsAbsent() throws Exception {
+        when(reportService.find(KNOWN_ID)).thenReturn(Optional.of(simpleReport()));
+
+        mockMvc.perform(get("/r/" + KNOWN_ID))
+                .andExpect(status().isOk())
+                .andExpect(content().string(not(containsString("Top Tips"))));
     }
 }

@@ -100,57 +100,21 @@ public class SoulCurveSvg {
         }
         double yMaxSouls = maxYK * 1000.0;
 
-        StringBuilder sb = new StringBuilder(4096);
+        String title = messages.get("report.curve.title");
+        String ariaLabel = messages.get("report.curve.aria");
 
-        String title = escapeXml(messages.get("report.curve.title"));
-        String ariaLabel = escapeXml(messages.get("report.curve.aria"));
-
-        sb.append(String.format(Locale.ROOT,
-                "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 %d %d\" role=\"img\" aria-label=\"%s\">\n",
-                WIDTH, HEIGHT, ariaLabel));
-        sb.append("<title>").append(title).append("</title>\n");
-
-        sb.append("<style>\n");
-        sb.append(".bg { fill: #1e1f22; }\n");
-        sb.append(".grid { stroke: #2b2d31; stroke-width: 1; }\n");
-        sb.append(".axis-text { fill: #949ba4; font-size: 11px; font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif; }\n");
-        sb.append(".axis-title { fill: #949ba4; font-size: 11px; font-weight: 600; font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif; }\n");
-        sb.append(".caption { fill: #dbdee1; font-size: 13px; font-weight: 600; font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif; }\n");
-        sb.append(".band { fill: #4c9be8; fill-opacity: 0.18; stroke: none; }\n");
-        sb.append(".avg-line { stroke: #4c9be8; stroke-width: 2; stroke-dasharray: 6 4; fill: none; }\n");
-        sb.append(".player-line { stroke: #ffc83d; stroke-width: 3; fill: none; stroke-linecap: round; stroke-linejoin: round; }\n");
-        sb.append(".direct-label-player { fill: #ffc83d; font-size: 11px; font-weight: 700; font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif; }\n");
-        sb.append(".direct-label-avg { fill: #4c9be8; font-size: 11px; font-weight: 600; font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif; }\n");
-        sb.append(".verdict-text { fill: #dbdee1; font-size: 11px; font-weight: 600; font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif; }\n");
-        sb.append(".legend-text { fill: #dbdee1; font-size: 11px; font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif; }\n");
-        sb.append("@media (prefers-color-scheme: light) {\n");
-        sb.append("  .bg { fill: #ffffff; }\n");
-        sb.append("  .grid { stroke: #e5e7eb; }\n");
-        sb.append("  .axis-text { fill: #6b7280; }\n");
-        sb.append("  .axis-title { fill: #6b7280; }\n");
-        sb.append("  .caption { fill: #111827; }\n");
-        sb.append("  .band { fill: #2563eb; fill-opacity: 0.15; }\n");
-        sb.append("  .avg-line { stroke: #2563eb; }\n");
-        sb.append("  .player-line { stroke: #d97706; }\n");
-        sb.append("  .direct-label-player { fill: #d97706; }\n");
-        sb.append("  .direct-label-avg { fill: #2563eb; }\n");
-        sb.append("  .verdict-text { fill: #111827; }\n");
-        sb.append("  .legend-text { fill: #374151; }\n");
-        sb.append("}\n");
-        sb.append("</style>\n");
-
-        sb.append("<rect width=\"100%\" height=\"100%\" class=\"bg\" />\n");
+        ReportChartsSvg.SvgBuilder builder = new ReportChartsSvg.SvgBuilder(WIDTH, HEIGHT, title, ariaLabel);
 
         // Y-axis grid and ticks
         for (double k = 0.0; k <= maxYK + 0.001; k += tickStepY) {
             double y = mapY(k * 1000.0, yMaxSouls);
-            sb.append(String.format(Locale.ROOT,
+            builder.append(String.format(Locale.ROOT,
                     "<line class=\"grid\" x1=\"%.1f\" y1=\"%.1f\" x2=\"%.1f\" y2=\"%.1f\" />\n",
                     PLOT_LEFT, y, PLOT_RIGHT, y));
             String label = (k == (long) k)
                     ? String.format(Locale.ROOT, "%dk", (long) k)
                     : String.format(Locale.ROOT, "%.1fk", k);
-            sb.append(String.format(Locale.ROOT,
+            builder.append(String.format(Locale.ROOT,
                     "<text class=\"axis-text\" x=\"%.1f\" y=\"%.1f\" text-anchor=\"end\">%s</text>\n",
                     PLOT_LEFT - 8.0, y + 4.0, label));
         }
@@ -158,22 +122,22 @@ public class SoulCurveSvg {
         // X-axis grid and ticks
         for (double m = 0.0; m <= maxXMinutes + 0.001; m += tickStepX) {
             double x = mapX(m, maxXMinutes);
-            sb.append(String.format(Locale.ROOT,
+            builder.append(String.format(Locale.ROOT,
                     "<line class=\"grid\" x1=\"%.1f\" y1=\"%.1f\" x2=\"%.1f\" y2=\"%.1f\" />\n",
                     x, PLOT_TOP, x, PLOT_BOTTOM));
-            sb.append(String.format(Locale.ROOT,
-                    "<text class=\"axis-text\" x=\"%.1f\" y=\"%.1f\" text-anchor=\"middle\">%d</text>\n",
+            builder.append(String.format(Locale.ROOT,
+                    "<text class=\"axis-text\" x=\"%.1f\" y=\"%.1f\" text-anchor=\"middle\">%d min</text>\n",
                     x, PLOT_BOTTOM + 16.0, (long) m));
         }
 
         // Axis titles
-        String axisSouls = escapeXml(messages.get("report.curve.axis.souls"));
-        sb.append(String.format(Locale.ROOT,
+        String axisSouls = ReportChartsSvg.escapeXml(messages.get("report.curve.axis.souls"));
+        builder.append(String.format(Locale.ROOT,
                 "<text class=\"axis-title\" x=\"%.1f\" y=\"%.1f\" text-anchor=\"start\">%s</text>\n",
                 PLOT_LEFT, PLOT_TOP - 12.0, axisSouls));
 
-        String axisMinutes = escapeXml(messages.get("report.curve.axis.minutes"));
-        sb.append(String.format(Locale.ROOT,
+        String axisMinutes = ReportChartsSvg.escapeXml(messages.get("report.curve.axis.minutes"));
+        builder.append(String.format(Locale.ROOT,
                 "<text class=\"axis-title\" x=\"%.1f\" y=\"%.1f\" text-anchor=\"middle\">%s</text>\n",
                 PLOT_LEFT + PLOT_WIDTH / 2.0, PLOT_BOTTOM + 32.0, axisMinutes));
 
@@ -198,7 +162,7 @@ public class SoulCurveSvg {
             bandD.append(String.format(Locale.ROOT, " L %.1f %.1f", x, y));
         }
         bandD.append(" Z");
-        sb.append(String.format(Locale.ROOT, "<path class=\"band\" d=\"%s\" />\n", bandD));
+        builder.append(String.format(Locale.ROOT, "<path class=\"band\" d=\"%s\" />\n", bandD));
 
         // Average dashed line
         StringBuilder avgD = new StringBuilder();
@@ -212,7 +176,7 @@ public class SoulCurveSvg {
                 avgD.append(String.format(Locale.ROOT, " L %.1f %.1f", x, y));
             }
         }
-        sb.append(String.format(Locale.ROOT, "<path class=\"avg-line\" d=\"%s\" />\n", avgD));
+        builder.append(String.format(Locale.ROOT, "<path class=\"avg-line\" d=\"%s\" />\n", avgD));
 
         // Player solid thicker line
         StringBuilder playerD = new StringBuilder();
@@ -226,7 +190,7 @@ public class SoulCurveSvg {
                 playerD.append(String.format(Locale.ROOT, " L %.1f %.1f", x, y));
             }
         }
-        sb.append(String.format(Locale.ROOT, "<path class=\"player-line\" d=\"%s\" />\n", playerD));
+        builder.append(String.format(Locale.ROOT, "<path class=\"player-line\" d=\"%s\" />\n", playerD));
 
         // Direct end labels
         double lastTimeMin = timesS.get(n - 1) / 60.0;
@@ -249,10 +213,10 @@ public class SoulCurveSvg {
         String labelXAnchor = (endX >= PLOT_RIGHT - 40.0) ? "end" : "start";
         double labelX = (endX >= PLOT_RIGHT - 40.0) ? (endX - 8.0) : (endX + 8.0);
 
-        sb.append(String.format(Locale.ROOT,
+        builder.append(String.format(Locale.ROOT,
                 "<text class=\"direct-label-player\" x=\"%.1f\" y=\"%.1f\" text-anchor=\"%s\">%s</text>\n",
                 labelX, labelYPlayer + 4.0, labelXAnchor, "You"));
-        sb.append(String.format(Locale.ROOT,
+        builder.append(String.format(Locale.ROOT,
                 "<text class=\"direct-label-avg\" x=\"%.1f\" y=\"%.1f\" text-anchor=\"%s\">%s</text>\n",
                 labelX, labelYAvg + 4.0, labelXAnchor, "Average"));
 
@@ -274,38 +238,37 @@ public class SoulCurveSvg {
             verdictText = "";
         }
         if (!verdictText.isEmpty()) {
-            sb.append(String.format(Locale.ROOT,
+            builder.append(String.format(Locale.ROOT,
                     "<text class=\"verdict-text\" x=\"%.1f\" y=\"%.1f\" text-anchor=\"end\">%s</text>\n",
-                    PLOT_RIGHT, PLOT_TOP - 12.0, escapeXml(verdictText)));
+                    PLOT_RIGHT, PLOT_TOP - 12.0, ReportChartsSvg.escapeXml(verdictText)));
         }
 
         // Caption
         String hero = (heroName != null && !heroName.isBlank()) ? heroName : "Hero";
         String rank = (rankLabel != null && !rankLabel.isBlank()) ? rankLabel : "lobby";
         String captionKey = ownRank ? "report.curve.caption_own_rank" : "report.curve.caption";
-        String captionText = escapeXml(messages.get(captionKey, hero, rank));
-        sb.append(String.format(Locale.ROOT,
+        String captionText = ReportChartsSvg.escapeXml(messages.get(captionKey, hero, rank));
+        builder.append(String.format(Locale.ROOT,
                 "<text class=\"caption\" x=\"%.1f\" y=\"%.1f\" text-anchor=\"middle\">%s</text>\n",
                 WIDTH / 2.0, 24.0, captionText));
 
         // Legend
-        String legendYou = escapeXml(messages.get("report.curve.legend.you"));
-        String legendAvg = escapeXml(messages.get("report.curve.legend.average"));
-        String legendBand = escapeXml(messages.get("report.curve.legend.band"));
+        String legendYou = ReportChartsSvg.escapeXml(messages.get("report.curve.legend.you"));
+        String legendAvg = ReportChartsSvg.escapeXml(messages.get("report.curve.legend.average"));
+        String legendBand = ReportChartsSvg.escapeXml(messages.get("report.curve.legend.band"));
 
-        sb.append("<g>\n");
-        sb.append(String.format(Locale.ROOT,
+        builder.append("<g>\n");
+        builder.append(String.format(Locale.ROOT,
                 "<line class=\"player-line\" x1=\"150.0\" y1=\"341.0\" x2=\"175.0\" y2=\"341.0\" />\n"
-                        + "<text class=\"legend-text\" x=\"182.0\" y=\"344.0\">%s</text>\n"
+                        + "<text class=\"legend-text\" x=\"182.0\" y=\"345.0\">%s</text>\n"
                         + "<line class=\"avg-line\" x1=\"250.0\" y1=\"341.0\" x2=\"275.0\" y2=\"341.0\" />\n"
-                        + "<text class=\"legend-text\" x=\"282.0\" y=\"344.0\">%s</text>\n"
+                        + "<text class=\"legend-text\" x=\"282.0\" y=\"345.0\">%s</text>\n"
                         + "<rect class=\"band\" x=\"370.0\" y=\"336.0\" width=\"20.0\" height=\"10.0\" />\n"
-                        + "<text class=\"legend-text\" x=\"397.0\" y=\"344.0\">%s</text>\n",
+                        + "<text class=\"legend-text\" x=\"397.0\" y=\"345.0\">%s</text>\n",
                 legendYou, legendAvg, legendBand));
-        sb.append("</g>\n");
+        builder.append("</g>\n");
 
-        sb.append("</svg>\n");
-        return Optional.of(sb.toString());
+        return Optional.of(builder.build());
     }
 
     private static double mapX(double timeMinutes, double maxXMinutes) {
@@ -333,24 +296,5 @@ public class SoulCurveSvg {
                 ? messages.get("report.curve.verdict_below", String.valueOf(pct))
                 : messages.get("report.curve.verdict_tied");
         return messages.get("report.curve.alt", standing, String.valueOf(durationMin));
-    }
-
-    static String escapeXml(String text) {
-        if (text == null) {
-            return "";
-        }
-        StringBuilder sb = new StringBuilder(text.length());
-        for (int i = 0; i < text.length(); i++) {
-            char c = text.charAt(i);
-            switch (c) {
-                case '&' -> sb.append("&amp;");
-                case '<' -> sb.append("&lt;");
-                case '>' -> sb.append("&gt;");
-                case '"' -> sb.append("&quot;");
-                case '\'' -> sb.append("&apos;");
-                default -> sb.append(c);
-            }
-        }
-        return sb.toString();
     }
 }

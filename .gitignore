@@ -35,3 +35,6 @@ build/
 
 # Local evidence (contains real account data)
 docs/evidence/
+
+# Standalone CLI tools
+.tools/

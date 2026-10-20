@@ -263,7 +263,26 @@ class SoulCurveSvgTest {
         assertThat(svg).contains("above the average by");
 
         // Gold line stroke
-        assertThat(svg).contains("stroke: #ffc83d");
+        assertThat(svg).contains("stroke: " + ReportChartsSvg.COLOR_YOU_GOLD);
+    }
+
+    @Test
+    void soulCurveHasNoTextElementWithFontSizeUnder12() {
+        List<Integer> times = List.of(180, 360, 540);
+        List<Long> player = List.of(1500L, 3500L, 6000L);
+        List<Double> avg = List.of(1400.0, 3000.0, 5000.0);
+        List<Double> std = List.of(200.0, 400.0, 600.0);
+
+        String svg = svgRenderer.render("Infernus", "Archon", true, times, player, avg, std).orElseThrow();
+        Pattern fontPattern = Pattern.compile("font-size:\\s*(\\d+)px");
+        Matcher matcher = fontPattern.matcher(svg);
+        boolean found = false;
+        while (matcher.find()) {
+            found = true;
+            int size = Integer.parseInt(matcher.group(1));
+            assertThat(size).as("Font size must be >= 12px").isGreaterThanOrEqualTo(12);
+        }
+        assertThat(found).isTrue();
     }
 
     @Test

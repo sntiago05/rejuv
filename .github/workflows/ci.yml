@@ -22,6 +22,9 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
 
+      - name: Check generated CSS is up to date
+        run: scripts/build-css.sh --check
+
       - name: Set up Java 21 (Temurin)
         uses: actions/setup-java@v4
         with:
