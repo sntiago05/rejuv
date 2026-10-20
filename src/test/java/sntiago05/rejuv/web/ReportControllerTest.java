@@ -528,6 +528,41 @@ class ReportControllerTest {
         assertThat(java.nio.file.Files.exists(targetDir.resolve("report.html"))).isTrue();
     }
 
+    @Test
+    void viewReportRendersScoreboardWithIconsLandmarksAndNoUnsafeMarkup() throws Exception {
+        AnalysisResult analysis = new AnalysisResult("Strength", "Leak", "Action", List.of("10 kills"));
+        ReportView.Row you = new ReportView.Row(true, 1, "Infernus", "Me <b>x</b>", 5, 5, 31, "7.2", 215, "29,907", "w30",
+                List.of(new ReportView.ScoreItem(4242L, "Basic Magazine")));
+        ReportView.Row foe = new ReportView.Row(false, 2, "Bebop", "", 28, 11, 10, "3.5", 267, "107,441", "w100", List.of());
+        ReportView.Scoreboard board = new ReportView.Scoreboard(List.of(
+                new ReportView.Team("report.scoreboard.team.you", true, "win", "65", "120.3k", List.of(you)),
+                new ReportView.Team("report.scoreboard.team.enemy", false, "loss", "49", "98.0k", List.of(foe))));
+        ReportView report = new ReportView(KNOWN_ID, 987654321L, "Infernus", 1, "Archon 3", "win",
+                30.5, analysis, List.of(new sntiago05.rejuv.domain.MatchVisuals.PurchasedItem(4242L, "Basic Magazine", 120)),
+                false, Instant.now(), false, true, List.of(), List.of(), List.of(),
+                false, false, false, false, false, "", "", "", "", "", "",
+                List.of(new ReportView.Tip("Farm more", "40 CS behind", "Last-hit drill")), board);
+        when(reportService.find(KNOWN_ID)).thenReturn(Optional.of(report));
+
+        String html = mockMvc.perform(get("/r/" + KNOWN_ID))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+
+        assertThat(html).contains("Match Scoreboard").contains("Your team").contains("Enemy team");
+        assertThat(html).contains("Victory").contains("Defeat");
+        assertThat(html).contains("/r/" + KNOWN_ID + "/img/hero/1.png").contains("/r/" + KNOWN_ID + "/img/item/4242.png");
+        assertThat(html).contains("Me &lt;b&gt;x&lt;/b&gt;").doesNotContain("<b>x</b>");
+        assertThat(html).contains("Player 1").contains(">You<");
+        assertThat(html).contains("alt=\"Basic Magazine\"");
+        assertThat(html).contains("class=\"skip-link\"").contains("<main id=\"report-main\"").contains("<html lang=\"en\"");
+        assertThat(html.split("<h1", -1)).hasSize(2);
+        assertThat(html).doesNotContain("style=").doesNotContain("<script").doesNotContain("http://").doesNotContain("https://");
+
+        java.nio.file.Path targetDir = java.nio.file.Path.of("target/samples");
+        java.nio.file.Files.createDirectories(targetDir);
+        java.nio.file.Files.writeString(targetDir.resolve("report-full.html"), html);
+    }
+
     private ReportView simpleReport() {
         return createReportView(30.5, new AnalysisResult("Strength", "Leak", "Action", List.of()),
                 Instant.parse("2026-10-18T12:00:00Z"), null, null, false, false, false,
