@@ -42,9 +42,11 @@ import sntiago05.rejuv.domain.MatchVisuals;
 import sntiago05.rejuv.services.AnalyzeService;
 import sntiago05.rejuv.services.AssetImages;
 import sntiago05.rejuv.services.ChartRenderer;
+import sntiago05.rejuv.services.DonationService;
 import sntiago05.rejuv.services.GameAssets;
 import sntiago05.rejuv.services.HeroResolver;
 import sntiago05.rejuv.services.IconCatalog;
+import sntiago05.rejuv.config.DonationProperties;
 import sntiago05.rejuv.config.WebProperties;
 import sntiago05.rejuv.services.MatchNotFoundException;
 import sntiago05.rejuv.services.MatchSearchService;
@@ -76,12 +78,13 @@ public class AnalyzeCommand implements SlashCommand {
     private final IconCatalog iconCatalog;
     private final ChartRenderer chartRenderer;
     private final WebProperties webProperties;
+    private final DonationService donationService;
 
     @org.springframework.beans.factory.annotation.Autowired
     public AnalyzeCommand(AnalyzeService analyzeService, ProfileService profileService, Messages messages,
                           AssetImages assetImages, MatchSearchService matchSearchService, GameAssets gameAssets,
                           HeroResolver heroResolver, IconCatalog iconCatalog, ChartRenderer chartRenderer,
-                          WebProperties webProperties) {
+                          WebProperties webProperties, DonationService donationService) {
         this.analyzeService = analyzeService;
         this.profileService = profileService;
         this.messages = messages;
@@ -92,13 +95,24 @@ public class AnalyzeCommand implements SlashCommand {
         this.iconCatalog = iconCatalog;
         this.chartRenderer = chartRenderer;
         this.webProperties = webProperties != null ? webProperties : new WebProperties(null);
+        this.donationService = donationService != null ? donationService : disabledDonationService(messages);
+    }
+
+    public AnalyzeCommand(AnalyzeService analyzeService, ProfileService profileService, Messages messages,
+                          AssetImages assetImages, MatchSearchService matchSearchService, GameAssets gameAssets,
+                          HeroResolver heroResolver, IconCatalog iconCatalog, ChartRenderer chartRenderer,
+                          WebProperties webProperties) {
+        this(analyzeService, profileService, messages, assetImages, matchSearchService, gameAssets,
+                heroResolver, iconCatalog, chartRenderer, webProperties,
+                disabledDonationService(messages));
     }
 
     public AnalyzeCommand(AnalyzeService analyzeService, ProfileService profileService, Messages messages,
                           AssetImages assetImages, MatchSearchService matchSearchService, GameAssets gameAssets,
                           HeroResolver heroResolver, IconCatalog iconCatalog, ChartRenderer chartRenderer) {
         this(analyzeService, profileService, messages, assetImages, matchSearchService, gameAssets,
-                heroResolver, iconCatalog, chartRenderer, new WebProperties(null));
+                heroResolver, iconCatalog, chartRenderer, new WebProperties(null),
+                disabledDonationService(messages));
     }
 
     @Override
@@ -340,7 +354,29 @@ public class AnalyzeCommand implements SlashCommand {
                 : messages.get("analyze.footer_no_rank");
         builder.setFooter(truncate(footerText, MAX_FOOTER_LENGTH));
 
+        addSupportField(builder);
+
         return builder.build();
+    }
+
+    private static DonationService disabledDonationService(Messages messages) {
+        return new DonationService(new DonationProperties(null, null), messages);
+    }
+
+    private void addSupportField(EmbedBuilder builder) {
+        Optional<DonationService.Donation> donation = donationService.get();
+        if (donation.isEmpty()) {
+            return;
+        }
+        if (builder.getFields().size() >= 25) {
+            return;
+        }
+        String fieldName = messages.get("analyze.field.support");
+        String fieldValue = messages.get("analyze.support.line", donation.get().label(), donation.get().url());
+        int fieldTextLength = fieldName.length() + fieldValue.length();
+        if (builder.length() + fieldTextLength <= MessageEmbed.EMBED_MAX_LENGTH_BOT) {
+            builder.addField(fieldName, fieldValue, false);
+        }
     }
 
     private void addBuildField(EmbedBuilder builder, MatchVisuals visuals) {

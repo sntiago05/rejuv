@@ -29,6 +29,7 @@ import org.springframework.web.context.WebApplicationContext;
 import sntiago05.rejuv.TestcontainersConfiguration;
 import sntiago05.rejuv.domain.AnalysisResult;
 import sntiago05.rejuv.domain.ReportView;
+import sntiago05.rejuv.services.DonationService;
 import sntiago05.rejuv.services.ReportService;
 
 @SpringBootTest(properties = {"bot.token=", "bot.dev-guild-id="})
@@ -45,6 +46,9 @@ class ReportControllerTest {
 
     @MockitoBean
     private ReportService reportService;
+
+    @MockitoBean
+    private DonationService donationService;
 
     @BeforeEach
     void setUp() {
@@ -471,5 +475,57 @@ class ReportControllerTest {
         java.nio.file.Files.createDirectories(targetDir);
         java.nio.file.Files.writeString(targetDir.resolve("report.html"), html);
         assertThat(java.nio.file.Files.exists(targetDir.resolve("report.html"))).isTrue();
+    }
+
+    private ReportView simpleReport() {
+        return createReportView(30.5, new AnalysisResult("Strength", "Leak", "Action", List.of()),
+                Instant.parse("2026-10-18T12:00:00Z"), null, null, false, false, false,
+                List.of(), List.of(), List.of());
+    }
+
+    @Test
+    void viewReportRendersFooterDonationLinkWhenPresent() throws Exception {
+        when(reportService.find(KNOWN_ID)).thenReturn(Optional.of(simpleReport()));
+        when(donationService.get()).thenReturn(
+                Optional.of(new DonationService.Donation("https://example.com/donate", "Support Rejuv")));
+
+        MvcResult result = mockMvc.perform(get("/r/" + KNOWN_ID))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Content-Security-Policy",
+                        "default-src 'none'; img-src 'self'; style-src 'self'; base-uri 'none'; frame-ancestors 'none'"))
+                .andExpect(header().string("X-Robots-Tag", "noindex, nofollow"))
+                .andExpect(header().string("Referrer-Policy", "no-referrer"))
+                .andExpect(header().string("X-Content-Type-Options", "nosniff"))
+                .andExpect(header().string("Cache-Control", "private, max-age=300"))
+                .andReturn();
+
+        String html = result.getResponse().getContentAsString();
+        assertThat(html).doesNotContain("<script");
+        assertThat(html).doesNotContain("style=");
+
+        int footerStart = html.indexOf("<footer");
+        int footerEnd = html.indexOf("</footer>");
+        assertThat(footerStart).isNotNegative();
+        assertThat(footerEnd).isGreaterThan(footerStart);
+        String footer = html.substring(footerStart, footerEnd + "</footer>".length());
+        assertThat(footer).contains("Rejuv is free. If it helped you, you can support it:");
+        assertThat(footer).contains(
+                "<a href=\"https://example.com/donate\" rel=\"noopener noreferrer nofollow\">Support Rejuv</a>");
+    }
+
+    @Test
+    void viewReportOmitsFooterDonationLinkWhenAbsent() throws Exception {
+        when(reportService.find(KNOWN_ID)).thenReturn(Optional.of(simpleReport()));
+        when(donationService.get()).thenReturn(Optional.empty());
+
+        MvcResult result = mockMvc.perform(get("/r/" + KNOWN_ID))
+                .andExpect(status().isOk())
+                .andExpect(content().string(not(containsString("donate-footer"))))
+                .andExpect(content().string(not(containsString("Rejuv is free. If it helped you, you can support it:"))))
+                .andReturn();
+
+        String html = result.getResponse().getContentAsString();
+        assertThat(html).doesNotContain("<script");
+        assertThat(html).doesNotContain("style=");
     }
 }

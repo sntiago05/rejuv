@@ -210,6 +210,10 @@
         <footer class="report-footer">
             <p th:if="${report.analyzedAt != null}" class="analyzed-date" th:text="#{report.analyzed_on(${report.analyzedAt})}">Analyzed on date</p>
             <p class="brand-footer" th:text="#{report.footer}">Rejuv · AI coach for Deadlock</p>
+            <p th:if="${donation != null}" class="donate-footer">
+                <span th:text="#{report.donate.text}">Rejuv is free. If it helped you, you can support it:</span>
+                <a th:href="${donation.url}" th:text="${donation.label}" rel="noopener noreferrer nofollow">Support Rejuv</a>
+            </p>
         </footer>
     </main>
 </body>

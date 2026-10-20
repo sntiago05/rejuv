@@ -27,6 +27,8 @@ services:
       POSTGRES_PORT: 5432
       WEB_BIND_ADDRESS: "0.0.0.0"
       WEB_BASE_URL: ${WEB_BASE_URL:-}
+      DONATION_URL: ${DONATION_URL:-}
+      DONATION_LABEL: ${DONATION_LABEL:-}
     depends_on:
       postgres:
         condition: service_healthy

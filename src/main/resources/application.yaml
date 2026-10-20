@@ -54,6 +54,9 @@ server:
 rejuv:
   web:
     base-url: ${WEB_BASE_URL:}
+  donation:
+    url: ${DONATION_URL:}
+    label: ${DONATION_LABEL:}
   usage:
     enabled: ${USAGE_LIMITS_ENABLED:false}
     weekly-free-analyses: ${USAGE_WEEKLY_FREE_ANALYSES:3}

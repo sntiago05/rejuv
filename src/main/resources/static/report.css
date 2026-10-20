@@ -599,3 +599,16 @@ details[open] > .details-summary::before {
         page-break-inside: avoid;
     }
 }
+
+.donate-footer {
+    margin-top: 0.5rem;
+}
+
+.donate-footer a {
+    color: var(--accent-color);
+    text-decoration: underline;
+}
+
+.donate-footer a:hover {
+    text-decoration: none;
+}

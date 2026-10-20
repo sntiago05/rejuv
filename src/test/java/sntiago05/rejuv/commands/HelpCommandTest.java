@@ -12,21 +12,32 @@ import net.dv8tion.jda.api.interactions.commands.build.SlashCommandData;
 import net.dv8tion.jda.api.requests.restaction.interactions.ReplyCallbackAction;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import sntiago05.rejuv.config.DonationProperties;
+import sntiago05.rejuv.services.DonationService;
 import sntiago05.rejuv.services.Messages;
 import sntiago05.rejuv.services.MessagesFixture;
 
 class HelpCommandTest {
 
+    private DonationService disabledDonationService(Messages messages) {
+        return new DonationService(new DonationProperties(null, null), messages);
+    }
+
+    private DonationService enabledDonationService(Messages messages) {
+        return new DonationService(new DonationProperties("https://example.com/donate", "Support Us"), messages);
+    }
+
     @Test
     void nameIsHelp() {
-        HelpCommand command = new HelpCommand(MessagesFixture.english());
+        Messages messages = MessagesFixture.english();
+        HelpCommand command = new HelpCommand(messages, disabledDonationService(messages));
         assertThat(command.name()).isEqualTo("help");
     }
 
     @Test
     void dataUsesCatalogDescriptionAndHasNoOptions() {
         Messages messages = MessagesFixture.english();
-        HelpCommand command = new HelpCommand(messages);
+        HelpCommand command = new HelpCommand(messages, disabledDonationService(messages));
         SlashCommandData data = command.data();
 
         assertThat(data.getName()).isEqualTo("help");
@@ -36,9 +47,9 @@ class HelpCommandTest {
     }
 
     @Test
-    void handleRepliesEphemerallyWithHelpEmbed() {
+    void handleRepliesEphemerallyWithHelpEmbedWithoutDonationWhenDisabled() {
         Messages messages = MessagesFixture.english();
-        HelpCommand command = new HelpCommand(messages);
+        HelpCommand command = new HelpCommand(messages, disabledDonationService(messages));
         SlashCommandInteractionEvent event = mock(SlashCommandInteractionEvent.class);
         ReplyCallbackAction reply = mock(ReplyCallbackAction.class);
         ArgumentCaptor<MessageEmbed> embedCaptor = ArgumentCaptor.forClass(MessageEmbed.class);
@@ -56,6 +67,25 @@ class HelpCommandTest {
         assertThat(embed.getDescription()).isEqualTo(messages.get("help.body"));
         assertThat(embed.getColorRaw()).isEqualTo(EmbedStyle.COLOR);
         assertThat(embed.getDescription()).contains("/counter");
+        assertThat(embed.getDescription()).doesNotContain("https://example.com/donate");
+    }
+
+    @Test
+    void handleRepliesWithDonationLineWhenLinkExists() {
+        Messages messages = MessagesFixture.english();
+        HelpCommand command = new HelpCommand(messages, enabledDonationService(messages));
+        SlashCommandInteractionEvent event = mock(SlashCommandInteractionEvent.class);
+        ReplyCallbackAction reply = mock(ReplyCallbackAction.class);
+        ArgumentCaptor<MessageEmbed> embedCaptor = ArgumentCaptor.forClass(MessageEmbed.class);
+        when(event.replyEmbeds(embedCaptor.capture())).thenReturn(reply);
+        when(reply.setEphemeral(true)).thenReturn(reply);
+
+        command.handle(event);
+
+        MessageEmbed embed = embedCaptor.getValue();
+        String expectedSuffix = messages.get("help.donate", "Support Us", "https://example.com/donate");
+        assertThat(embed.getDescription()).isEqualTo(messages.get("help.body") + expectedSuffix);
+        assertThat(embed.getDescription()).contains("Support Us", "https://example.com/donate");
     }
 
     @Test
@@ -92,5 +122,8 @@ class HelpCommandTest {
         String body = messages.get("help.body");
 
         assertThat(body.length()).isLessThanOrEqualTo(2000);
+
+        String withDonation = body + messages.get("help.donate", "Support Us", "https://example.com/donate");
+        assertThat(withDonation.length()).isLessThanOrEqualTo(2000);
     }
 }
