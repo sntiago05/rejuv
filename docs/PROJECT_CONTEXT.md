@@ -64,6 +64,7 @@ The bot has **not** been run end to end in public or deployed; no manual Discord
 | 051 | Remove premium, Patreon, usage limits and `/usage`; V6 drops `analysis_usage`; ADR-0019 | 051 | merge commit |
 | 052 | Coach quality (prompt, `tips`, bigger output budget) and in-memory AI spend guard | 052 | #98 |
 | 053 | Report on Tailwind CSS 4 (ADR-0020), Top Tips card, Build Timeline chart, chart polish | 053 | #99 |
+| 054 | Docs cleanup after free model (051) and spend guard (052); canonical docs match free model | 054 | |
 | 036 | Dockerfile, `compose.prod.yaml`, CI, `docs/deployment.md` | 036 | #64 |
 | refactor | `DeadlockApiRequests`, `GameAssets`, perf/dedup | refactor-perf-dedup | #39 |
 
@@ -125,7 +126,7 @@ The bot has **not** been run end to end in public or deployed; no manual Discord
 2. **Verify live after 040/041** (not run yet): `/analyze` must show a severity label (Anthropic must accept the new schema `enum`; no `invalid_output` in the log) and another user's `/ping` must answer during an `/analyze`. API audit ideas still open (local `docs/evidence/api-analysis/`): rank percentile in `/profile`, `/nemesis`, `/synergy`, `/patches`, Steam-name `/link`, bulk metadata for `/matches`.
 2b. Manual Discord checks pending (steps in `docs/manual-testing.md`): `/analyze` (chart, typed id, report button, soul curve, severity label and leak choice), `/items`, `/compare`, `/mates` names, `/heroes`, `/donate` and the donation link with and without `DONATION_URL` (`/help`, `/analyze`, report footer), the redesigned report page, Top Tips card, Build Timeline and SVG charts (049, 053), `/analyze` tips and the spend guard messages (052), V6 on a database that has `analysis_usage` rows, emoji sync, and that coach providers do not slow or break `/analyze`.
 3. Deployment to Oracle (guide in `docs/deployment.md`); HTTPS/domain not done.
-4. Add the four `ANALYSIS_*` variables to `.env.example` and to `compose.prod.yaml` if you want to override them. Confirm the pricing in the Anthropic Console. Docs that still mention premium, Patreon or usage limits (or the old no-cooldown / `max_tokens` 1500 / cost figures) and need an owner update: `mvp-spec`, `features`, `product`, `costs`, `roadmap`, `architecture`, `implementation-plan`, `deployment` (still lists `USAGE_*` as required env), ADR-0006 and ADR-0013 (superseded in practice by ADR-0019; ADR-0019 says a cooldown is deferred, 052 added one), task reports 019, 020, 021, 038. Follow-up: drop the unused `discordUserId` parameter of `AnalyzeService.analyze`.
+4. Add the four `ANALYSIS_*` variables to `.env.example` and to `compose.prod.yaml` if you want to override them. Confirm the pricing in the Anthropic Console. Remaining docs that mention premium, Patreon or usage limits and need owner consideration: ADRs (ADR-0006 and ADR-0013 are superseded in practice by ADR-0019; ADR-0019 says a cooldown is deferred, 052 added one) and `plan-de-implementacion-017-029.md` (historical). Follow-up: drop the unused `discordUserId` parameter of `AnalyzeService.analyze`.
 
 ## References
 - Specs: `docs/mvp-spec.md`, `docs/features.md`, `docs/architecture.md`, `docs/product.md`, `docs/costs.md`, `docs/deployment.md`

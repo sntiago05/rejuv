@@ -1,5 +1,7 @@
 # Task 021: `/items` (premium): your items against the meta
 
+> Superseded: the premium tier, Patreon check and usage limits were removed by task 051 (ADR-0019). This report is kept as history.
+
 ## Status
 Implemented on `feature/021-items-premium`. `./mvnw clean verify` passes (708 tests, 0 failures, 2 skipped). Not pushed, not merged.
 

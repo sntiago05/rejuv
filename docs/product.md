@@ -13,32 +13,19 @@ Stats sites (e.g. Statlocker) already show numbers for free. Our value is:
 1. AI explanations that are specific and personal ("you bought your key item 4 minutes later than higher-ranked players"), not generic tips.
 2. Social features inside the server (rankings, progress, highlights).
 
-## Features
+## Features and free model
 
-### Free tier
-- `/link`, `/unlink`, `/profile`, `/help`.
-- `/analyze`: AI coaching report on the latest match vs same hero and rank (limited to 3 per week when premium is switched on).
-See `mvp-spec.md` for the exact behavior.
+Rejuv is completely free for everyone with no tiers, paywalls, or weekly usage limits (ADR-0019, tasks 050-051). Operational costs are supported via an optional donation link (`/donate`, configured with `DONATION_URL` and `DONATION_LABEL`).
 
-### Premium tier (planned, ~2 USD/month per user)
-- Unlimited AI analyses.
-- Weekly progress tracking.
-- Build recommendations per hero and play style.
-- Server rankings and automatic highlight alerts.
-
-## Monetization flow
-1. User hits the free limit; the bot shows a Premium button linking to Patreon.
-2. User subscribes on Patreon and links Discord.
-3. Patreon assigns a `Premium` role in the bot's official support server.
-4. Before each command the bot checks that role by user ID.
-5. Patreon collects payments monthly; payouts go to PayPal or Payoneer.
-See ADR-0006.
+- `/link`, `/unlink`, `/profile`, `/help`, `/donate`.
+- `/analyze`: AI coaching report on the latest match vs same hero and rank. Free, protected by an in-memory spend guard (60 s cooldown, 10 per user per day, 150 per day in total).
+- Hero knowledge and personal insights: `/build`, `/counter`, `/meta`, `/heroes`, `/mates`, `/items`, `/compare`, `/leaderboard server`.
+See `mvp-spec.md` and `features.md` for exact behavior.
 
 ## Validation plan
-- Month 1: everything free. Measure weekly retention, users hitting the limit, organic referrals.
+- Measure weekly retention and organic referrals.
 - Quality check: friends who play rate each analysis. Target reaction: "I didn't notice that", not "I already knew that".
-- Pricing test: "Founder" plan at 1 USD/month for the first 20 users. If it fills, raise the price for new users.
-- If nobody returns after first use, improve the analysis before charging.
+- If nobody returns after first use, improve the analysis prompt and coaching quality.
 
 ## Risks
 - Data coverage: deadlock-api may not have every player's recent matches.

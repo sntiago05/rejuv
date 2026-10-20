@@ -44,7 +44,7 @@ Behavior:
 4. If an analysis for `(account_id, match_id)` exists in DB → return it (no AI cost).
 5. Build `MatchMetrics` for the player in that match.
 6. Fetch benchmarks: same hero, same rank tier (badge range `tier*10` to `tier*10+9`), last 30 days, percentiles p25/p50/p75 for each metric. Cached 6 h per (hero, tier).
-7. Build compact `AnalysisInput` (see below) and call Claude Haiku 5.5.
+7. Build compact `AnalysisInput` (see below) and call Claude Haiku 5.5 (new AI calls are protected by an in-memory spend guard: 60 s cooldown, 10 per user per day, 150 global daily cap; stored analyses are free).
 8. Store result, reply with embed.
 
 Embed layout:
@@ -86,9 +86,23 @@ Input (JSON, target under 1,500 tokens):
 ```
 Output: strict JSON only:
 ```json
-{ "strength": "...", "biggest_leak": "...", "next_game_action": "...", "key_numbers": ["..."] }
+{
+  "strength": "...",
+  "biggest_leak": "...",
+  "next_game_action": "...",
+  "key_numbers": ["..."],
+  "focus_area": "phases",
+  "severity": "notable",
+  "tips": [
+    {
+      "tip": "...",
+      "evidence": "...",
+      "drill": "..."
+    }
+  ]
+}
 ```
-Model settings: `claude-haiku-5-5`, effort low, `max_tokens` 1500 (thinking tokens count toward it). If JSON parsing fails → retry once, then fall back to a non-AI summary of the key numbers.
+Model settings: `claude-haiku-5-5`, effort medium, `max_tokens` 4000 (thinking tokens count toward it). If JSON parsing fails → retry once, then fall back to a non-AI summary of the key numbers.
 
 ## Error handling (user-facing, English, from `messages.properties`)
 | Situation | Message intent |
@@ -105,7 +119,7 @@ Model settings: `claude-haiku-5-5`, effort low, `max_tokens` 1500 (thinking toke
 - `/unlink` deletes both for that user.
 
 ## Out of scope for MVP
-Usage limits, premium, Patreon, server rankings, alerts, multi-match trends, vanity URL resolution, Spanish, LoL.
+Server rankings, alerts, multi-match trends, vanity URL resolution, Spanish, LoL (usage limits, premium tier and Patreon were dropped by task 051; new analyses are protected by an in-memory spend guard instead).
 
 ## Known risks
 - **Data coverage**: deadlock-api only has matches it has fetched; some players' recent matches may be missing. Mitigation: clear message + ingest tool tip; measure how often it happens during testing.

@@ -24,13 +24,13 @@ flowchart LR
 | Match data | deadlock-api.com (community, unofficial) | 0004 |
 | AI | Claude Haiku 5.5 (`claude-haiku-5-5`) | 0003 |
 | Deployment | Docker Compose on Oracle Cloud Always Free (ARM) | 0005 |
-| Payments | Patreon + Discord role check | 0006 |
+| Payments | Donations (optional link) / ADR-0019 | 0019 |
 
 ## Package layout
 ```
 src/main/java/<base>/
 ├── commands/      Slash commands: validate input, reply. No business logic.
-├── services/      Business logic (analysis, profiles, usage limits).
+├── services/      Business logic (analysis, profiles, AI spend guard).
 ├── clients/       External APIs (Deadlock API, Claude). Always cached.
 ├── repositories/  Spring Data JPA repositories.
 ├── domain/        Entities and value objects.
@@ -39,11 +39,12 @@ src/main/java/<base>/
 
 ## Main flow: `/analyze`
 1. `AnalyzeCommand` validates the user and calls `deferReply()`.
-2. `UsageService` checks the weekly limit (skipped if the user has the Premium role).
-3. `DeadlockApiClient` fetches recent matches (cached).
-4. `MetricsService` computes a compact summary (KDA, souls/min, item timings, comparison to rank average).
-5. `AnalysisClient` sends only that summary to Claude Haiku 5.5 with low effort and a `max_tokens` cap.
-6. The result is stored (so the same match is never paid for twice) and returned as an English embed (all user-facing text from `messages.properties`).
+2. `DeadlockApiClient` fetches recent matches (cached) and selects the match.
+3. If an analysis for `(account_id, match_id)` already exists in DB, it is returned immediately (stored analyses are free, bypass the spend guard, no AI cost).
+4. `MetricsService` and `CoachContextService` compute a compact summary (KDA, souls/min, item timings, comparison to rank averages, coach insights).
+5. `AnalysisSpendGuard` checks in-memory limits (60 s cooldown, 10 user daily, 150 global daily) right before invoking AI.
+6. `AnalysisClient` sends the summary to Claude Haiku 5.5 with medium effort and a `max_tokens` cap (4000).
+7. The result is stored (so the same match is never paid for twice) and returned as an English embed (all user-facing text from `messages.properties`).
 
 ## Non-functional guidelines
 - Memory: `-Xmx512m`, only required starters, `spring.main.web-application-type=none` until webhooks are needed.

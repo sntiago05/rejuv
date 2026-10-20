@@ -1,5 +1,7 @@
 # Task 038: `/compare` (premium): your recent games against top-rank players on the same hero
 
+> Superseded: the premium tier, Patreon check and usage limits were removed by task 051 (ADR-0019). This report is kept as history.
+
 ## Status
 Implemented on `feature/038-compare-premium`. `.\mvnw.cmd verify` passes (816 tests, 0 failures, 2 skipped). Not pushed, not merged.
 

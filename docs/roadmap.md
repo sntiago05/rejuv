@@ -14,16 +14,16 @@ Passion project, near-zero budget, AI-assisted development with high weekly dedi
 
 **Gate before day 5 launch:** at least 3 testers say the report taught them something. If not, spend day 5 improving the analysis instead of launching.
 
-## Week 2: growth features, web reports and premium
+## Week 2: growth features, web reports and premium (premium removed by 051)
 
 | Day | Work | Tasks |
 |---|---|---|
 | 6 | Hero utilities, no link needed: `/build`, `/counter`, `/meta` | 011, 012, 013 |
 | 7 | Social and personal: `/heroes`, `/mates`, party stats in `/profile`, `/leaderboard server` | 014, 015, 016 |
 | 8-9 | Web report pages + "View full report", soul curve chart, domain + HTTPS (ADR-0012) | 017, 018 |
-| 10 | Premium pack behind a feature flag: `/compare`, `/items`, usage limits, Patreon role check | 019, 020, 021 |
+| 10 | Premium pack behind a feature flag: `/compare`, `/items`, usage limits, Patreon role check (built, then removed by 051 under ADR-0019 free model; `/compare` and `/items` remain free) | 019, 020, 021 |
 
-**Gate to switch premium on:** ~30 weekly active users and people regularly using all free analyses. Until then premium code stays dormant. Founder plan (1 USD/month, first 20 users) when it turns on.
+*Note: The planned premium gate and tiers were dropped in task 051 in favor of the free model (ADR-0019).*
 
 Full feature catalog with tiers and data sources: `features.md`.
 
