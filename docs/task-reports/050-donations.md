@@ -86,7 +86,7 @@ When `donation` is `null`, the `.donate-footer` `<p>` tag is omitted entirely, m
 - Conventional Commits: small, focused commits on `feature/050-donations`.
 
 ## Deviations
-None.
+- `AnalyzeCommand` has three constructors, not two. Besides the long one (now ending with `DonationService`) and the short one (9 arguments), I kept the previous 10-argument constructor (ends with `WebProperties`). It passes a disabled `DonationService`. The spec did not list it. I kept it so existing callers and tests that use that signature still compile. Remove it later if no caller needs it.
 
 ## Known Issues / Blockers
 None.
