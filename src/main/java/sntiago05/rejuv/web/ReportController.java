@@ -13,6 +13,7 @@ import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import sntiago05.rejuv.domain.ReportView;
+import sntiago05.rejuv.services.ReportIconService;
 import sntiago05.rejuv.services.ReportService;
 
 @Controller
@@ -32,6 +33,7 @@ public class ReportController {
 
     private static final String HEADER_CACHE_CONTROL = "Cache-Control";
     private static final String VALUE_CACHE_CONTROL = "private, max-age=300";
+    private static final String VALUE_ICON_CACHE_CONTROL = "private, max-age=86400";
 
     private final ReportService reportService;
 
@@ -71,6 +73,18 @@ public class ReportController {
                 .headers(headers)
                 .contentType(MediaType.IMAGE_PNG)
                 .body(bytes)).orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND).headers(headers).build());
+    }
+
+    @GetMapping("/r/{publicId}/img/hero/{heroId}.png")
+    public ResponseEntity<byte[]> heroIcon(@PathVariable("publicId") String publicIdRaw,
+                                           @PathVariable("heroId") int heroId) {
+        return serveIcon(publicIdRaw, uuid -> reportService.heroIcon(uuid, heroId));
+    }
+
+    @GetMapping("/r/{publicId}/img/item/{itemId}.png")
+    public ResponseEntity<byte[]> itemIcon(@PathVariable("publicId") String publicIdRaw,
+                                           @PathVariable("itemId") long itemId) {
+        return serveIcon(publicIdRaw, uuid -> reportService.itemIcon(uuid, itemId));
     }
 
     @GetMapping("/r/{publicId}/soul-curve.svg")
@@ -115,6 +129,23 @@ public class ReportController {
                 .headers(headers)
                 .contentType(MediaType.parseMediaType("image/svg+xml;charset=UTF-8"))
                 .body(s)).orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND).headers(headers).build());
+    }
+
+    /** Icons keep every security header; only the cache rule differs because the bytes never change per id. */
+    private ResponseEntity<byte[]> serveIcon(String publicIdRaw,
+                                             java.util.function.Function<UUID, Optional<ReportIconService.Icon>> loader) {
+        HttpHeaders headers = createSecurityHeaders();
+        Optional<UUID> uuid = parseUuid(publicIdRaw);
+        if (uuid.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).headers(headers).build();
+        }
+        return loader.apply(uuid.get()).map(icon -> {
+            headers.set(HEADER_CACHE_CONTROL, VALUE_ICON_CACHE_CONTROL);
+            return ResponseEntity.ok()
+                    .headers(headers)
+                    .contentType(MediaType.parseMediaType(icon.contentType()))
+                    .body(icon.bytes());
+        }).orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND).headers(headers).build());
     }
 
     private void applySecurityHeaders(HttpServletResponse response) {
