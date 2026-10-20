@@ -51,6 +51,7 @@ class ReportServiceTest {
     private ChartRenderer chartRenderer;
     private DeadlockApiClient deadlockApiClient;
     private SoulCurveSvg soulCurveSvg;
+    private ReportChartsSvg reportChartsSvg;
     private ReportService reportService;
 
     @BeforeEach
@@ -62,8 +63,9 @@ class ReportServiceTest {
         chartRenderer = mock(ChartRenderer.class);
         deadlockApiClient = mock(DeadlockApiClient.class);
         soulCurveSvg = mock(SoulCurveSvg.class);
+        reportChartsSvg = mock(ReportChartsSvg.class);
         reportService = new ReportService(repository, matchMetadataSource, visualsService,
-                gameAssets, chartRenderer, deadlockApiClient, soulCurveSvg);
+                gameAssets, chartRenderer, deadlockApiClient, soulCurveSvg, reportChartsSvg);
     }
 
     private MatchAnalysis createStoredEntity(String resultJson) {
@@ -661,5 +663,59 @@ class ReportServiceTest {
         // Missing benchmark returns "-"
         assertThat(ReportService.computeVerdict("deaths_per_10_min", 3.0, null, 5.0)).isEqualTo("-");
         assertThat(ReportService.computeVerdict("kills", 5.0, 3.0, null)).isEqualTo("-");
+    }
+
+    @Test
+    void mapWidthClassRoundsToNearestTen() {
+        assertThat(ReportService.mapWidthClass(0.0)).isEqualTo("w0");
+        assertThat(ReportService.mapWidthClass(4.0)).isEqualTo("w0");
+        assertThat(ReportService.mapWidthClass(5.0)).isEqualTo("w10");
+        assertThat(ReportService.mapWidthClass(14.0)).isEqualTo("w10");
+        assertThat(ReportService.mapWidthClass(15.0)).isEqualTo("w20");
+        assertThat(ReportService.mapWidthClass(54.0)).isEqualTo("w50");
+        assertThat(ReportService.mapWidthClass(55.0)).isEqualTo("w60");
+        assertThat(ReportService.mapWidthClass(94.0)).isEqualTo("w90");
+        assertThat(ReportService.mapWidthClass(95.0)).isEqualTo("w100");
+        assertThat(ReportService.mapWidthClass(100.0)).isEqualTo("w100");
+        assertThat(ReportService.mapWidthClass(-10.0)).isEqualTo("w0");
+        assertThat(ReportService.mapWidthClass(150.0)).isEqualTo("w100");
+    }
+
+    @Test
+    void chartSvgMethodsDelegateToReportChartsSvg() {
+        String inputJson = """
+                {
+                  "coach": {
+                    "phases": {
+                      "phases": [{"name": "laning", "change": 1.2}]
+                    },
+                    "deaths": {
+                      "total": 5,
+                      "longest_respawn_s": 40,
+                      "by_phase": {"laning": 1, "mid": 3, "late": 1}
+                    }
+                  },
+                  "metrics": {
+                    "kills": {"value": 10, "p25": 5, "p50": 8}
+                  }
+                }
+                """;
+        MatchAnalysis stored = new MatchAnalysis(ACCOUNT_ID, MATCH_ID, HERO_ID, RESULT_JSON,
+                "claude-haiku-5-5", 1000, 250, Instant.now(), inputJson);
+        when(repository.findByPublicId(PUBLIC_ID)).thenReturn(Optional.of(stored));
+
+        when(reportChartsSvg.renderPhases(any())).thenReturn(Optional.of("<svg>phases</svg>"));
+        when(reportChartsSvg.renderDeaths(1, 3, 1, 5, 40)).thenReturn(Optional.of("<svg>deaths</svg>"));
+        when(reportChartsSvg.renderMetrics(any())).thenReturn(Optional.of("<svg>metrics</svg>"));
+
+        assertThat(reportService.phasesSvg(PUBLIC_ID)).contains("<svg>phases</svg>");
+        assertThat(reportService.deathsSvg(PUBLIC_ID)).contains("<svg>deaths</svg>");
+        assertThat(reportService.metricsSvg(PUBLIC_ID)).contains("<svg>metrics</svg>");
+
+        // Null publicId returns empty
+        assertThat(reportService.phasesSvg(null)).isEmpty();
+        assertThat(reportService.deathsSvg(null)).isEmpty();
+        assertThat(reportService.metricsSvg(null)).isEmpty();
+        assertThat(reportService.soulLeadSvg(null)).isEmpty();
     }
 }

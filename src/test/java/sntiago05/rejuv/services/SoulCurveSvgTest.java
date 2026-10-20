@@ -243,4 +243,32 @@ class SoulCurveSvgTest {
         Document doc = dbf.newDocumentBuilder().parse(new InputSource(new StringReader(svg)));
         assertThat(doc).isNotNull();
     }
+
+    @Test
+    void directLabelsAndVerdictRenderedWithCorrectPalette() {
+        List<Integer> times = List.of(180, 360, 540);
+        List<Long> player = List.of(1500L, 3500L, 6000L);
+        List<Double> avg = List.of(1400.0, 3000.0, 5000.0);
+        List<Double> std = List.of(200.0, 400.0, 600.0);
+
+        Optional<String> result = svgRenderer.render("Infernus", "Archon", true, times, player, avg, std);
+        assertThat(result).isPresent();
+        String svg = result.get();
+
+        // Direct labels
+        assertThat(svg).contains(">You<");
+        assertThat(svg).contains(">Average<");
+
+        // Final verdict annotation
+        assertThat(svg).contains("above the average by");
+
+        // Gold line stroke
+        assertThat(svg).contains("stroke: #ffc83d");
+    }
+
+    @Test
+    void computeSoulCurveAltSummarizesDifference() {
+        String alt = svgRenderer.computeSoulCurveAlt(6000L, 5000.0, 9);
+        assertThat(alt).contains("Net worth vs lobby average: finished above the average by 20% at 9 min.");
+    }
 }
