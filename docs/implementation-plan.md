@@ -24,9 +24,9 @@ Vertical slices: each task delivers something runnable end to end, small enough 
 | 016 | `/leaderboard server` | 005 | Antigravity |
 | 017 | Web server enablement, report page `/r/{publicId}`, embed button | 009 | Claude Code |
 | 018 | Soul curve chart on report page, domain + Caddy HTTPS | 017 | Antigravity |
-| 019 | Feature flag + usage limits | 009 | Antigravity |
-| 020 | Patreon Premium role check | 019 | Antigravity |
-| 021 | `/compare` and `/items` (premium) | 007, 019 | Claude Code |
+| 019 | Feature flag + usage limits (limits removed by task 051) | 009 | Antigravity |
+| 020 | Patreon Premium role check (Patreon check removed by task 051) | 019 | Antigravity |
+| 021 | `/compare` and `/items` (premium gate removed by task 051) | 007, 019 | Claude Code |
 | 022 | Match metadata: port `MatchMetadataSource`, own model `MatchTelemetry`, JSON adapter (`/v1/matches/{match_id}/metadata`) as the primary source, reusing the task 004 HTTP infrastructure | 004 | Antigravity |
 | 023 | Match metadata fallback: raw adapter (`/metadata/raw`: bz2 + protobuf decode) and `FallbackMatchMetadataSource` (JSON first, raw on failure); needs an ADR for the new dependencies | 022 | Claude Code |
 | 024 | Rich presentation: friendlier embeds, hero/item icons as application emojis, hero card and rank badge thumbnails for the existing commands (`/profile`, `/meta`, `/build`, `/counter`, `/help`); introduces `EmbedStyle`, `IconCatalog`, `AssetImages`, bumps JDA, ADR-0016. Run **right after 012 is merged** | 011, 012 | Antigravity |

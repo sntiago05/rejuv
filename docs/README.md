@@ -7,7 +7,7 @@ Living documentation for Rejuv, an AI coaching Discord bot for Deadlock. Everyth
 | `mvp-spec.md` | Exactly what the MVP bot does: commands, metrics, AI contract, errors |
 | `implementation-plan.md` | Task sequence, conventions, definition of done |
 | `features.md` | Full feature catalog: commands, data sources, AI usage, tier, timing |
-| `product.md` | Vision, target users, features, free vs premium, validation plan |
+| `product.md` | Vision, target users, features, free model and donations, validation plan |
 | `architecture.md` | System overview, stack, layers, data flow |
 | `roadmap.md` | Phases with exit criteria |
 | `getting-started.md` | Exact steps: Claude Project, repo, worktrees, task loop, daily rhythm |

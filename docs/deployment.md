@@ -38,8 +38,15 @@ Required environment variables in `.env`:
 - `POSTGRES_USER`: PostgreSQL user name (default `rejuv`).
 - `POSTGRES_PASSWORD`: Strong password for PostgreSQL (required; the stack refuses to start without it).
 - `ANTHROPIC_API_KEY`: API key from Anthropic Console for match coaching.
-- `USAGE_LIMITS_ENABLED`: Feature flag to enable weekly analysis limits (`true` or `false`).
-- `USAGE_WEEKLY_FREE_ANALYSES`: Number of free analyses per user per week (e.g., `3`).
+
+Optional analysis spend guard variables (in-memory protection for new AI analyses):
+- `ANALYSIS_LIMITS_ENABLED`: Enable spend guard limits (`true` or `false`, default: `true`).
+- `ANALYSIS_COOLDOWN`: Cooldown between new analyses for the same user (default: `60s`).
+- `ANALYSIS_USER_DAILY`: Max new analyses per user per day (default: `10`, `<= 0` disables).
+- `ANALYSIS_GLOBAL_DAILY`: Max new analyses globally across all users per day (default: `150`, `<= 0` disables).
+
+> [!NOTE]
+> `compose.prod.yaml` does not pass the `ANALYSIS_*` variables to the container yet, so Docker deployments run with the `application.yaml` defaults above unless the compose file is updated.
 
 Optional donation link variables:
 - `DONATION_URL`: HTTP or HTTPS URL to accept optional user donations (e.g., Ko-fi, Patreon). When omitted or blank, donation buttons and links are hidden everywhere.
