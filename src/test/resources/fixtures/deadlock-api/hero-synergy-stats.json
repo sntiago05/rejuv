@@ -1,0 +1,56 @@
+[
+  {
+    "hero_id1": 1,
+    "hero_id2": 2,
+    "wins": 60,
+    "matches_played": 100,
+    "kills1": 120,
+    "kills2": 110,
+    "unmapped_extra_field": "val1"
+  },
+  {
+    "hero_id1": 1,
+    "hero_id2": 3,
+    "wins": 40,
+    "matches_played": 100,
+    "kills1": 100,
+    "kills2": 130,
+    "unmapped_extra_field": "val2"
+  },
+  {
+    "hero_id1": 2,
+    "hero_id2": 3,
+    "wins": 55,
+    "matches_played": 110,
+    "kills1": 115,
+    "kills2": 125,
+    "unmapped_extra_field": "val3"
+  },
+  {
+    "hero_id1": 1,
+    "hero_id2": 4,
+    "wins": 30,
+    "matches_played": 80,
+    "kills1": 85,
+    "kills2": 95,
+    "unmapped_extra_field": "val4"
+  },
+  {
+    "hero_id1": 2,
+    "hero_id2": 4,
+    "wins": 50,
+    "matches_played": 90,
+    "kills1": 95,
+    "kills2": 105,
+    "unmapped_extra_field": "val5"
+  },
+  {
+    "hero_id1": 3,
+    "hero_id2": 4,
+    "wins": 70,
+    "matches_played": 120,
+    "kills1": 130,
+    "kills2": 140,
+    "unmapped_extra_field": "val6"
+  }
+]

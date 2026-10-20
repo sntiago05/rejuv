@@ -337,8 +337,14 @@ public class AnalyzeCommand implements SlashCommand {
         List<String> lines = new ArrayList<>(analysis.tips().size());
         int index = 1;
         for (AnalysisResult.Tip tip : analysis.tips()) {
-            lines.add(messages.get("analyze.tip.line", index++, tip.tip(),
-                    tip.evidence() == null ? "" : tip.evidence(), tip.drill() == null ? "" : tip.drill()));
+            StringBuilder line = new StringBuilder(messages.get("analyze.tip.title", index++, tip.tip()));
+            if (tip.evidence() != null && !tip.evidence().isBlank()) {
+                line.append('\n').append(messages.get("analyze.tip.evidence", tip.evidence()));
+            }
+            if (tip.drill() != null && !tip.drill().isBlank()) {
+                line.append('\n').append(messages.get("analyze.tip.drill", tip.drill()));
+            }
+            lines.add(line.toString());
         }
         String name = messages.get("analyze.field.tips");
         String value = EmbedStyle.fitField(lines);
@@ -347,6 +353,26 @@ public class AnalyzeCommand implements SlashCommand {
             return;
         }
         builder.addField(name, value, false);
+    }
+
+    /**
+     * Key numbers as short bullet lines that wrap on a phone (no wide table). Whole lines are dropped from the end
+     * so the field stays within Discord's 1024 characters. Empty when there is nothing to show.
+     */
+    private String keyNumbersValue(List<String> keyNumbers) {
+        if (keyNumbers == null || keyNumbers.isEmpty()) {
+            return "";
+        }
+        List<String> lines = new ArrayList<>(keyNumbers.size());
+        for (String raw : keyNumbers) {
+            if (raw == null || raw.isBlank()) {
+                continue;
+            }
+            lines.add(EmbedStyle.parseKeyNumber(raw)
+                    .map(k -> messages.get("analyze.key_number.line", k.metric(), k.yours(), k.reference()))
+                    .orElseGet(() -> messages.get("analyze.key_number.raw", raw.trim())));
+        }
+        return EmbedStyle.fitField(lines);
     }
 
     private MessageEmbed buildEmbed(AnalysisReport report, boolean withChart) {
@@ -380,9 +406,7 @@ public class AnalyzeCommand implements SlashCommand {
             builder.addField(messages.get("analyze.field.leak"), truncate(leak), false);
             builder.addField(messages.get("analyze.field.next_action"), truncate(analysis.nextGameAction()), false);
             String strength = truncate(analysis.strength());
-            String table = analysis.keyNumbers() != null && !analysis.keyNumbers().isEmpty()
-                    ? EmbedStyle.formatKeyNumbersTable(analysis.keyNumbers())
-                    : "";
+            String table = keyNumbersValue(analysis.keyNumbers());
             addTipsField(builder, analysis, strength.length() + table.length() + AFTER_TIPS_RESERVE);
             builder.addField(messages.get("analyze.field.strength"), strength, false);
             if (!table.isEmpty()) {

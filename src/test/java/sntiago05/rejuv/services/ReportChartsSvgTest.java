@@ -298,8 +298,8 @@ class ReportChartsSvgTest {
 
         assertThat(doc.getDocumentElement().getTagName()).isEqualTo("svg");
         assertThat(doc.getDocumentElement().getAttribute("role")).isEqualTo("img");
-        assertThat(svg).contains("Basic Magazine (2m)");
-        assertThat(svg).contains("Mystic Burst (12m)");
+        assertThat(svg).contains(">Basic Magazine<").contains(">2m<");
+        assertThat(svg).contains(">Mystic Burst<").contains(">12m<");
         assertThat(svg).contains("dot-neutral");
     }
 
@@ -314,7 +314,7 @@ class ReportChartsSvgTest {
     }
 
     @Test
-    void buildTimelineCapsAtTwelveItemsAndAlternatesRows() throws Exception {
+    void buildTimelineCapsAtTwelveItemsAndStacksThemVertically() throws Exception {
         List<sntiago05.rejuv.domain.MatchVisuals.PurchasedItem> items = new ArrayList<>();
         for (int i = 1; i <= 15; i++) {
             items.add(new sntiago05.rejuv.domain.MatchVisuals.PurchasedItem((long) i, "Item " + i, i * 60));
@@ -325,15 +325,14 @@ class ReportChartsSvgTest {
         String svg = result.get();
 
         for (int i = 1; i <= 12; i++) {
-            assertThat(svg).contains("Item " + i + " (" + i + "m)");
+            assertThat(svg).contains(">Item " + i + "<").contains(">" + i + "m<");
         }
         assertThat(svg).doesNotContain("Item 13");
         assertThat(svg).doesNotContain("Item 14");
         assertThat(svg).doesNotContain("Item 15");
 
-        // Alternating row lines: centerY = 120.0, above y2 = 88.0, below y2 = 152.0
-        assertThat(svg).contains("88.0");
-        assertThat(svg).contains("152.0");
+        // One dot per item, one row each: names never share a line, so they cannot overlap
+        assertThat(svg.split("<circle", -1)).hasSize(13);
     }
 
     @Test
@@ -347,7 +346,7 @@ class ReportChartsSvgTest {
         String svg = svgRenderer.renderBuildTimeline(items).orElseThrow();
         parseXml(svg);
 
-        assertThat(svg).contains("Item &lt;Tag&gt; &amp; &apos;Quote&apos; &quot;Test&quot; (2m)");
+        assertThat(svg).contains(">Item &lt;Tag&gt; &amp; &apos;Quote&apos; &quot;Test&quot;<");
         assertThat(svg).doesNotContain("<Tag>");
     }
 

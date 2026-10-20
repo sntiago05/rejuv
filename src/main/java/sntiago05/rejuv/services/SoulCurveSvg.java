@@ -13,13 +13,13 @@ import org.springframework.stereotype.Component;
 @Component
 public class SoulCurveSvg {
 
-    private static final int WIDTH = 640;
-    private static final int HEIGHT = 360;
+    private static final int WIDTH = 480;
+    private static final int HEIGHT = 372;
 
-    private static final double PLOT_LEFT = 65.0;
-    private static final double PLOT_RIGHT = 605.0;
-    private static final double PLOT_TOP = 45.0;
-    private static final double PLOT_BOTTOM = 290.0;
+    private static final double PLOT_LEFT = 54.0;
+    private static final double PLOT_RIGHT = 450.0;
+    private static final double PLOT_TOP = 72.0;
+    private static final double PLOT_BOTTOM = 280.0;
     private static final double PLOT_WIDTH = PLOT_RIGHT - PLOT_LEFT;
     private static final double PLOT_HEIGHT = PLOT_BOTTOM - PLOT_TOP;
 
@@ -61,7 +61,7 @@ public class SoulCurveSvg {
         }
 
         double maxTimeMin = timesS.get(n - 1) / 60.0;
-        double tickStepX = (maxTimeMin <= 12.0) ? 2.0 : 5.0;
+        double tickStepX = ReportChartsSvg.timeTickStepMinutes(maxTimeMin);
         double maxXMinutes = Math.max(tickStepX, Math.ceil(maxTimeMin / tickStepX) * tickStepX);
 
         double maxDataY = 0.0;
@@ -116,7 +116,7 @@ public class SoulCurveSvg {
                     : String.format(Locale.ROOT, "%.1fk", k);
             builder.append(String.format(Locale.ROOT,
                     "<text class=\"axis-text\" x=\"%.1f\" y=\"%.1f\" text-anchor=\"end\">%s</text>\n",
-                    PLOT_LEFT - 8.0, y + 4.0, label));
+                    PLOT_LEFT - 8.0, y + 6.0, label));
         }
 
         // X-axis grid and ticks
@@ -126,20 +126,20 @@ public class SoulCurveSvg {
                     "<line class=\"grid\" x1=\"%.1f\" y1=\"%.1f\" x2=\"%.1f\" y2=\"%.1f\" />\n",
                     x, PLOT_TOP, x, PLOT_BOTTOM));
             builder.append(String.format(Locale.ROOT,
-                    "<text class=\"axis-text\" x=\"%.1f\" y=\"%.1f\" text-anchor=\"middle\">%d min</text>\n",
-                    x, PLOT_BOTTOM + 16.0, (long) m));
+                    "<text class=\"axis-text\" x=\"%.1f\" y=\"%.1f\" text-anchor=\"middle\">%dm</text>\n",
+                    x, PLOT_BOTTOM + 22.0, (long) m));
         }
 
         // Axis titles
         String axisSouls = ReportChartsSvg.escapeXml(messages.get("report.curve.axis.souls"));
         builder.append(String.format(Locale.ROOT,
                 "<text class=\"axis-title\" x=\"%.1f\" y=\"%.1f\" text-anchor=\"start\">%s</text>\n",
-                PLOT_LEFT, PLOT_TOP - 12.0, axisSouls));
+                12.0, PLOT_TOP - 14.0, axisSouls));
 
         String axisMinutes = ReportChartsSvg.escapeXml(messages.get("report.curve.axis.minutes"));
         builder.append(String.format(Locale.ROOT,
                 "<text class=\"axis-title\" x=\"%.1f\" y=\"%.1f\" text-anchor=\"middle\">%s</text>\n",
-                PLOT_LEFT + PLOT_WIDTH / 2.0, PLOT_BOTTOM + 32.0, axisMinutes));
+                PLOT_LEFT + PLOT_WIDTH / 2.0, PLOT_BOTTOM + 46.0, axisMinutes));
 
         // Shaded band (avg +/- std, lower bound clamped at 0)
         StringBuilder bandD = new StringBuilder();
@@ -200,25 +200,25 @@ public class SoulCurveSvg {
 
         double labelYPlayer = endYPlayer;
         double labelYAvg = endYAvg;
-        if (Math.abs(labelYPlayer - labelYAvg) < 14.0) {
+        if (Math.abs(labelYPlayer - labelYAvg) < 22.0) {
             if (labelYPlayer <= labelYAvg) {
-                labelYPlayer -= 7.0;
-                labelYAvg += 7.0;
+                labelYPlayer -= 11.0;
+                labelYAvg += 11.0;
             } else {
-                labelYPlayer += 7.0;
-                labelYAvg -= 7.0;
+                labelYPlayer += 11.0;
+                labelYAvg -= 11.0;
             }
         }
 
-        String labelXAnchor = (endX >= PLOT_RIGHT - 40.0) ? "end" : "start";
-        double labelX = (endX >= PLOT_RIGHT - 40.0) ? (endX - 8.0) : (endX + 8.0);
+        String labelXAnchor = (endX >= PLOT_RIGHT - 60.0) ? "end" : "start";
+        double labelX = (endX >= PLOT_RIGHT - 60.0) ? (endX - 8.0) : (endX + 8.0);
 
         builder.append(String.format(Locale.ROOT,
                 "<text class=\"direct-label-player\" x=\"%.1f\" y=\"%.1f\" text-anchor=\"%s\">%s</text>\n",
-                labelX, labelYPlayer + 4.0, labelXAnchor, "You"));
+                labelX, labelYPlayer + 6.0, labelXAnchor, "You"));
         builder.append(String.format(Locale.ROOT,
                 "<text class=\"direct-label-avg\" x=\"%.1f\" y=\"%.1f\" text-anchor=\"%s\">%s</text>\n",
-                labelX, labelYAvg + 4.0, labelXAnchor, "Average"));
+                labelX, labelYAvg + 6.0, labelXAnchor, "Average"));
 
         // Verdict from last point
         long lastPlayer = playerNetWorth.get(n - 1);
@@ -239,33 +239,33 @@ public class SoulCurveSvg {
         }
         if (!verdictText.isEmpty()) {
             builder.append(String.format(Locale.ROOT,
-                    "<text class=\"verdict-text\" x=\"%.1f\" y=\"%.1f\" text-anchor=\"end\">%s</text>\n",
-                    PLOT_RIGHT, PLOT_TOP - 12.0, ReportChartsSvg.escapeXml(verdictText)));
+                    "<text class=\"verdict-text\" x=\"%.1f\" y=\"%.1f\" text-anchor=\"start\">%s</text>\n",
+                    12.0, 24.0, ReportChartsSvg.escapeXml(verdictText)));
         }
 
-        // Caption
+        // Caption: kept as the SVG description (not drawn): at 17 units it is too long for one line, and the page
+        // already shows the chart title and takeaway above the image.
         String hero = (heroName != null && !heroName.isBlank()) ? heroName : "Hero";
         String rank = (rankLabel != null && !rankLabel.isBlank()) ? rankLabel : "lobby";
         String captionKey = ownRank ? "report.curve.caption_own_rank" : "report.curve.caption";
         String captionText = ReportChartsSvg.escapeXml(messages.get(captionKey, hero, rank));
-        builder.append(String.format(Locale.ROOT,
-                "<text class=\"caption\" x=\"%.1f\" y=\"%.1f\" text-anchor=\"middle\">%s</text>\n",
-                WIDTH / 2.0, 24.0, captionText));
+        builder.append("<desc>" + captionText + "</desc>\n");
 
         // Legend
         String legendYou = ReportChartsSvg.escapeXml(messages.get("report.curve.legend.you"));
         String legendAvg = ReportChartsSvg.escapeXml(messages.get("report.curve.legend.average"));
         String legendBand = ReportChartsSvg.escapeXml(messages.get("report.curve.legend.band"));
 
+        double ly = HEIGHT - 12.0;
         builder.append("<g>\n");
         builder.append(String.format(Locale.ROOT,
-                "<line class=\"player-line\" x1=\"150.0\" y1=\"341.0\" x2=\"175.0\" y2=\"341.0\" />\n"
-                        + "<text class=\"legend-text\" x=\"182.0\" y=\"345.0\">%s</text>\n"
-                        + "<line class=\"avg-line\" x1=\"250.0\" y1=\"341.0\" x2=\"275.0\" y2=\"341.0\" />\n"
-                        + "<text class=\"legend-text\" x=\"282.0\" y=\"345.0\">%s</text>\n"
-                        + "<rect class=\"band\" x=\"370.0\" y=\"336.0\" width=\"20.0\" height=\"10.0\" />\n"
-                        + "<text class=\"legend-text\" x=\"397.0\" y=\"345.0\">%s</text>\n",
-                legendYou, legendAvg, legendBand));
+                "<line class=\"player-line\" x1=\"12.0\" y1=\"%1$.1f\" x2=\"40.0\" y2=\"%1$.1f\" />\n"
+                        + "<text class=\"legend-text\" x=\"48.0\" y=\"%2$.1f\">%3$s</text>\n"
+                        + "<line class=\"avg-line\" x1=\"112.0\" y1=\"%1$.1f\" x2=\"140.0\" y2=\"%1$.1f\" />\n"
+                        + "<text class=\"legend-text\" x=\"148.0\" y=\"%2$.1f\">%4$s</text>\n"
+                        + "<rect class=\"band\" x=\"250.0\" y=\"%5$.1f\" width=\"28.0\" height=\"12.0\" />\n"
+                        + "<text class=\"legend-text\" x=\"286.0\" y=\"%2$.1f\">%6$s</text>\n",
+                ly, ly + 6.0, legendYou, legendAvg, ly - 6.0, legendBand));
         builder.append("</g>\n");
 
         return Optional.of(builder.build());

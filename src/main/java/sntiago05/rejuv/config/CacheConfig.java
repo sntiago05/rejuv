@@ -28,6 +28,7 @@ public class CacheConfig {
     public static final String DEADLOCK_ITEM_FLOW = "deadlockItemFlow";           // 3 h, max 200
     public static final String DEADLOCK_ABILITY_ORDER = "deadlockAbilityOrder";   // 3 h, max 200
     public static final String DEADLOCK_HERO_COUNTERS = "deadlockHeroCounters";   // 3 h, max 50
+    public static final String DEADLOCK_HERO_SYNERGIES = "deadlockHeroSynergies"; // 3 h, max 50
     public static final String DEADLOCK_COUNTER_ITEMS = "deadlockCounterItems";   // 3 h, max 200
     public static final String DEADLOCK_PLAYER_HERO_STATS = "deadlockPlayerHeroStats"; // 5 min, max 500
     public static final String DEADLOCK_MATE_STATS = "deadlockMateStats";               // 5 min, max 500
@@ -55,6 +56,7 @@ public class CacheConfig {
         register(cacheManager, DEADLOCK_ITEM_FLOW, Duration.ofHours(3), 200);
         register(cacheManager, DEADLOCK_ABILITY_ORDER, Duration.ofHours(3), 200);
         register(cacheManager, DEADLOCK_HERO_COUNTERS, Duration.ofHours(3), 50);
+        register(cacheManager, DEADLOCK_HERO_SYNERGIES, Duration.ofHours(3), 50);
         register(cacheManager, DEADLOCK_COUNTER_ITEMS, Duration.ofHours(3), 200);
         register(cacheManager, DEADLOCK_PLAYER_HERO_STATS, Duration.ofMinutes(5), 500);
         register(cacheManager, DEADLOCK_MATE_STATS, Duration.ofMinutes(5), 500);

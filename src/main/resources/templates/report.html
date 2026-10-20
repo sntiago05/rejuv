@@ -4,271 +4,313 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="robots" content="noindex,nofollow">
+    <meta name="color-scheme" content="dark light">
     <title th:text="#{report.title(${report.hero})}">Match Analysis</title>
     <link rel="stylesheet" th:href="@{/report.css}" href="/report.css">
 </head>
-<body class="bg-light-bg text-light-text dark:bg-dark-bg dark:text-dark-text antialiased font-sans min-h-screen py-6 px-4 sm:px-6 lg:px-8 print:bg-white print:text-black print:p-0">
-    <main class="max-w-4xl mx-auto space-y-6">
-        <!-- 1. Hero banner -->
-        <header class="bg-light-card dark:bg-dark-card border border-light-border dark:border-dark-border rounded-xl p-5 shadow-sm print:border-gray-300 print:shadow-none">
+<body class="min-h-screen px-4 py-6 antialiased sm:px-6 lg:px-8">
+    <a href="#report-main" class="skip-link" th:text="#{report.skip}">Skip to the report</a>
+    <div class="mx-auto max-w-5xl space-y-6">
+        <!-- 1. Header -->
+        <header class="panel">
             <div class="flex flex-wrap items-center justify-between gap-3">
-                <h1 class="text-2xl sm:text-3xl font-bold tracking-tight text-light-text dark:text-white" th:text="${report.hero}">Hero</h1>
+                <h1 class="page-title" th:text="${report.hero}">Hero</h1>
                 <span th:if="${report.result != null}"
-                      class="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider"
+                      class="chip"
                       th:classappend="${T(sntiago05.rejuv.services.ReportService).resultBadgeClass(report.result)}"
                       th:text="${#messages.msgOrNull('report.result.' + report.result) ?: report.result}">Result</span>
             </div>
-            <div class="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-light-muted dark:text-dark-muted">
+            <p class="meta mt-3">
                 <span class="font-mono" th:text="#{report.match(${#strings.toString(report.matchId)})}">Match 0</span>
                 <span th:if="${report.durationMin != null}" th:text="#{report.glance.duration_val(${report.durationMin})}">0 min</span>
-                <span th:if="${report.rank != null}" class="font-medium text-light-text dark:text-dark-text" th:text="${report.rank}">Rank</span>
-                <span th:if="${report.analyzedAt != null}" th:text="#{report.analyzed_on(${report.analyzedAt})}">Date</span>
-            </div>
+                <span th:if="${report.rank != null}" class="font-semibold" th:text="${report.rank}">Rank</span>
+                <span th:if="${report.analyzedAt != null}" th:text="#{report.analyzed_on(${report.analyzedOn})}">Date</span>
+            </p>
         </header>
 
-        <div th:if="${report.durationMin == null and (report.build == null or report.build.isEmpty()) and !report.hasChart and !report.hasDetailedSections}"
-             class="bg-amber-500/10 border border-amber-500/30 text-amber-600 dark:text-amber-400 p-4 rounded-xl text-sm"
-             th:text="#{report.degraded}">
-            Match details unavailable
-        </div>
+        <main id="report-main" class="space-y-6">
+            <p th:if="${report.durationMin == null and (report.build == null or report.build.isEmpty()) and !report.hasChart and !report.hasDetailedSections}"
+               class="panel-quiet sig-notable border"
+               th:text="#{report.degraded}">
+                Match details unavailable
+            </p>
 
-        <!-- 2. Verdict strip -->
-        <section th:if="${report.analysis != null}" class="space-y-4">
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <!-- Biggest Leak -->
-                <div class="bg-light-card dark:bg-dark-card border border-light-border dark:border-dark-border rounded-xl p-5 shadow-sm print:border-gray-300"
-                     th:classappend="${T(sntiago05.rejuv.services.ReportService).leakBorderClass(report.analysis.severity)}">
-                    <div class="flex items-center justify-between gap-2 mb-2">
-                        <h2 class="text-base font-semibold text-light-text dark:text-white" th:text="#{report.leak}">Biggest Leak</h2>
-                        <span th:if="${report.analysis.severity != null}"
-                              class="px-2.5 py-0.5 rounded-full text-xs font-semibold"
-                              th:classappend="${T(sntiago05.rejuv.services.ReportService).severityBadgeClass(report.analysis.severity)}"
-                              th:text="${#messages.msgOrNull('report.significance.' + report.analysis.severity) ?: report.analysis.severity}">Notable</span>
-                    </div>
-                    <p class="text-sm leading-relaxed text-light-text dark:text-dark-text">
-                        <span th:if="${report.analysis.severity != null}" class="font-semibold" th:text="#{${'analyze.severity.' + report.analysis.severity}} + ' '"></span>
-                        <span th:text="${report.analysis.biggestLeak}">Leak content</span>
-                    </p>
-                </div>
-
-                <!-- Next Game Focus -->
-                <div class="bg-light-card dark:bg-dark-card border border-light-border dark:border-dark-border rounded-xl p-5 shadow-sm border-l-4 border-l-side-blue print:border-gray-300">
-                    <div class="flex items-center justify-between gap-2 mb-2">
-                        <h2 class="text-base font-semibold text-light-text dark:text-white" th:text="#{report.next_action}">Next Game Focus</h2>
-                    </div>
-                    <p class="text-sm leading-relaxed text-light-text dark:text-dark-text" th:text="${report.analysis.nextGameAction}">Action content</p>
-                </div>
-            </div>
-
-            <!-- Key Strength -->
-            <div class="bg-light-card dark:bg-dark-card border border-light-border dark:border-dark-border rounded-xl p-5 shadow-sm border-l-4 border-l-gold print:border-gray-300">
-                <div class="flex items-center justify-between gap-2 mb-2">
-                    <h2 class="text-base font-semibold text-light-text dark:text-white" th:text="#{report.strength}">Key Strength</h2>
-                </div>
-                <p class="text-sm leading-relaxed text-light-text dark:text-dark-text" th:text="${report.analysis.strength}">Strength content</p>
-            </div>
-        </section>
-
-        <!-- 3. Tips list -->
-        <section th:if="${report.tips != null and !report.tips.isEmpty()}"
-                 class="bg-light-card dark:bg-dark-card border border-light-border dark:border-dark-border rounded-xl p-5 shadow-sm border-l-4 border-l-gold print:border-gray-300">
-            <h2 class="text-lg font-bold text-light-text dark:text-white mb-4" th:text="#{report.tips}">Top Tips</h2>
-            <ol class="space-y-4">
-                <li th:each="tipItem, tipStat : ${report.tips}" class="rounded-lg bg-light-bg dark:bg-dark-bg p-4 border border-light-border dark:border-dark-border">
-                    <div class="font-bold text-base text-light-text dark:text-white mb-2">
-                        <span th:text="${tipStat.count} + '. '">1. </span>
-                        <span th:text="${tipItem.tip}">Tip content</span>
-                    </div>
-                    <div th:if="${tipItem.evidence != null and !tipItem.evidence.isEmpty()}" class="text-sm mt-1.5 text-light-muted dark:text-dark-muted">
-                        <span class="font-semibold text-light-text dark:text-dark-text" th:text="#{report.tip.evidence} + ': '">Evidence: </span>
-                        <span th:text="${tipItem.evidence}">Evidence text</span>
-                    </div>
-                    <div th:if="${tipItem.drill != null and !tipItem.drill.isEmpty()}" class="text-sm mt-1.5 text-light-muted dark:text-dark-muted">
-                        <span class="font-semibold text-light-text dark:text-dark-text" th:text="#{report.tip.drill} + ': '">Drill: </span>
-                        <span th:text="${tipItem.drill}">Drill text</span>
-                    </div>
-                </li>
-            </ol>
-        </section>
-
-        <!-- 4. Key numbers with bars -->
-        <section th:if="${report.metricsTable != null and !report.metricsTable.isEmpty()}"
-                 class="bg-light-card dark:bg-dark-card border border-light-border dark:border-dark-border rounded-xl p-5 shadow-sm print:border-gray-300">
-            <h2 class="text-base font-semibold text-light-text dark:text-white mb-4" th:text="#{report.key_numbers}">Key Numbers</h2>
-            <div class="space-y-3">
-                <div th:each="metric : ${report.metricsTable}" class="grid grid-cols-1 sm:grid-cols-12 gap-2 sm:gap-4 items-center py-1 border-b border-light-border/60 dark:border-dark-border/60 last:border-b-0">
-                    <div class="sm:col-span-4">
-                        <span class="text-sm font-medium text-light-text dark:text-dark-text" th:text="${#messages.msgOrNull(metric.labelKey) ?: metric.key}">Metric</span>
-                    </div>
-                    <div class="sm:col-span-5 space-y-1">
-                        <div class="w-full bg-light-border dark:bg-dark-border h-2 rounded-full overflow-hidden">
-                            <div class="bg-gold h-full rounded-full" th:classappend="${metric.widthClass}"></div>
+            <!-- 2. Verdict: biggest leak first, then the next action, then the strength -->
+            <section th:if="${report.analysis != null}" class="space-y-4" aria-labelledby="verdict-title">
+                <h2 id="verdict-title" class="sr-only" th:text="#{report.verdict}">Verdict</h2>
+                <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+                    <article class="panel-quiet"
+                             th:classappend="${T(sntiago05.rejuv.services.ReportService).leakBorderClass(report.analysis.severity)}">
+                        <div class="mb-2 flex items-center justify-between gap-2">
+                            <h3 class="panel-title !mb-0" th:text="#{report.leak}">Biggest Leak</h3>
+                            <span th:if="${report.analysis.severity != null}"
+                                  class="chip"
+                                  th:classappend="${T(sntiago05.rejuv.services.ReportService).severityBadgeClass(report.analysis.severity)}"
+                                  th:text="${#messages.msgOrNull('report.significance.' + report.analysis.severity) ?: report.analysis.severity}">Notable</span>
                         </div>
-                        <div class="flex justify-between text-[11px] text-light-muted dark:text-dark-muted font-mono">
-                            <span th:text="'p25: ' + ${metric.p25}">p25: -</span>
-                            <span th:text="'p50: ' + ${metric.p50}">p50: -</span>
-                        </div>
-                    </div>
-                    <div class="sm:col-span-3 flex items-center justify-between sm:justify-end gap-2 text-right">
-                        <span class="text-sm font-bold text-light-text dark:text-white font-mono" th:text="${metric.yourValue}">0</span>
-                        <span class="text-xs" th:classappend="${T(sntiago05.rejuv.services.ReportService).verdictClass(metric.verdict)}" th:text="${metric.verdict}">-</span>
-                    </div>
+                        <p class="prose-line" th:text="${report.analysis.biggestLeak}">Leak content</p>
+                    </article>
+                    <article class="panel-quiet">
+                        <h3 class="panel-title" th:text="#{report.next_action}">Next Game Focus</h3>
+                        <p class="prose-line" th:text="${report.analysis.nextGameAction}">Action content</p>
+                    </article>
                 </div>
-            </div>
-        </section>
+                <article class="panel-quiet">
+                    <h3 class="panel-title" th:text="#{report.strength}">Key Strength</h3>
+                    <p class="prose-line" th:text="${report.analysis.strength}">Strength content</p>
+                </article>
+            </section>
 
-        <section th:if="${(report.metricsTable == null or report.metricsTable.isEmpty()) and report.analysis != null and report.analysis.keyNumbers != null and !report.analysis.keyNumbers.isEmpty()}"
-                 class="bg-light-card dark:bg-dark-card border border-light-border dark:border-dark-border rounded-xl p-5 shadow-sm print:border-gray-300">
-            <h2 class="text-base font-semibold text-light-text dark:text-white mb-3" th:text="#{report.key_numbers}">Key Numbers</h2>
-            <ul class="list-disc list-inside space-y-1 text-sm text-light-text dark:text-dark-text">
-                <li th:each="number : ${report.analysis.keyNumbers}" th:text="${number}">Number</li>
-            </ul>
-        </section>
+            <!-- 3. Top tips -->
+            <section th:if="${report.tips != null and !report.tips.isEmpty()}" class="panel" aria-labelledby="tips-title">
+                <h2 id="tips-title" class="panel-title" th:text="#{report.tips}">Top Tips</h2>
+                <ol class="space-y-3">
+                    <li th:each="tipItem, tipStat : ${report.tips}" class="tip-card">
+                        <p class="prose-line font-bold">
+                            <span th:text="${tipStat.count} + '. '">1. </span><span th:text="${tipItem.tip}">Tip content</span>
+                        </p>
+                        <p th:if="${tipItem.evidence != null and !tipItem.evidence.isEmpty()}" class="tip-line prose-line">
+                            <strong th:text="#{report.tip.evidence} + ': '">Evidence: </strong><span th:text="${tipItem.evidence}">Evidence text</span>
+                        </p>
+                        <p th:if="${tipItem.drill != null and !tipItem.drill.isEmpty()}" class="tip-line prose-line">
+                            <strong th:text="#{report.tip.drill} + ': '">Drill: </strong><span th:text="${tipItem.drill}">Drill text</span>
+                        </p>
+                    </li>
+                </ol>
+            </section>
 
-        <!-- 5. Charts block (six SVG charts) -->
-        <section th:if="${report.hasSoulLead or report.hasSoulCurve or report.hasPhasesChart or report.hasDeathsChart or report.hasMetricsChart or report.hasBuildTimeline}"
-                 class="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <!-- Chart 1: Soul Lead Over Time -->
-            <div th:if="${report.hasSoulLead}" class="bg-light-card dark:bg-dark-card border border-light-border dark:border-dark-border rounded-xl p-4 shadow-sm print:border-gray-300">
-                <h2 class="text-base font-semibold text-light-text dark:text-white mb-1" th:text="#{report.chart.soul_lead.title}">Soul Lead Over Time</h2>
-                <p class="text-xs text-light-muted dark:text-dark-muted mb-3" th:text="#{report.chart.soul_lead.caption}">Caption</p>
-                <img th:src="@{/r/{id}/soul-lead.svg(id=${report.publicId})}" th:alt="${report.soulLeadAlt}" class="chart-svg-img w-full h-auto rounded-lg">
-            </div>
-
-            <!-- Chart 2: Net Worth vs Lobby Average -->
-            <div th:if="${report.hasSoulCurve}" class="bg-light-card dark:bg-dark-card border border-light-border dark:border-dark-border rounded-xl p-4 shadow-sm print:border-gray-300">
-                <h2 class="text-base font-semibold text-light-text dark:text-white mb-1" th:text="#{report.chart.soul_curve.title}">Net Worth vs Lobby Average</h2>
-                <p class="text-xs text-light-muted dark:text-dark-muted mb-3" th:text="#{report.chart.soul_curve.caption}">Caption</p>
-                <img th:src="@{/r/{id}/soul-curve.svg(id=${report.publicId})}" th:alt="${report.soulCurveAlt}" class="chart-svg-img soul-curve-img w-full h-auto rounded-lg">
-            </div>
-
-            <!-- Chart 3: Phase Scorecard -->
-            <div th:if="${report.hasPhasesChart}" class="bg-light-card dark:bg-dark-card border border-light-border dark:border-dark-border rounded-xl p-4 shadow-sm print:border-gray-300">
-                <h2 class="text-base font-semibold text-light-text dark:text-white mb-1" th:text="#{report.chart.phases.title}">Phase Scorecard</h2>
-                <p class="text-xs text-light-muted dark:text-dark-muted mb-3" th:text="#{report.chart.phases.caption}">Caption</p>
-                <img th:src="@{/r/{id}/phases.svg(id=${report.publicId})}" th:alt="${report.phasesAlt}" class="chart-svg-img w-full h-auto rounded-lg">
-            </div>
-
-            <!-- Chart 4: Deaths Timeline -->
-            <div th:if="${report.hasDeathsChart}" class="bg-light-card dark:bg-dark-card border border-light-border dark:border-dark-border rounded-xl p-4 shadow-sm print:border-gray-300">
-                <h2 class="text-base font-semibold text-light-text dark:text-white mb-1" th:text="#{report.chart.deaths.title}">Deaths Timeline</h2>
-                <p class="text-xs text-light-muted dark:text-dark-muted mb-3" th:text="#{report.chart.deaths.caption}">Caption</p>
-                <img th:src="@{/r/{id}/deaths.svg(id=${report.publicId})}" th:alt="${report.deathsAlt}" class="chart-svg-img w-full h-auto rounded-lg">
-            </div>
-
-            <!-- Chart 5: Metrics vs Peers -->
-            <div th:if="${report.hasMetricsChart}" class="bg-light-card dark:bg-dark-card border border-light-border dark:border-dark-border rounded-xl p-4 shadow-sm print:border-gray-300">
-                <h2 class="text-base font-semibold text-light-text dark:text-white mb-1" th:text="#{report.chart.metrics.title}">Metrics vs Peers</h2>
-                <p class="text-xs text-light-muted dark:text-dark-muted mb-3" th:text="#{report.chart.metrics.caption}">Caption</p>
-                <img th:src="@{/r/{id}/metrics.svg(id=${report.publicId})}" th:alt="${report.metricsAlt}" class="chart-svg-img w-full h-auto rounded-lg">
-            </div>
-
-            <!-- Chart 6: Build Timeline (new in task 053) -->
-            <div th:if="${report.hasBuildTimeline}" class="bg-light-card dark:bg-dark-card border border-light-border dark:border-dark-border rounded-xl p-4 shadow-sm print:border-gray-300">
-                <h2 class="text-base font-semibold text-light-text dark:text-white mb-1" th:text="#{report.chart.build.title}">Build Timeline</h2>
-                <p class="text-xs text-light-muted dark:text-dark-muted mb-3" th:text="#{report.chart.build.caption}">Caption</p>
-                <img th:src="@{/r/{id}/build.svg(id=${report.publicId})}" th:alt="${report.buildAlt}" class="chart-svg-img w-full h-auto rounded-lg">
-            </div>
-        </section>
-
-        <!-- 6. Detail sections (Collapsible <details> elements, first open) -->
-        <section th:if="${report.hasDetailedSections}" class="space-y-4">
-            <!-- Metrics Table Section -->
-            <details th:if="${report.metricsTable != null and !report.metricsTable.isEmpty()}"
-                     class="bg-light-card dark:bg-dark-card border border-light-border dark:border-dark-border rounded-xl p-5 shadow-sm group print:border-gray-300" open>
-                <summary class="cursor-pointer list-none font-semibold text-base text-light-text dark:text-white flex items-center justify-between">
-                    <span th:text="#{report.metrics.title}">Your Numbers vs Peers</span>
-                    <span class="text-xs text-light-muted dark:text-dark-muted group-open:rotate-180 transition-transform duration-200 print:hidden">&#9660;</span>
-                </summary>
-                <div class="mt-4 overflow-x-auto">
-                    <table class="w-full text-left text-sm">
-                        <thead class="text-xs uppercase text-light-muted dark:text-dark-muted border-b border-light-border dark:border-dark-border">
-                            <tr>
-                                <th class="py-2.5 px-3 font-semibold" th:text="#{report.metrics.metric}">Metric</th>
-                                <th class="py-2.5 px-3 font-semibold" th:text="#{report.metrics.your_value}">You</th>
-                                <th class="py-2.5 px-3 font-semibold" th:text="#{report.metrics.p25}">p25</th>
-                                <th class="py-2.5 px-3 font-semibold" th:text="#{report.metrics.p50}">p50</th>
-                                <th class="py-2.5 px-3 font-semibold text-right" th:text="#{report.metrics.verdict}">Verdict</th>
-                            </tr>
-                        </thead>
-                        <tbody class="divide-y divide-light-border/60 dark:divide-dark-border/60">
-                            <tr th:each="metric : ${report.metricsTable}" class="hover:bg-light-bg/50 dark:hover:bg-dark-bg/50">
-                                <td class="py-2.5 px-3 font-medium text-light-text dark:text-dark-text" th:text="${#messages.msgOrNull(metric.labelKey) ?: metric.key}">Metric</td>
-                                <td class="py-2.5 px-3 font-bold font-mono text-light-text dark:text-white" th:text="${metric.yourValue}">0</td>
-                                <td class="py-2.5 px-3 font-mono text-light-muted dark:text-dark-muted" th:text="${metric.p25}">-</td>
-                                <td class="py-2.5 px-3 font-mono text-light-muted dark:text-dark-muted" th:text="${metric.p50}">-</td>
-                                <td class="py-2.5 px-3 font-medium text-right" th:classappend="${T(sntiago05.rejuv.services.ReportService).verdictClass(metric.verdict)}" th:text="${metric.verdict}">-</td>
-                            </tr>
-                        </tbody>
-                    </table>
+            <!-- 4. Scoreboard: every player of the match -->
+            <section th:if="${report.hasScoreboard()}" class="space-y-4" aria-labelledby="scoreboard-title">
+                <h2 id="scoreboard-title" class="panel-title !mb-0" th:text="#{report.scoreboard.title}">Match Scoreboard</h2>
+                <div th:each="team : ${report.scoreboard.teams}" class="team"
+                     th:classappend="${team.viewerTeam} ? 'team-you' : 'team-foe'">
+                    <div class="team-head">
+                        <h3 class="team-title" th:text="#{${team.labelKey}}">Your team</h3>
+                        <span th:if="${team.outcome != null}" class="chip"
+                              th:classappend="${T(sntiago05.rejuv.services.ReportService).resultBadgeClass(team.outcome)}"
+                              th:text="#{${'report.result.' + team.outcome}}">Victory</span>
+                        <span class="muted text-sm" th:text="#{report.scoreboard.team_kills(${team.killsText})}">Kills 0</span>
+                        <span class="muted text-sm" th:text="#{report.scoreboard.team_souls(${team.netWorthText})}">Souls 0k</span>
+                    </div>
+                    <ul>
+                        <li th:each="row, rowStat : ${team.rows}" class="player-row" th:classappend="${row.viewer} ? 'row-you'">
+                            <div class="player-id">
+                                <img th:src="@{/r/{id}/img/hero/{hero}.png(id=${report.publicId},hero=${row.heroId})}"
+                                     alt="" width="40" height="40" loading="lazy" class="hero-icon">
+                                <span class="min-w-0">
+                                    <span class="player-name">
+                                        <span th:if="${!row.playerName.isEmpty()}" th:text="${row.playerName}">Player</span>
+                                        <span th:if="${row.playerName.isEmpty()}" th:text="#{report.scoreboard.player(${rowStat.count})}">Player 1</span>
+                                        <span th:if="${row.viewer}" class="you-tag" th:text="#{report.scoreboard.you}">You</span>
+                                    </span>
+                                    <span class="player-hero" th:text="${row.heroName}">Hero</span>
+                                </span>
+                            </div>
+                            <div class="stat-grid">
+                                <span class="stat">
+                                    <span class="stat-label" th:text="#{report.scoreboard.kda_label}">K/D/A</span>
+                                    <span class="stat-value" th:text="${row.kills} + '/' + ${row.deaths} + '/' + ${row.assists}">0/0/0</span>
+                                </span>
+                                <span class="stat">
+                                    <span class="stat-label" th:text="#{report.scoreboard.kda}">KDA</span>
+                                    <span class="stat-value" th:text="${row.kda}">0.0</span>
+                                </span>
+                                <span class="stat">
+                                    <span class="stat-label" th:text="#{report.scoreboard.creeps}">CS</span>
+                                    <span class="stat-value" th:text="${row.creeps}">0</span>
+                                </span>
+                                <span class="stat">
+                                    <span class="stat-label" th:text="#{report.scoreboard.damage}">Damage</span>
+                                    <span class="stat-value" th:text="${row.damageText}">0</span>
+                                </span>
+                            </div>
+                            <div class="damage-bar" aria-hidden="true">
+                                <div class="bar-track"><div class="bar-fill" th:classappend="${row.damageWidthClass}"></div></div>
+                            </div>
+                            <ul th:if="${!row.items.isEmpty()}" class="items-line" th:attr="aria-label=#{report.scoreboard.items}">
+                                <li th:each="scoreItem : ${row.items}">
+                                    <img th:src="@{/r/{id}/img/item/{item}.png(id=${report.publicId},item=${scoreItem.itemId})}"
+                                         th:alt="${scoreItem.name}" th:title="${scoreItem.name}"
+                                         width="32" height="32" loading="lazy" class="item-icon">
+                                </li>
+                            </ul>
+                        </li>
+                    </ul>
                 </div>
-            </details>
+            </section>
 
-            <!-- Coach Sections -->
-            <div th:if="${report.coachSections != null and !report.coachSections.isEmpty()}" class="space-y-4">
-                <details th:each="section : ${report.coachSections}"
-                         class="bg-light-card dark:bg-dark-card border border-light-border dark:border-dark-border rounded-xl p-5 shadow-sm group print:border-gray-300">
-                    <summary class="cursor-pointer list-none font-semibold text-base text-light-text dark:text-white flex items-center justify-between">
-                        <div class="flex items-center gap-2">
+            <!-- 5. Key numbers with bars -->
+            <section th:if="${report.metricsTable != null and !report.metricsTable.isEmpty()}" class="panel" aria-labelledby="numbers-title">
+                <h2 id="numbers-title" class="panel-title" th:text="#{report.key_numbers}">Key Numbers</h2>
+                <ul class="space-y-3">
+                    <li th:each="metric : ${report.metricsTable}" class="grid grid-cols-1 items-center gap-2 border-b border-line py-2 last:border-b-0 sm:grid-cols-12 sm:gap-4">
+                        <span class="font-semibold sm:col-span-4" th:text="${#messages.msgOrNull(metric.labelKey) ?: metric.key}">Metric</span>
+                        <span class="space-y-1 sm:col-span-5" aria-hidden="true">
+                            <span class="bar-track block"><span class="bar-fill block" th:classappend="${metric.widthClass}"></span></span>
+                            <span class="muted flex justify-between font-mono text-xs">
+                                <span th:text="'p25: ' + ${metric.p25}">p25: -</span>
+                                <span th:text="'p50: ' + ${metric.p50}">p50: -</span>
+                            </span>
+                        </span>
+                        <span class="flex items-center justify-between gap-2 sm:col-span-3 sm:justify-end">
+                            <span class="font-mono text-base font-bold" th:text="${metric.yourValue}">0</span>
+                            <span class="text-sm" th:classappend="${T(sntiago05.rejuv.services.ReportService).verdictClass(metric.verdict)}" th:text="${metric.verdict}">-</span>
+                        </span>
+                    </li>
+                </ul>
+            </section>
+
+            <section th:if="${(report.metricsTable == null or report.metricsTable.isEmpty()) and report.analysis != null and report.analysis.keyNumbers != null and !report.analysis.keyNumbers.isEmpty()}"
+                     class="panel" aria-labelledby="numbers-fallback-title">
+                <h2 id="numbers-fallback-title" class="panel-title" th:text="#{report.key_numbers}">Key Numbers</h2>
+                <ul class="list-inside list-disc space-y-1">
+                    <li th:each="number : ${report.analysis.keyNumbers}" th:text="${number}">Number</li>
+                </ul>
+            </section>
+
+            <!-- 6. Charts -->
+            <section th:if="${report.hasSoulLead or report.hasSoulCurve or report.hasPhasesChart or report.hasDeathsChart or report.hasMetricsChart or report.hasBuildTimeline}"
+                     class="grid grid-cols-1 gap-4 lg:grid-cols-2" aria-labelledby="charts-title">
+                <h2 id="charts-title" class="sr-only" th:text="#{report.charts}">Charts</h2>
+                <figure th:if="${report.hasSoulLead}" class="chart-card">
+                    <figcaption>
+                        <h3 class="panel-title !mb-1" th:text="#{report.chart.soul_lead.title}">Soul Lead Over Time</h3>
+                        <p class="muted mb-2 text-sm" th:text="#{report.chart.soul_lead.caption}">Caption</p>
+                        <p class="takeaway" aria-hidden="true" th:text="${report.soulLeadAlt}">Takeaway</p>
+                    </figcaption>
+                    <img th:src="@{/r/{id}/soul-lead.svg(id=${report.publicId})}" th:alt="${report.soulLeadAlt}" class="chart-svg-img h-auto w-full rounded">
+                </figure>
+                <figure th:if="${report.hasSoulCurve}" class="chart-card">
+                    <figcaption>
+                        <h3 class="panel-title !mb-1" th:text="#{report.chart.soul_curve.title}">Net Worth vs Lobby Average</h3>
+                        <p class="muted mb-2 text-sm" th:text="#{report.chart.soul_curve.caption}">Caption</p>
+                        <p class="takeaway" aria-hidden="true" th:text="${report.soulCurveAlt}">Takeaway</p>
+                    </figcaption>
+                    <img th:src="@{/r/{id}/soul-curve.svg(id=${report.publicId})}" th:alt="${report.soulCurveAlt}" class="chart-svg-img soul-curve-img h-auto w-full rounded">
+                </figure>
+                <figure th:if="${report.hasPhasesChart}" class="chart-card">
+                    <figcaption>
+                        <h3 class="panel-title !mb-1" th:text="#{report.chart.phases.title}">Phase Scorecard</h3>
+                        <p class="muted mb-2 text-sm" th:text="#{report.chart.phases.caption}">Caption</p>
+                        <p class="takeaway" aria-hidden="true" th:text="${report.phasesAlt}">Takeaway</p>
+                    </figcaption>
+                    <img th:src="@{/r/{id}/phases.svg(id=${report.publicId})}" th:alt="${report.phasesAlt}" class="chart-svg-img h-auto w-full rounded">
+                </figure>
+                <figure th:if="${report.hasDeathsChart}" class="chart-card">
+                    <figcaption>
+                        <h3 class="panel-title !mb-1" th:text="#{report.chart.deaths.title}">Deaths Timeline</h3>
+                        <p class="muted mb-2 text-sm" th:text="#{report.chart.deaths.caption}">Caption</p>
+                        <p class="takeaway" aria-hidden="true" th:text="${report.deathsAlt}">Takeaway</p>
+                    </figcaption>
+                    <img th:src="@{/r/{id}/deaths.svg(id=${report.publicId})}" th:alt="${report.deathsAlt}" class="chart-svg-img h-auto w-full rounded">
+                </figure>
+                <figure th:if="${report.hasMetricsChart}" class="chart-card">
+                    <figcaption>
+                        <h3 class="panel-title !mb-1" th:text="#{report.chart.metrics.title}">Metrics vs Peers</h3>
+                        <p class="muted mb-2 text-sm" th:text="#{report.chart.metrics.caption}">Caption</p>
+                        <p class="takeaway" aria-hidden="true" th:text="${report.metricsAlt}">Takeaway</p>
+                    </figcaption>
+                    <img th:src="@{/r/{id}/metrics.svg(id=${report.publicId})}" th:alt="${report.metricsAlt}" class="chart-svg-img h-auto w-full rounded">
+                </figure>
+                <figure th:if="${report.hasBuildTimeline}" class="chart-card">
+                    <figcaption>
+                        <h3 class="panel-title !mb-1" th:text="#{report.chart.build.title}">Build Timeline</h3>
+                        <p class="muted mb-2 text-sm" th:text="#{report.chart.build.caption}">Caption</p>
+                        <p class="takeaway" aria-hidden="true" th:text="${report.buildAlt}">Takeaway</p>
+                    </figcaption>
+                    <img th:src="@{/r/{id}/build.svg(id=${report.publicId})}" th:alt="${report.buildAlt}" class="chart-svg-img h-auto w-full rounded">
+                </figure>
+            </section>
+
+            <!-- 7. Details (native collapsible blocks, no JavaScript) -->
+            <section th:if="${report.hasDetailedSections}" class="space-y-4" aria-labelledby="details-title">
+                <h2 id="details-title" class="sr-only" th:text="#{report.details}">Details</h2>
+                <details th:if="${report.metricsTable != null and !report.metricsTable.isEmpty()}" class="detail-card" open>
+                    <summary class="detail-summary">
+                        <span th:text="#{report.metrics.title}">Your Numbers vs Peers</span>
+                        <span class="muted text-xs print-hidden" aria-hidden="true">&#9660;</span>
+                    </summary>
+                    <div class="mt-4 overflow-x-auto">
+                        <table class="w-full text-left text-sm">
+                            <thead class="muted border-b border-line text-xs uppercase">
+                                <tr>
+                                    <th scope="col" class="px-3 py-2.5 font-bold" th:text="#{report.metrics.metric}">Metric</th>
+                                    <th scope="col" class="px-3 py-2.5 font-bold" th:text="#{report.metrics.your_value}">You</th>
+                                    <th scope="col" class="px-3 py-2.5 font-bold" th:text="#{report.metrics.p25}">p25</th>
+                                    <th scope="col" class="px-3 py-2.5 font-bold" th:text="#{report.metrics.p50}">p50</th>
+                                    <th scope="col" class="px-3 py-2.5 text-right font-bold" th:text="#{report.metrics.verdict}">Verdict</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr th:each="metric : ${report.metricsTable}">
+                                    <th scope="row" class="px-3 py-2.5 font-semibold" th:text="${#messages.msgOrNull(metric.labelKey) ?: metric.key}">Metric</th>
+                                    <td class="px-3 py-2.5 font-mono font-bold" th:text="${metric.yourValue}">0</td>
+                                    <td class="muted px-3 py-2.5 font-mono" th:text="${metric.p25}">-</td>
+                                    <td class="muted px-3 py-2.5 font-mono" th:text="${metric.p50}">-</td>
+                                    <td class="px-3 py-2.5 text-right" th:classappend="${T(sntiago05.rejuv.services.ReportService).verdictClass(metric.verdict)}" th:text="${metric.verdict}">-</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </details>
+
+                <details th:each="section : ${report.coachSections}" class="detail-card">
+                    <summary class="detail-summary">
+                        <span class="flex flex-wrap items-center gap-2">
                             <span th:text="${#messages.msgOrNull(section.titleKey) ?: section.key}">Coach Section</span>
-                            <span th:if="${section.significance != null}"
-                                  class="px-2 py-0.5 rounded-full text-xs font-semibold"
+                            <span th:if="${section.significance != null}" class="chip"
                                   th:classappend="${T(sntiago05.rejuv.services.ReportService).severityBadgeClass(section.significance)}"
                                   th:text="${#messages.msgOrNull('report.significance.' + section.significance) ?: section.significance}">Notable</span>
-                        </div>
-                        <span class="text-xs text-light-muted dark:text-dark-muted group-open:rotate-180 transition-transform duration-200 print:hidden">&#9660;</span>
+                        </span>
+                        <span class="muted text-xs print-hidden" aria-hidden="true">&#9660;</span>
                     </summary>
-                    <dl class="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
-                        <div th:each="field : ${section.fields}" class="p-3 rounded-lg bg-light-bg dark:bg-dark-bg border border-light-border dark:border-dark-border">
-                            <dt class="text-xs font-medium text-light-muted dark:text-dark-muted" th:text="${#messages.msgOrNull(field.labelKey) ?: field.labelKey}">Field</dt>
-                            <dd class="mt-1 font-semibold text-light-text dark:text-white" th:text="${field.value}">Value</dd>
+                    <dl class="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                        <div th:each="field : ${section.fields}" class="field-box">
+                            <dt class="muted text-xs font-semibold uppercase tracking-wide" th:text="${#messages.msgOrNull(field.labelKey) ?: field.labelKey}">Field</dt>
+                            <dd class="mt-1 font-semibold" th:text="${field.value}">Value</dd>
                         </div>
                     </dl>
                 </details>
-            </div>
 
-            <!-- Other Signals -->
-            <details th:if="${report.otherSignals != null and !report.otherSignals.isEmpty()}"
-                     class="bg-light-card dark:bg-dark-card border border-light-border dark:border-dark-border rounded-xl p-5 shadow-sm group print:border-gray-300">
-                <summary class="cursor-pointer list-none font-semibold text-base text-light-text dark:text-white flex items-center justify-between">
-                    <span th:text="#{report.coach.other_signals}">Other Signals</span>
-                    <span class="text-xs text-light-muted dark:text-dark-muted group-open:rotate-180 transition-transform duration-200 print:hidden">&#9660;</span>
-                </summary>
-                <dl class="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
-                    <div th:each="signal : ${report.otherSignals}" class="p-3 rounded-lg bg-light-bg dark:bg-dark-bg border border-light-border dark:border-dark-border">
-                        <dt class="text-xs font-medium text-light-muted dark:text-dark-muted" th:text="${signal.key}">Key</dt>
-                        <dd class="mt-1 font-semibold text-light-text dark:text-white" th:text="${signal.value}">Value</dd>
-                    </div>
-                </dl>
-            </details>
-        </section>
+                <details th:if="${report.otherSignals != null and !report.otherSignals.isEmpty()}" class="detail-card">
+                    <summary class="detail-summary">
+                        <span th:text="#{report.coach.other_signals}">Other Signals</span>
+                        <span class="muted text-xs print-hidden" aria-hidden="true">&#9660;</span>
+                    </summary>
+                    <dl class="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                        <div th:each="signal : ${report.otherSignals}" class="field-box">
+                            <dt class="muted text-xs font-semibold uppercase tracking-wide" th:text="${signal.key}">Key</dt>
+                            <dd class="mt-1 font-semibold" th:text="${signal.value}">Value</dd>
+                        </div>
+                    </dl>
+                </details>
+            </section>
 
-        <div th:if="${!report.hasDetailedSections}"
-             class="bg-light-card dark:bg-dark-card border border-light-border dark:border-dark-border rounded-xl p-4 text-xs text-light-muted dark:text-dark-muted"
-             th:text="#{report.older_analysis_note}">
-            Detailed match metrics and coach sections are only available for newer analyses.
-        </div>
+            <p th:if="${!report.hasDetailedSections}" class="panel-quiet muted text-sm" th:text="#{report.older_analysis_note}">
+                Detailed match metrics and coach sections are only available for newer analyses.
+            </p>
 
-        <!-- 7. Final build -->
-        <section th:if="${report.build != null and !report.build.isEmpty()}"
-                 class="bg-light-card dark:bg-dark-card border border-light-border dark:border-dark-border rounded-xl p-5 shadow-sm print:border-gray-300">
-            <h2 class="text-base font-semibold text-light-text dark:text-white mb-3" th:text="#{report.build}">Final Build</h2>
-            <ul class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 text-sm text-light-text dark:text-dark-text">
-                <li th:each="item : ${report.build}"
-                    class="py-1 px-2.5 rounded bg-light-bg dark:bg-dark-bg border border-light-border dark:border-dark-border"
-                    th:text="#{report.build_item(${item.name}, ${item.boughtAtS / 60})}">Item at minute 0</li>
-            </ul>
-        </section>
+            <!-- 8. Final build -->
+            <section th:if="${report.build != null and !report.build.isEmpty()}" class="panel" aria-labelledby="build-title">
+                <h2 id="build-title" class="panel-title" th:text="#{report.build}">Final Build</h2>
+                <ul class="grid grid-cols-1 gap-2 sm:grid-cols-2 md:grid-cols-3">
+                    <li th:each="item : ${report.build}" class="build-item">
+                        <img th:src="@{/r/{id}/img/item/{item}.png(id=${report.publicId},item=${item.itemId})}"
+                             alt="" width="32" height="32" loading="lazy" class="item-icon">
+                        <span th:text="#{report.build_item(${item.name}, ${item.boughtAtS / 60})}">Item at minute 0</span>
+                    </li>
+                </ul>
+            </section>
+        </main>
 
-        <!-- 8. Footer -->
-        <footer class="pt-6 pb-12 text-center text-xs text-light-muted dark:text-dark-muted space-y-2 border-t border-light-border dark:border-dark-border">
-            <p th:if="${report.analyzedAt != null}" th:text="#{report.analyzed_on(${report.analyzedAt})}">Analyzed on date</p>
-            <p class="font-medium text-light-text dark:text-dark-text" th:text="#{report.footer}">Rejuv · AI coach for Deadlock</p>
+        <!-- 9. Footer -->
+        <footer class="muted space-y-2 border-t border-line pb-12 pt-6 text-center text-sm">
+            <p class="font-semibold" th:text="#{report.footer}">Rejuv · AI coach for Deadlock</p>
             <p th:if="${donation != null}" class="donate-footer pt-1">
                 <span th:text="#{report.donate.text}">Rejuv is free. If it helped you, you can support it:</span>
                 <a th:href="${donation.url}" th:text="${donation.label}" rel="noopener noreferrer nofollow">Support Rejuv</a>
             </p>
         </footer>
-    </main>
+    </div>
 </body>
 </html>
