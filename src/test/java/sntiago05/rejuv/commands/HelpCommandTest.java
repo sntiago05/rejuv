@@ -104,6 +104,8 @@ class HelpCommandTest {
                 "/counter",
                 "/heroes",
                 "/mates",
+                "/trends",
+                "/nemesis",
                 "/leaderboard server",
                 "/items",
                 "/compare",

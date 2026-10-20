@@ -210,6 +210,23 @@ class ProfileCommandTest {
     }
 
     @Test
+    void embedShowsPercentileLineWhenPresent() {
+        MessageEmbed embed = embedFor(new ProfileSummary(ACCOUNT_ID, 7, "Archon", 3,
+                10, 7, 70, 6.2, 3.0, 8.5, List.of(), 81.6));
+
+        assertThat(embed.getFields().get(0).getValue())
+                .isEqualTo("Archon 3\n" + messages.get("profile.percentile", "18.4"));
+    }
+
+    @Test
+    void embedDoesNotShowPercentileLineWhenNull() {
+        MessageEmbed embed = embedFor(new ProfileSummary(ACCOUNT_ID, 7, "Archon", 3,
+                10, 7, 70, 6.2, 3.0, 8.5, List.of(), null));
+
+        assertThat(embed.getFields().get(0).getValue()).isEqualTo("Archon 3");
+    }
+
+    @Test
     void noMatchesEditsWithNoMatchesMessage() {
         when(profileService.getProfile(ACCOUNT_ID)).thenThrow(new NoMatchHistoryException(ACCOUNT_ID));
 

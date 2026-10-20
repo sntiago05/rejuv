@@ -1,0 +1,21 @@
+[
+  {
+    "badge": 11,
+    "rank": 1,
+    "subrank": 1,
+    "players": 1000,
+    "extra_field": "ignored"
+  },
+  {
+    "badge": 12,
+    "rank": 1,
+    "subrank": 2,
+    "players": 2000
+  },
+  {
+    "badge": 21,
+    "rank": 2,
+    "subrank": 1,
+    "players": 3000
+  }
+]
