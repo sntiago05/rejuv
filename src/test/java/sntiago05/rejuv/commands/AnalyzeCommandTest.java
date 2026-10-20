@@ -58,6 +58,7 @@ import sntiago05.rejuv.domain.AnalysisReport;
 import sntiago05.rejuv.domain.AnalysisResult;
 import sntiago05.rejuv.domain.MatchFilter;
 import sntiago05.rejuv.domain.MatchSummary;
+import sntiago05.rejuv.services.AnalysisLimitExceededException;
 import sntiago05.rejuv.services.AnalyzeService;
 import sntiago05.rejuv.services.AssetImages;
 import sntiago05.rejuv.services.GameAssets;
@@ -1143,6 +1144,98 @@ class AnalyzeCommandTest {
         MessageEmbed embed = capturedEmbed(hook);
         assertThat(embed.getLength()).isEqualTo(baseline.getLength());
         assertThat(embed.getFields()).noneMatch(f -> f.getName().equals(messages.get("analyze.field.support")));
+    }
+
+    private String runWithLimit(AnalysisLimitExceededException ex) {
+        SlashCommandInteractionEvent event = mockEvent();
+        when(profileService.findLinkedAccountId(CALLER_ID)).thenReturn(OptionalLong.of(ACCOUNT_ID));
+        deferFor(event);
+        InteractionHook hook = hookFor(event);
+        when(analyzeService.analyze(eq(CALLER_ID), eq(ACCOUNT_ID), any())).thenThrow(ex);
+
+        command.handle(event);
+
+        ArgumentCaptor<String> captor = ArgumentCaptor.forClass(String.class);
+        verify(hook).editOriginal(captor.capture());
+        return captor.getValue();
+    }
+
+    @Test
+    void cooldownLimitRepliesWithSecondsRoundedUp() {
+        String text = runWithLimit(new AnalysisLimitExceededException(
+                AnalysisLimitExceededException.Reason.COOLDOWN, java.time.Duration.ofMillis(41_200), 0));
+
+        assertThat(text).isEqualTo(messages.get("analyze.limit.cooldown", 42));
+        assertThat(text).contains("42 seconds");
+    }
+
+    @Test
+    void userDailyLimitRepliesWithLimitAndWaitInMinutesOrHours() {
+        String minutes = runWithLimit(new AnalysisLimitExceededException(
+                AnalysisLimitExceededException.Reason.USER_DAILY, java.time.Duration.ofMinutes(25), 10));
+        assertThat(minutes).contains("10 new analyses").contains("25 min");
+
+        String hours = runWithLimit(new AnalysisLimitExceededException(
+                AnalysisLimitExceededException.Reason.USER_DAILY, java.time.Duration.ofMinutes(130), 10));
+        assertThat(hours).contains("3 h");
+    }
+
+    @Test
+    void globalDailyLimitRepliesWithBudgetMessage() {
+        String text = runWithLimit(new AnalysisLimitExceededException(
+                AnalysisLimitExceededException.Reason.GLOBAL_DAILY, java.time.Duration.ofSeconds(5), 150));
+
+        assertThat(text).contains("daily AI budget").contains("1 min");
+    }
+
+    @Test
+    void limitAndTipKeysResolve() {
+        assertThat(messages.get("analyze.limit.wait_hours", 2)).isEqualTo("2 h");
+        assertThat(messages.get("analyze.field.tips")).isNotBlank();
+    }
+
+    private AnalysisReport reportWithTips(List<AnalysisResult.Tip> tips) {
+        AnalysisResult aiResult = new AnalysisResult("Great farming", "Too many deaths", "Ward more",
+                List.of("Kills: 10 / 5"), "deaths", "major", tips);
+        return new AnalysisReport(1, "Infernus", "Archon 3", "win", 30.0, aiResult, Map.of(), false);
+    }
+
+    @Test
+    void tipsFieldFollowsNextActionAndListsEveryTip() {
+        InteractionHook hook = runWithReport(reportWithTips(List.of(
+                new AnalysisResult.Tip("Retreat early.", "deaths: 9 / 5", "Max 5 deaths."),
+                new AnalysisResult.Tip("Buy health.", "bought at 2.5 min", "Before minute 3."),
+                new AnalysisResult.Tip("Keep farming.", "souls: 750 / 680", "Stay above 700."))));
+
+        MessageEmbed embed = capturedEmbed(hook);
+        List<MessageEmbed.Field> fields = embed.getFields();
+        assertThat(fields.get(1).getName()).isEqualTo(messages.get("analyze.field.next_action"));
+        assertThat(fields.get(2).getName()).isEqualTo(messages.get("analyze.field.tips"));
+        assertThat(fields.get(2).getValue())
+                .contains("1. Retreat early.", "Evidence: deaths: 9 / 5", "Drill: Max 5 deaths.", "3. Keep farming.");
+        assertThat(fields.get(3).getName()).isEqualTo(messages.get("analyze.field.strength"));
+    }
+
+    @Test
+    void noTipsFieldWhenTipsAreEmpty() {
+        InteractionHook hook = runWithReport(reportWithTips(List.of()));
+
+        MessageEmbed embed = capturedEmbed(hook);
+        assertThat(embed.getFields()).extracting(MessageEmbed.Field::getName)
+                .doesNotContain(messages.get("analyze.field.tips"));
+    }
+
+    @Test
+    void longTipsStayWithinFieldAndEmbedLimits() {
+        String long400 = "x".repeat(400);
+        InteractionHook hook = runWithReport(reportWithTips(List.of(
+                new AnalysisResult.Tip(long400, long400, long400),
+                new AnalysisResult.Tip(long400, long400, long400),
+                new AnalysisResult.Tip(long400, long400, long400))));
+
+        MessageEmbed embed = capturedEmbed(hook);
+        assertThat(embed.getLength()).isLessThanOrEqualTo(MessageEmbed.EMBED_MAX_LENGTH_BOT);
+        embed.getFields().forEach(f -> assertThat(f.getValue().length()).isLessThanOrEqualTo(1024));
     }
 
     private SlashCommandInteractionEvent mockEvent() {

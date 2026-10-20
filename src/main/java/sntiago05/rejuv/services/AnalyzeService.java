@@ -53,6 +53,7 @@ public class AnalyzeService {
     private final AnthropicPricingProperties pricingProperties;
     private final MatchVisualsService visualsService;
     private final CoachContextService coachContextService;
+    private final AnalysisSpendGuard spendGuard;
 
     public AnalyzeService(DeadlockApiClient deadlockApiClient,
                           MatchMetadataSource matchMetadataSource,
@@ -62,7 +63,8 @@ public class AnalyzeService {
                           MatchSearchService matchSearchService,
                           AnthropicPricingProperties pricingProperties,
                           MatchVisualsService visualsService,
-                          CoachContextService coachContextService) {
+                          CoachContextService coachContextService,
+                          AnalysisSpendGuard spendGuard) {
         this.deadlockApiClient = deadlockApiClient;
         this.matchMetadataSource = matchMetadataSource;
         this.metricsService = metricsService;
@@ -72,6 +74,7 @@ public class AnalyzeService {
         this.pricingProperties = pricingProperties;
         this.visualsService = visualsService;
         this.coachContextService = coachContextService;
+        this.spendGuard = spendGuard;
     }
 
     /**
@@ -79,6 +82,7 @@ public class AnalyzeService {
      * @throws MatchNotFoundException when nothing passes the filter
      * @throws sntiago05.rejuv.clients.DeadlockApiException (including DeadlockApiUnavailableException) when history,
      *         rank, benchmarks or assets cannot be read
+     * @throws AnalysisLimitExceededException when a new AI call is needed and the spend guard refuses it
      */
     public AnalysisReport analyze(long discordUserId, long accountId, MatchFilter filter) {
         MatchHistoryEntry match = matchSearchService.select(accountId, filter != null ? filter : MatchFilter.LATEST)
@@ -154,6 +158,7 @@ public class AnalyzeService {
                 accountId, match, history, telemetry, player, rankTier, heroes, items);
         input = input.withCoach(coachContextService.build(coachRequest));
 
+        spendGuard.reserve(discordUserId);
         AnalysisOutcome outcome = analysisClient.analyze(input);
 
         if (outcome.isFallback()) {

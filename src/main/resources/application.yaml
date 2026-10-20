@@ -35,15 +35,15 @@ anthropic:
   base-url: https://api.anthropic.com
   api-key: ${ANTHROPIC_API_KEY:}
   model: claude-haiku-5-5
-  effort: low
-  max-tokens: 1500
+  effort: medium
+  max-tokens: 4000
   connect-timeout: 3s
   read-timeout: 30s
   default-retry-after: 1s
   max-retry-after: 10s
-  pricing:
-    input-usd-per-million: 0
-    output-usd-per-million: 0
+  pricing:   # USD per million tokens for Haiku 5.5 (docs/costs.md); verify in the Anthropic Console
+    input-usd-per-million: 0.10
+    output-usd-per-million: 0.50
 
 server:
   port: ${WEB_PORT:8080}
@@ -52,6 +52,11 @@ server:
     include-stacktrace: never
 
 rejuv:
+  analysis-limits:   # spend guard for NEW AI analyses; stored analyses are free. In memory, resets on restart.
+    enabled: ${ANALYSIS_LIMITS_ENABLED:true}
+    cooldown: ${ANALYSIS_COOLDOWN:60s}
+    user-daily: ${ANALYSIS_USER_DAILY:10}
+    global-daily: ${ANALYSIS_GLOBAL_DAILY:150}
   web:
     base-url: ${WEB_BASE_URL:}
   donation:

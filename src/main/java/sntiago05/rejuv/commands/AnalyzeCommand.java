@@ -1,5 +1,6 @@
 package sntiago05.rejuv.commands;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
@@ -39,6 +40,7 @@ import sntiago05.rejuv.domain.AnalysisResult;
 import sntiago05.rejuv.domain.MatchFilter;
 import sntiago05.rejuv.domain.MatchSummary;
 import sntiago05.rejuv.domain.MatchVisuals;
+import sntiago05.rejuv.services.AnalysisLimitExceededException;
 import sntiago05.rejuv.services.AnalyzeService;
 import sntiago05.rejuv.services.AssetImages;
 import sntiago05.rejuv.services.ChartRenderer;
@@ -62,6 +64,8 @@ public class AnalyzeCommand implements SlashCommand {
     static final int MAX_DESCRIPTION_LENGTH = 4096;
     static final int MAX_FOOTER_LENGTH = 2048;
     static final int MAX_FIELD_LENGTH = 1024;
+    /** Room kept for the build field, support field, field names and footer when sizing the tips field. */
+    static final int AFTER_TIPS_RESERVE = 1400;
     static final String CHART_FILE = "match.png";
     static final String TRUNCATION_SUFFIX = "...";
 
@@ -294,9 +298,55 @@ public class AnalyzeCommand implements SlashCommand {
             hook.editOriginal(messages.get("analyze.match_not_found")).queue();
         } catch (DeadlockApiUnavailableException ex) {
             hook.editOriginal(messages.get("error.data_source_busy")).queue();
+        } catch (AnalysisLimitExceededException ex) {
+            hook.editOriginal(limitMessage(ex)).queue();
         } catch (RuntimeException ex) {
             CommandSupport.handleUnexpectedError(hook, messages, log, "Analyze", callerId, "accountId=" + accountId, ex);
         }
+    }
+
+    private String limitMessage(AnalysisLimitExceededException ex) {
+        return switch (ex.reason()) {
+            case COOLDOWN -> messages.get("analyze.limit.cooldown", Math.max(1, ceilSeconds(ex.retryAfter())));
+            case USER_DAILY -> messages.get("analyze.limit.user_daily", ex.limit(), waitText(ex.retryAfter()));
+            case GLOBAL_DAILY -> messages.get("analyze.limit.global_daily", waitText(ex.retryAfter()));
+        };
+    }
+
+    private static long ceilSeconds(Duration wait) {
+        return wait.toMillis() / 1000 + (wait.toMillis() % 1000 > 0 ? 1 : 0);
+    }
+
+    /** Under an hour in minutes, otherwise in hours; rounded up, at least 1. */
+    private String waitText(Duration wait) {
+        long minutes = Math.max(1, (ceilSeconds(wait) + 59) / 60);
+        if (minutes < 60) {
+            return messages.get("analyze.limit.wait_minutes", minutes);
+        }
+        return messages.get("analyze.limit.wait_hours", (minutes + 59) / 60);
+    }
+
+    /**
+     * Adds the tips field after "next action" when it fits. Fields added after it (strength, key numbers, build,
+     * support) and the footer are reserved for, so a long tips block never pushes the embed over the Discord limit.
+     */
+    private void addTipsField(EmbedBuilder builder, AnalysisResult analysis, int reservedAfter) {
+        if (analysis.tips() == null || analysis.tips().isEmpty()) {
+            return;
+        }
+        List<String> lines = new ArrayList<>(analysis.tips().size());
+        int index = 1;
+        for (AnalysisResult.Tip tip : analysis.tips()) {
+            lines.add(messages.get("analyze.tip.line", index++, tip.tip(),
+                    tip.evidence() == null ? "" : tip.evidence(), tip.drill() == null ? "" : tip.drill()));
+        }
+        String name = messages.get("analyze.field.tips");
+        String value = EmbedStyle.fitField(lines);
+        if (value.isEmpty()
+                || builder.length() + name.length() + value.length() + reservedAfter > MessageEmbed.EMBED_MAX_LENGTH_BOT) {
+            return;
+        }
+        builder.addField(name, value, false);
     }
 
     private MessageEmbed buildEmbed(AnalysisReport report, boolean withChart) {
@@ -329,12 +379,14 @@ public class AnalyzeCommand implements SlashCommand {
             }
             builder.addField(messages.get("analyze.field.leak"), truncate(leak), false);
             builder.addField(messages.get("analyze.field.next_action"), truncate(analysis.nextGameAction()), false);
-            builder.addField(messages.get("analyze.field.strength"), truncate(analysis.strength()), false);
-            if (analysis.keyNumbers() != null && !analysis.keyNumbers().isEmpty()) {
-                String table = EmbedStyle.formatKeyNumbersTable(analysis.keyNumbers());
-                if (!table.isEmpty()) {
-                    builder.addField(messages.get("analyze.field.key_numbers"), table, false);
-                }
+            String strength = truncate(analysis.strength());
+            String table = analysis.keyNumbers() != null && !analysis.keyNumbers().isEmpty()
+                    ? EmbedStyle.formatKeyNumbersTable(analysis.keyNumbers())
+                    : "";
+            addTipsField(builder, analysis, strength.length() + table.length() + AFTER_TIPS_RESERVE);
+            builder.addField(messages.get("analyze.field.strength"), strength, false);
+            if (!table.isEmpty()) {
+                builder.addField(messages.get("analyze.field.key_numbers"), table, false);
             }
         } else {
             buildFallbackKeyNumbers(builder, report.metrics());
