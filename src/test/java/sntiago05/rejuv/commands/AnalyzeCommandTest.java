@@ -39,7 +39,9 @@ import net.dv8tion.jda.api.interactions.commands.build.SlashCommandData;
 import net.dv8tion.jda.api.interactions.components.ItemComponent;
 import net.dv8tion.jda.api.interactions.components.buttons.Button;
 import net.dv8tion.jda.api.requests.restaction.WebhookMessageEditAction;
+import sntiago05.rejuv.config.DonationProperties;
 import sntiago05.rejuv.config.WebProperties;
+import sntiago05.rejuv.services.DonationService;
 import net.dv8tion.jda.api.requests.restaction.interactions.AutoCompleteCallbackAction;
 import net.dv8tion.jda.api.requests.restaction.interactions.ReplyCallbackAction;
 import org.junit.jupiter.api.BeforeEach;
@@ -1070,6 +1072,89 @@ class AnalyzeCommandTest {
         assertThat(embed.getDescription().length()).isLessThanOrEqualTo(AnalyzeCommand.MAX_DESCRIPTION_LENGTH);
         assertThat(embed.getFooter().getText().length()).isLessThanOrEqualTo(AnalyzeCommand.MAX_FOOTER_LENGTH);
         assertThat(embed.getFooter().getText()).endsWith("...");
+    }
+
+    @Test
+    void supportFieldPresentWhenLinkExists() {
+        DonationService donationService = new DonationService(
+                new DonationProperties("https://example.com/donate", "Support Us"), messages);
+        AnalyzeCommand cmd = new AnalyzeCommand(analyzeService, profileService, messages, assetImages,
+                matchSearchService, gameAssets, heroResolver, iconCatalog, chartRenderer,
+                new WebProperties(null), donationService);
+
+        SlashCommandInteractionEvent event = mockEvent();
+        when(profileService.findLinkedAccountId(CALLER_ID)).thenReturn(OptionalLong.of(ACCOUNT_ID));
+        deferFor(event);
+        InteractionHook hook = hookFor(event);
+
+        AnalysisResult aiResult = new AnalysisResult("Strength", "Leak", "Action", List.of());
+        AnalysisReport report = new AnalysisReport(1, "Infernus", "Archon 3", "win", 30.0, aiResult, Map.of(), false, null, null);
+        when(analyzeService.analyze(eq(CALLER_ID), eq(ACCOUNT_ID), any())).thenReturn(report);
+
+        cmd.handle(event);
+
+        MessageEmbed embed = capturedEmbed(hook);
+        List<MessageEmbed.Field> fields = embed.getFields();
+        assertThat(fields).isNotEmpty();
+        MessageEmbed.Field lastField = fields.get(fields.size() - 1);
+        assertThat(lastField.getName()).isEqualTo(messages.get("analyze.field.support"));
+        assertThat(lastField.getValue()).isEqualTo(messages.get("analyze.support.line", "Support Us", "https://example.com/donate"));
+    }
+
+    @Test
+    void supportFieldAbsentWhenLinkAbsent() {
+        SlashCommandInteractionEvent event = mockEvent();
+        when(profileService.findLinkedAccountId(CALLER_ID)).thenReturn(OptionalLong.of(ACCOUNT_ID));
+        deferFor(event);
+        InteractionHook hook = hookFor(event);
+
+        AnalysisResult aiResult = new AnalysisResult("Strength", "Leak", "Action", List.of());
+        AnalysisReport report = new AnalysisReport(1, "Infernus", "Archon 3", "win", 30.0, aiResult, Map.of(), false, null, null);
+        when(analyzeService.analyze(eq(CALLER_ID), eq(ACCOUNT_ID), any())).thenReturn(report);
+
+        command.handle(event);
+
+        MessageEmbed embed = capturedEmbed(hook);
+        assertThat(embed.getFields()).noneMatch(f -> f.getName().equals(messages.get("analyze.field.support")));
+    }
+
+    @Test
+    void supportFieldSkippedWhenEmbedWouldExceedSizeLimit() {
+        DonationService donationService = new DonationService(
+                new DonationProperties("https://example.com/donate", "Support Us"), messages);
+        AnalyzeCommand cmd = new AnalyzeCommand(analyzeService, profileService, messages, assetImages,
+                matchSearchService, gameAssets, heroResolver, iconCatalog, chartRenderer,
+                new WebProperties(null), donationService);
+
+        SlashCommandInteractionEvent event = mockEvent();
+        when(profileService.findLinkedAccountId(CALLER_ID)).thenReturn(OptionalLong.of(ACCOUNT_ID));
+        deferFor(event);
+        InteractionHook hook = hookFor(event);
+
+        // Craft embed fields so total embed length is just under 6000 (e.g. ~5960),
+        // but adding the support field (~55 chars) would exceed 6000.
+        String leak = "word ".repeat(204);
+        String action = "word ".repeat(204);
+        String strength = "word ".repeat(204);
+        // Build items fill additional field length
+        List<MatchVisuals.PurchasedItem> items = new ArrayList<>();
+        for (int i = 0; i < 24; i++) {
+            items.add(new MatchVisuals.PurchasedItem((long) (100 + i), "Item Name " + i, 300));
+        }
+        MatchVisuals visuals = new MatchVisuals(items, null);
+        // Rank fills the footer up to MAX_FOOTER_LENGTH (2048)
+        String hugeRank = "Rank ".repeat(450);
+        List<String> keyNumbers = List.of("Note: " + "word ".repeat(60));
+
+        AnalysisResult aiResult = new AnalysisResult(strength, leak, action, keyNumbers);
+        AnalysisReport report = new AnalysisReport(1, "Infernus", hugeRank, "win", 30.0, aiResult, Map.of(), false, visuals, null);
+        when(analyzeService.analyze(eq(CALLER_ID), eq(ACCOUNT_ID), any())).thenReturn(report);
+
+        cmd.handle(event);
+
+        MessageEmbed embed = capturedEmbed(hook);
+        assertThat(embed.getLength()).isLessThanOrEqualTo(MessageEmbed.EMBED_MAX_LENGTH_BOT);
+        assertThat(embed.getFields()).noneMatch(f -> f.getName().equals(messages.get("analyze.field.support")));
     }
 
     private SlashCommandInteractionEvent mockEvent() {
