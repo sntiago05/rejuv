@@ -255,4 +255,53 @@ class AnalysisResultTest {
         assertThat(tree.path("focus_area").asText()).isEqualTo("phases");
         assertThat(tree.path("severity").asText()).isEqualTo("major");
     }
+
+    @Test
+    void oldStoredJsonWithoutTipsDeserializesWithEmptyTips() throws Exception {
+        String json = "{\"strength\":\"a\",\"biggest_leak\":\"b\",\"next_game_action\":\"c\",\"key_numbers\":[\"x: 1 / 2\"]}";
+
+        AnalysisResult result = objectMapper.readValue(json, AnalysisResult.class);
+
+        assertThat(result.tips()).isEmpty();
+    }
+
+    @Test
+    void emptyTipsAreNotSerialized() throws Exception {
+        AnalysisResult result = new AnalysisResult("a", "b", "c", List.of("x: 1 / 2"), "deaths", "major");
+
+        JsonNode tree = objectMapper.readTree(objectMapper.writeValueAsString(result));
+
+        assertThat(tree.has("tips")).isFalse();
+    }
+
+    @Test
+    void tipsRoundTripThroughJson() throws Exception {
+        AnalysisResult result = new AnalysisResult("a", "b", "c", List.of("x: 1 / 2"), "deaths", "major",
+                List.of(new AnalysisResult.Tip("Do it.", "x: 1 / 2", "Try it.")));
+
+        AnalysisResult back = objectMapper.readValue(objectMapper.writeValueAsString(result), AnalysisResult.class);
+
+        assertThat(back).isEqualTo(result);
+        assertThat(back.tips()).containsExactly(new AnalysisResult.Tip("Do it.", "x: 1 / 2", "Try it."));
+    }
+
+    @Test
+    void tipsDropBlankTipsCapAtThreeAndCleanStrayCharacters() {
+        AnalysisResult result = new AnalysisResult("a", "b", "c", List.of("x: 1 / 2"), null, null, java.util.Arrays.asList(
+                new AnalysisResult.Tip("First.},", "e1", "d1"),
+                new AnalysisResult.Tip("  ", "e", "d"),
+                null,
+                new AnalysisResult.Tip(null, "e", "d"),
+                new AnalysisResult.Tip("Second.", "e2", "d2"),
+                new AnalysisResult.Tip("Third.", "e3", "d3"),
+                new AnalysisResult.Tip("Fourth.", "e4", "d4")));
+
+        assertThat(result.tips()).extracting(AnalysisResult.Tip::tip).containsExactly("First.", "Second.", "Third.");
+    }
+
+    @Test
+    void shorterConstructorsGiveEmptyTips() {
+        assertThat(new AnalysisResult("a", "b", "c", List.of("x")).tips()).isEmpty();
+        assertThat(new AnalysisResult("a", "b", "c", List.of("x"), "deaths", "minor").tips()).isEmpty();
+    }
 }

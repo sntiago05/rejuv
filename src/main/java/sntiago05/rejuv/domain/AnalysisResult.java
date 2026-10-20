@@ -14,13 +14,31 @@ public record AnalysisResult(String strength,
                             @JsonProperty("next_game_action") String nextGameAction,
                             @JsonProperty("key_numbers") List<String> keyNumbers,
                             @JsonProperty("focus_area") @JsonInclude(JsonInclude.Include.NON_NULL) String focusArea,
-                            @JsonProperty("severity") @JsonInclude(JsonInclude.Include.NON_NULL) String severity) {
+                            @JsonProperty("severity") @JsonInclude(JsonInclude.Include.NON_NULL) String severity,
+                            @JsonInclude(JsonInclude.Include.NON_EMPTY) List<Tip> tips) {
 
     public static final Set<String> FOCUS_AREAS = Set.of("phases", "deaths", "objectives", "aim_mechanics", "build", "recent_form", "matchup", "metrics");
     public static final Set<String> SEVERITIES = Set.of("minor", "notable", "major");
+    public static final int MAX_TIPS = 3;
+
+    /** One prioritized piece of advice: what to do, the numbers behind it, and how to practice it. */
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public record Tip(String tip, String evidence, String drill) {
+
+        public Tip {
+            tip = clean(tip);
+            evidence = clean(evidence);
+            drill = clean(drill);
+        }
+    }
 
     public AnalysisResult(String strength, String biggestLeak, String nextGameAction, List<String> keyNumbers) {
-        this(strength, biggestLeak, nextGameAction, keyNumbers, null, null);
+        this(strength, biggestLeak, nextGameAction, keyNumbers, null, null, null);
+    }
+
+    public AnalysisResult(String strength, String biggestLeak, String nextGameAction, List<String> keyNumbers,
+                          String focusArea, String severity) {
+        this(strength, biggestLeak, nextGameAction, keyNumbers, focusArea, severity, null);
     }
 
     public AnalysisResult {
@@ -30,6 +48,10 @@ public record AnalysisResult(String strength,
         keyNumbers = keyNumbers == null ? null : keyNumbers.stream().map(AnalysisResult::clean).toList();
         focusArea = normalize(focusArea, FOCUS_AREAS);
         severity = normalize(severity, SEVERITIES);
+        tips = tips == null ? List.of() : tips.stream()
+                .filter(t -> t != null && t.tip() != null && !t.tip().isBlank())
+                .limit(MAX_TIPS)
+                .toList();
     }
 
     private static String normalize(String value, Set<String> allowed) {

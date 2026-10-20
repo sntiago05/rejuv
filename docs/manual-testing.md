@@ -113,6 +113,13 @@ Set `WEB_BASE_URL=http://localhost:8080` in `.env` and restart (blank = no butto
 ### Other commands (earlier tasks, no new changes)
 `/ping`, `/help` (lists every command, including `/items` and `/compare`; `/usage` no longer exists), `/donate` (section 2.1), `/link`, `/unlink`, `/profile`, `/heroes`, `/meta`, `/build`, `/counter`, `/leaderboard server`. A quick pass is enough after the build.
 
+## 2.2 Coach tips and spend guard (Task 052)
+1. Run `/analyze` on a match that has no stored analysis. The embed shows a "🧭 Top Tips" field right after "Next Game Focus", with up to 3 numbered tips, each with Evidence and Drill. The log line `Analysis completed` shows tokens, and `Analyze ... source=ai` shows a number in `estimatedCostUsd` (not `unknown`).
+2. Run `/analyze` again at once on another match: you get the cooldown message (wait about 60 s). Run it again on the same match: it returns the stored result for free, with no cooldown message.
+3. To test the daily caps without waiting, start with `ANALYSIS_COOLDOWN=0s ANALYSIS_USER_DAILY=2 ANALYSIS_GLOBAL_DAILY=3` and run three different matches: the third gives the daily-limit message. State resets on restart.
+4. Analyses made before task 052 show no tips field; nothing else changes.
+5. Confirm that Anthropic accepts `effort: medium` and `max_tokens: 4000` (a successful new analysis proves it).
+
 ## 3. Metadata fallback (Task 023)
 Hard to trigger by hand. With a healthy API, no WARN `JSON match metadata failed` should appear. When the JSON metadata endpoint answers 503 or 429, expect that WARN once and the analysis still succeeding from the raw protobuf endpoint. The result is cached for 24 hours, so a second `/analyze` of the same match makes no new request.
 
@@ -130,6 +137,7 @@ Hard to trigger by hand. With a healthy API, no WARN `JSON match metadata failed
 | Embed without image | chart rendering failed (fonts) or no metadata; see the log WARN |
 | Start fails with "missing table analysis_usage" | stale classes in `target/`; run `./mvnw clean ...` |
 | No donation link anywhere | `DONATION_URL` blank or invalid (look for the WARN `Invalid donation URL`), or the bot was not restarted |
+| "Please wait N seconds" or "daily limit" on `/analyze` | spend guard (task 052); stored analyses are never limited; raise `ANALYSIS_*` values or restart |
 | Report page has no charts | the analysis was made before Task 048 (no stored input) or the cached metadata expired |
 
 ## 5. Report back
