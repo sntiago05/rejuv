@@ -1,7 +1,22 @@
 # Task 049: Full report redesign and descriptive web charts
 
 ## Status
-Implemented on branch `feature/049-report-redesign-charts`. Verification with `env -u ANTHROPIC_BASE_URL -u ANTHROPIC_CUSTOM_HEADERS ./mvnw verify` passes (1104 tests run, 0 failures, 14 skipped; +21 new unit tests over baseline 1083). Not pushed, not merged.
+Implemented on branch `feature/049-report-redesign-charts`. Verification with `env -u ANTHROPIC_BASE_URL -u ANTHROPIC_CUSTOM_HEADERS ./mvnw verify` passes (1105 tests run, 0 failures, 14 skipped; +22 new unit tests over baseline 1083). Not pushed, not merged.
+
+## Review fixes
+Following code review feedback, the following refinements were implemented:
+1. **[Blocker] Elimination of hardcoded user-facing strings**:
+   - Replaced all raw English strings in `ReportChartsSvg.java` and `SoulCurveSvg.java` (SVG titles, biggest swing annotation, deaths breakdown label, phase labels, verdict badges, and alt texts) with `report.chart.*` and `report.curve.*` keys in `src/main/resources/messages.properties`.
+   - Converted `computeSoulLeadAlt`, `computePhasesAlt`, `computeDeathsAlt`, `computeMetricsAlt`, and `computeSoulCurveAlt` to instance methods backed by `Messages`.
+   - Formatted numbers as strings prior to passing into `Messages.get(...)` to prevent `MessageFormat` from applying unexpected digit groupings or locale-specific comma formatting.
+   - Verified that `report.chart.phases.better`, `report.chart.phases.worse`, and `report.chart.phases.average` are actively utilized in both SVG rendering and alt text generation.
+2. **[Should fix] JSON parsing de-duplication in `ReportService`**:
+   - Extracted `parseCoachPhases(JsonNode coachNode)` returning `Optional<List<PhaseScore>>` and `parseCoachDeaths(JsonNode coachNode)` returning `Optional<CoachDeathsData>`.
+   - Reused these private helpers across `find()`, `phasesSvg()`, and `deathsSvg()`, completely removing duplicate Jackson traversal code.
+3. **[Should fix] Constructor cleanup**:
+   - Removed the legacy 7-argument `ReportService` constructor that passed `reportChartsSvg = null`, removed `@Autowired` on the single canonical constructor, and removed obsolete `null` checks on `reportChartsSvg`.
+   - Removed legacy 11-, 12-, and 16-argument constructors from `ReportView` and the 6-argument constructor from `ReportView.MetricRow`.
+   - Added test factory helpers in `ReportControllerTest.java` (`createReportView`, `createBasicReport`, `createCurveReport`, `createDetailedReport`) to keep tests clean and maintainable with canonical record construction.
 
 ## Summary
 Task 049 completely redesigns the web match analysis report (`/r/{publicId}`) and adds server-rendered, self-explanatory SVG charts without adding any client-side JavaScript or external dependencies, adhering strictly to ADR-0018:
@@ -43,19 +58,19 @@ Task 049 completely redesigns the web match analysis report (`/r/{publicId}`) an
 ## Files Created or Modified
 | File | Changes |
 |---|---|
-| `src/main/java/sntiago05/rejuv/services/ReportChartsSvg.java` | New class: renders Soul Lead, Phase scorecard, Deaths breakdown, and Metrics vs peers SVG charts with dark/light themes, XML escaping, and takeaway alt text computation. |
-| `src/main/java/sntiago05/rejuv/services/SoulCurveSvg.java` | Updated to unify palette with task 047 (`#ffc83d`), added direct end labels ("You", "Average"), verdict annotation, and `computeSoulCurveAlt`. |
-| `src/main/java/sntiago05/rejuv/domain/ReportView.java` | Added chart availability booleans (`hasSoulLead`, `hasPhasesChart`, `hasDeathsChart`, `hasMetricsChart`), `*Alt` text fields, and `MetricRow.widthClass`. Preserved legacy constructors. |
-| `src/main/java/sntiago05/rejuv/services/ReportService.java` | Injected `ReportChartsSvg` with `@Autowired`, exposed SVG rendering methods, added `mapWidthClass`, and computed chart booleans/alt texts in `find()`. |
+| `src/main/java/sntiago05/rejuv/services/ReportChartsSvg.java` | New class: renders Soul Lead, Phase scorecard, Deaths breakdown, and Metrics vs peers SVG charts with dark/light themes, XML escaping, localized user-facing text, and takeaway alt text computation. |
+| `src/main/java/sntiago05/rejuv/services/SoulCurveSvg.java` | Updated to unify palette with task 047 (`#ffc83d`), added direct end labels ("You", "Average"), verdict annotation, localized strings, and `computeSoulCurveAlt`. |
+| `src/main/java/sntiago05/rejuv/domain/ReportView.java` | Added chart availability booleans (`hasSoulLead`, `hasPhasesChart`, `hasDeathsChart`, `hasMetricsChart`), `*Alt` text fields, and `MetricRow.widthClass`. Removed obsolete legacy constructors. |
+| `src/main/java/sntiago05/rejuv/services/ReportService.java` | Single constructor injecting `ReportChartsSvg` without `@Autowired`, de-duplicated coach phases/deaths JSON parsing into private helpers, exposed SVG rendering methods, added `mapWidthClass`, and computed chart booleans/alt texts in `find()`. |
 | `src/main/java/sntiago05/rejuv/web/ReportController.java` | Added SVG chart endpoints (`/soul-lead.svg`, `/lead.svg`, `/phases.svg`, `/deaths.svg`, `/metrics.svg`) with security headers and UUID validation. |
-| `src/main/resources/messages.properties` | Added chart titles, captions, phase verdicts, and section headers. |
+| `src/main/resources/messages.properties` | Added chart titles, captions, phase verdicts, swing labels, deaths breakdown labels, metrics comparison labels, and alt texts (`report.chart.*`, `report.curve.*`). |
 | `src/main/resources/templates/report.html` | Redesigned layout with hero banner, verdict strip, key numbers with CSS bar width classes, SVG charts block, collapsible `<details>` detail sections, final build, and footer. |
 | `src/main/resources/static/report.css` | Comprehensive redesign: responsive CSS grid/flexbox, system typography, width classes `w0..w100`, dark/light theme tokens, and print stylesheet. |
-| `src/test/java/sntiago05/rejuv/services/ReportChartsSvgTest.java` | New test class: well-formed XML parsing, label escaping, empty data handling, CPU performance bound (<200 ms), and sample SVG export. |
+| `src/test/java/sntiago05/rejuv/services/ReportChartsSvgTest.java` | New test class: well-formed XML parsing, label escaping, empty data handling, localized alt text verification, CPU performance bound (<200 ms), and sample SVG export. |
 | `src/test/java/sntiago05/rejuv/services/SoulCurveSvgTest.java` | Added tests for direct labels, verdict annotation, gold stroke palette, and `computeSoulCurveAlt`. |
 | `src/test/java/sntiago05/rejuv/services/ReportServiceTest.java` | Added tests for `mapWidthClass` rounding, chart SVG delegation, and chart view model properties. |
-| `src/test/java/sntiago05/rejuv/web/ReportControllerTest.java` | Added tests for all SVG endpoints (200, 404, security headers, no input echo), verified zero inline styles and zero scripts on report page, and exported sample `report.html`. |
-| `docs/task-reports/049-report-redesign-charts.md` | This task report. |
+| `src/test/java/sntiago05/rejuv/web/ReportControllerTest.java` | Added tests for all SVG endpoints (200, 404, security headers, no input echo), verified zero inline styles and zero scripts on report page, exported sample `report.html`, and updated with test factory helpers. |
+| `docs/task-reports/049-report-redesign-charts.md` | This task report with review fixes section. |
 
 No other files were touched.
 

@@ -170,7 +170,7 @@ class ReportChartsSvgTest {
         List<Integer> times = List.of(0, 600, 1200, 1800);
         List<Long> lead = List.of(0L, 2000L, -3000L, 4000L);
 
-        String leadAlt = ReportChartsSvg.computeSoulLeadAlt(times, lead);
+        String leadAlt = svgRenderer.computeSoulLeadAlt(times, lead);
         assertThat(leadAlt).contains("peak +4.0k at 30 min");
         assertThat(leadAlt).contains("biggest swing");
 
@@ -178,11 +178,11 @@ class ReportChartsSvgTest {
                 new ReportChartsSvg.PhaseScore("laning", 1.2),
                 new ReportChartsSvg.PhaseScore("mid", -0.5)
         );
-        String phasesAlt = ReportChartsSvg.computePhasesAlt(phases);
-        assertThat(phasesAlt).contains("laning +1.2 z");
-        assertThat(phasesAlt).contains("mid -0.5 z");
+        String phasesAlt = svgRenderer.computePhasesAlt(phases);
+        assertThat(phasesAlt).contains("Laning +1.2 z (Better than average)");
+        assertThat(phasesAlt).contains("Mid Game -0.5 z (Worse than average)");
 
-        String deathsAlt = ReportChartsSvg.computeDeathsAlt(2, 3, 1, 6, 45);
+        String deathsAlt = svgRenderer.computeDeathsAlt(2, 3, 1, 6, 45);
         assertThat(deathsAlt).isEqualTo("Deaths breakdown: 2 in laning, 3 in mid game, 1 in late game (total 6). Longest respawn 45s.");
 
         List<ReportView.MetricRow> metrics = List.of(
@@ -190,7 +190,7 @@ class ReportChartsSvgTest {
                 new ReportView.MetricRow("m2", "m2", "4", "5", "8", "below p25", "w30"),
                 new ReportView.MetricRow("m3", "m3", "6", "5", "8", "between p25 and p50", "w40")
         );
-        String metricsAlt = ReportChartsSvg.computeMetricsAlt(metrics);
+        String metricsAlt = svgRenderer.computeMetricsAlt(metrics);
         assertThat(metricsAlt).contains("1 above average, 1 average, 1 below average across 3 metrics.");
     }
 

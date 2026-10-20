@@ -51,12 +51,52 @@ class ReportControllerTest {
         mockMvc = MockMvcBuilders.webAppContextSetup(context).build();
     }
 
+    private static ReportView createReportView(Double durationMin,
+                                               AnalysisResult analysis,
+                                               Instant analyzedAt,
+                                               String rank,
+                                               String result,
+                                               boolean hasChart,
+                                               boolean hasSoulCurve,
+                                               boolean hasDetailedSections,
+                                               List<ReportView.MetricRow> metricsTable,
+                                               List<ReportView.CoachSection> coachSections,
+                                               List<ReportView.OtherSignal> otherSignals) {
+        return new ReportView(
+                KNOWN_ID, 987654321L, "Infernus", 1, rank, result,
+                durationMin, analysis, List.of(), hasChart,
+                analyzedAt != null ? analyzedAt : Instant.now(),
+                hasSoulCurve, hasDetailedSections,
+                metricsTable, coachSections, otherSignals,
+                false, false, false, false,
+                "", "", "", "", ""
+        );
+    }
+
+    private static ReportView createBasicReport(Double durationMin, AnalysisResult analysis, Instant analyzedAt) {
+        return createReportView(durationMin, analysis, analyzedAt, null, null, false, false, false, List.of(), List.of(), List.of());
+    }
+
+    private static ReportView createCurveReport(AnalysisResult analysis, boolean hasChart, boolean hasSoulCurve) {
+        return createReportView(30.0, analysis, Instant.now(), null, null, hasChart, hasSoulCurve, false, List.of(), List.of(), List.of());
+    }
+
+    private static ReportView createDetailedReport(AnalysisResult analysis,
+                                                   String rank,
+                                                   String result,
+                                                   Double durationMin,
+                                                   boolean hasDetailedSections,
+                                                   List<ReportView.MetricRow> metrics,
+                                                   List<ReportView.CoachSection> coach,
+                                                   List<ReportView.OtherSignal> signals) {
+        return createReportView(durationMin, analysis, Instant.now(), rank, result, false, false, hasDetailedSections, metrics, coach, signals);
+    }
+
     @Test
     void viewReportReturns200WithStrengthTextAndSecurityHeaders() throws Exception {
         AnalysisResult analysis = new AnalysisResult(
                 "Superb farming in lane", "Too aggressive without vision", "Group for objectives", List.of("15 kills"));
-        ReportView report = new ReportView(KNOWN_ID, 987654321L, "Infernus", 1, null, null,
-                30.5, analysis, List.of(), false, Instant.parse("2026-10-18T12:00:00Z"));
+        ReportView report = createBasicReport(30.5, analysis, Instant.parse("2026-10-18T12:00:00Z"));
         when(reportService.find(KNOWN_ID)).thenReturn(Optional.of(report));
 
         mockMvc.perform(get("/r/" + KNOWN_ID))
@@ -76,8 +116,7 @@ class ReportControllerTest {
     void viewReportEscapesHtmlSpecialCharactersInAnalysisText() throws Exception {
         AnalysisResult analysis = new AnalysisResult(
                 "<script>alert('xss')</script>", "<b>leak</b>", "a & b", List.of("<script>danger</script>"));
-        ReportView report = new ReportView(KNOWN_ID, 987654321L, "Infernus", 1, null, null,
-                30.0, analysis, List.of(), false, Instant.now());
+        ReportView report = createBasicReport(30.0, analysis, Instant.now());
         when(reportService.find(KNOWN_ID)).thenReturn(Optional.of(report));
 
         MvcResult result = mockMvc.perform(get("/r/" + KNOWN_ID))
@@ -206,8 +245,7 @@ class ReportControllerTest {
         AnalysisResult analysis = new AnalysisResult("Strength", "Leak", "Action", List.of());
 
         // Report with hasSoulCurve = true
-        ReportView withCurve = new ReportView(KNOWN_ID, 987654321L, "Infernus", 1, null, null,
-                30.0, analysis, List.of(), false, Instant.now(), true);
+        ReportView withCurve = createCurveReport(analysis, false, true);
         when(reportService.find(KNOWN_ID)).thenReturn(Optional.of(withCurve));
 
         mockMvc.perform(get("/r/" + KNOWN_ID))
@@ -216,8 +254,7 @@ class ReportControllerTest {
                 .andExpect(content().string(containsString("soul-curve-img")));
 
         // Report with hasSoulCurve = false
-        ReportView withoutCurve = new ReportView(KNOWN_ID, 987654321L, "Infernus", 1, null, null,
-                30.0, analysis, List.of(), false, Instant.now(), false);
+        ReportView withoutCurve = createCurveReport(analysis, false, false);
         when(reportService.find(KNOWN_ID)).thenReturn(Optional.of(withoutCurve));
 
         mockMvc.perform(get("/r/" + KNOWN_ID))
@@ -228,8 +265,7 @@ class ReportControllerTest {
     @Test
     void viewReportPageStillHasNoScript() throws Exception {
         AnalysisResult analysis = new AnalysisResult("Strength", "Leak", "Action", List.of());
-        ReportView report = new ReportView(KNOWN_ID, 987654321L, "Infernus", 1, null, null,
-                30.0, analysis, List.of(), true, Instant.now(), true);
+        ReportView report = createCurveReport(analysis, true, true);
         when(reportService.find(KNOWN_ID)).thenReturn(Optional.of(report));
 
         MvcResult result = mockMvc.perform(get("/r/" + KNOWN_ID))
@@ -243,8 +279,8 @@ class ReportControllerTest {
     void viewReportWithDetailedSectionsRendersGlanceMetricsCoachAndOtherSignals() throws Exception {
         AnalysisResult analysis = new AnalysisResult("Strength", "Leak", "Action", List.of());
         List<ReportView.MetricRow> metrics = List.of(
-                new ReportView.MetricRow("kills", "analyze.metric.kills", "10", "5", "8", "above p50"),
-                new ReportView.MetricRow("deaths", "analyze.metric.deaths", "7", "4", "6", "below p25")
+                new ReportView.MetricRow("kills", "analyze.metric.kills", "10", "5", "8", "above p50", "w50"),
+                new ReportView.MetricRow("deaths", "analyze.metric.deaths", "7", "4", "6", "below p25", "w50")
         );
         List<ReportView.CoachSection> coach = List.of(
                 new ReportView.CoachSection("phases", "report.coach.phases", "major", List.of(
@@ -258,9 +294,7 @@ class ReportControllerTest {
                 new ReportView.OtherSignal("custom_signal", "true")
         );
 
-        ReportView report = new ReportView(KNOWN_ID, 987654321L, "Infernus", 1, "Archon 3", "win",
-                30.5, analysis, List.of(), false, Instant.now(), false,
-                true, metrics, coach, signals);
+        ReportView report = createDetailedReport(analysis, "Archon 3", "win", 30.5, true, metrics, coach, signals);
         when(reportService.find(KNOWN_ID)).thenReturn(Optional.of(report));
 
         mockMvc.perform(get("/r/" + KNOWN_ID))
@@ -283,9 +317,7 @@ class ReportControllerTest {
     @Test
     void viewReportWithoutDetailedSectionsRendersOlderAnalysisNotice() throws Exception {
         AnalysisResult analysis = new AnalysisResult("Strength", "Leak", "Action", List.of());
-        ReportView report = new ReportView(KNOWN_ID, 987654321L, "Infernus", 1, null, null,
-                30.0, analysis, List.of(), false, Instant.now(), false,
-                false, List.of(), List.of(), List.of());
+        ReportView report = createDetailedReport(analysis, null, null, 30.0, false, List.of(), List.of(), List.of());
         when(reportService.find(KNOWN_ID)).thenReturn(Optional.of(report));
 
         mockMvc.perform(get("/r/" + KNOWN_ID))
@@ -307,9 +339,7 @@ class ReportControllerTest {
                 new ReportView.OtherSignal("exploit", "<script>alert('signal')</script>")
         );
 
-        ReportView report = new ReportView(KNOWN_ID, 987654321L, "Infernus", 1, "Archon 3", "win",
-                30.5, analysis, List.of(), false, Instant.now(), false,
-                true, List.of(), coach, signals);
+        ReportView report = createDetailedReport(analysis, "Archon 3", "win", 30.5, true, List.of(), coach, signals);
         when(reportService.find(KNOWN_ID)).thenReturn(Optional.of(report));
 
         MvcResult result = mockMvc.perform(get("/r/" + KNOWN_ID))

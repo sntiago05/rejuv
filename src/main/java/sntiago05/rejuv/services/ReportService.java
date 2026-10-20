@@ -9,7 +9,6 @@ import java.util.UUID;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import sntiago05.rejuv.clients.DeadlockApiClient;
 import sntiago05.rejuv.clients.MatchMetadataSource;
@@ -46,7 +45,6 @@ public class ReportService {
     private final SoulCurveSvg soulCurveSvg;
     private final ReportChartsSvg reportChartsSvg;
 
-    @Autowired
     public ReportService(MatchAnalysisRepository repository,
                          MatchMetadataSource matchMetadataSource,
                          MatchVisualsService visualsService,
@@ -63,16 +61,6 @@ public class ReportService {
         this.deadlockApiClient = deadlockApiClient;
         this.soulCurveSvg = soulCurveSvg;
         this.reportChartsSvg = reportChartsSvg;
-    }
-
-    public ReportService(MatchAnalysisRepository repository,
-                         MatchMetadataSource matchMetadataSource,
-                         MatchVisualsService visualsService,
-                         GameAssets gameAssets,
-                         ChartRenderer chartRenderer,
-                         DeadlockApiClient deadlockApiClient,
-                         SoulCurveSvg soulCurveSvg) {
-        this(repository, matchMetadataSource, visualsService, gameAssets, chartRenderer, deadlockApiClient, soulCurveSvg, null);
     }
 
     /**
@@ -116,7 +104,7 @@ public class ReportService {
                     hasChart = chartData != null;
                     if (chartData != null && chartData.soulLead() != null && chartData.soulLead().size() >= 2) {
                         hasSoulLead = true;
-                        soulLeadAlt = ReportChartsSvg.computeSoulLeadAlt(chartData.timesS(), chartData.soulLead());
+                        soulLeadAlt = reportChartsSvg.computeSoulLeadAlt(chartData.timesS(), chartData.soulLead());
                     }
                 }
                 Optional<SoulCurveData> soulCurveDataOpt = computeSoulCurveData(stored, telemetry);
@@ -125,7 +113,7 @@ public class ReportService {
                     SoulCurveData scData = soulCurveDataOpt.get();
                     int lastIdx = scData.playerNetWorth().size() - 1;
                     int durM = (int) (scData.timesS().get(lastIdx) / 60);
-                    soulCurveAlt = SoulCurveSvg.computeSoulCurveAlt(scData.playerNetWorth().get(lastIdx), scData.avgNetWorth().get(lastIdx), durM);
+                    soulCurveAlt = soulCurveSvg.computeSoulCurveAlt(scData.playerNetWorth().get(lastIdx), scData.avgNetWorth().get(lastIdx), durM);
                 }
             }
         } catch (RuntimeException ex) {
@@ -176,32 +164,24 @@ public class ReportService {
                     otherSignals = parseOtherSignals(inputTree.path("coach"));
 
                     // Phases chart
-                    JsonNode phasesArr = inputTree.path("coach").path("phases").path("phases");
-                    if (phasesArr.isArray() && !phasesArr.isEmpty()) {
+                    Optional<List<ReportChartsSvg.PhaseScore>> phaseScoresOpt = parseCoachPhases(inputTree);
+                    if (phaseScoresOpt.isPresent()) {
                         hasPhasesChart = true;
-                        List<ReportChartsSvg.PhaseScore> phaseScores = new ArrayList<>();
-                        for (JsonNode p : phasesArr) {
-                            phaseScores.add(new ReportChartsSvg.PhaseScore(p.path("name").asText(), p.path("change").asDouble()));
-                        }
-                        phasesAlt = ReportChartsSvg.computePhasesAlt(phaseScores);
+                        phasesAlt = reportChartsSvg.computePhasesAlt(phaseScoresOpt.get());
                     }
 
                     // Deaths chart
-                    JsonNode deathsObj = inputTree.path("coach").path("deaths");
-                    if (deathsObj.isObject() && !deathsObj.isEmpty()) {
+                    Optional<CoachDeathsData> coachDeathsOpt = parseCoachDeaths(inputTree);
+                    if (coachDeathsOpt.isPresent()) {
                         hasDeathsChart = true;
-                        int total = deathsObj.path("total").asInt(0);
-                        int longestRespawn = deathsObj.path("longest_respawn_s").asInt(0);
-                        int laning = deathsObj.path("by_phase").path("laning").asInt(0);
-                        int mid = deathsObj.path("by_phase").path("mid").asInt(0);
-                        int late = deathsObj.path("by_phase").path("late").asInt(0);
-                        deathsAlt = ReportChartsSvg.computeDeathsAlt(laning, mid, late, total, longestRespawn);
+                        CoachDeathsData cd = coachDeathsOpt.get();
+                        deathsAlt = reportChartsSvg.computeDeathsAlt(cd.laning(), cd.mid(), cd.late(), cd.total(), cd.longestRespawnS());
                     }
 
                     // Metrics chart
                     if (!metricsTable.isEmpty()) {
                         hasMetricsChart = true;
-                        metricsAlt = ReportChartsSvg.computeMetricsAlt(metricsTable);
+                        metricsAlt = reportChartsSvg.computeMetricsAlt(metricsTable);
                     }
                 }
             } catch (Exception ex) {
@@ -324,7 +304,7 @@ public class ReportService {
      * Renders the soul lead chart as SVG. Empty when no report, no telemetry/chart, or rendering fails.
      */
     public Optional<String> soulLeadSvg(UUID publicId) {
-        if (publicId == null || reportChartsSvg == null) {
+        if (publicId == null) {
             return Optional.empty();
         }
         Optional<MatchAnalysis> storedOpt = repository.findByPublicId(publicId);
@@ -356,7 +336,7 @@ public class ReportService {
      * Renders the phase scorecard as SVG. Empty when no report, no phases payload, or rendering fails.
      */
     public Optional<String> phasesSvg(UUID publicId) {
-        if (publicId == null || reportChartsSvg == null) {
+        if (publicId == null) {
             return Optional.empty();
         }
         Optional<MatchAnalysis> storedOpt = repository.findByPublicId(publicId);
@@ -365,15 +345,8 @@ public class ReportService {
         }
         try {
             JsonNode tree = JSON_MAPPER.readTree(storedOpt.get().getInputJson());
-            JsonNode phasesNode = tree.path("coach").path("phases").path("phases");
-            if (!phasesNode.isArray() || phasesNode.isEmpty()) {
-                return Optional.empty();
-            }
-            List<ReportChartsSvg.PhaseScore> phases = new ArrayList<>();
-            for (JsonNode p : phasesNode) {
-                phases.add(new ReportChartsSvg.PhaseScore(p.path("name").asText(), p.path("change").asDouble()));
-            }
-            return reportChartsSvg.renderPhases(phases);
+            Optional<List<ReportChartsSvg.PhaseScore>> phasesOpt = parseCoachPhases(tree);
+            return phasesOpt.flatMap(reportChartsSvg::renderPhases);
         } catch (Exception ex) {
             log.warn("Failed to parse phases for SVG publicId={}: {}", publicId, ex.getMessage());
             return Optional.empty();
@@ -384,7 +357,7 @@ public class ReportService {
      * Renders the deaths breakdown as SVG. Empty when no report, no deaths payload, or rendering fails.
      */
     public Optional<String> deathsSvg(UUID publicId) {
-        if (publicId == null || reportChartsSvg == null) {
+        if (publicId == null) {
             return Optional.empty();
         }
         Optional<MatchAnalysis> storedOpt = repository.findByPublicId(publicId);
@@ -393,17 +366,8 @@ public class ReportService {
         }
         try {
             JsonNode tree = JSON_MAPPER.readTree(storedOpt.get().getInputJson());
-            JsonNode deathsNode = tree.path("coach").path("deaths");
-            if (!deathsNode.isObject() || deathsNode.isEmpty()) {
-                return Optional.empty();
-            }
-            int total = deathsNode.path("total").asInt(0);
-            int longestRespawn = deathsNode.path("longest_respawn_s").asInt(0);
-            JsonNode byPhase = deathsNode.path("by_phase");
-            int laning = byPhase.path("laning").asInt(0);
-            int mid = byPhase.path("mid").asInt(0);
-            int late = byPhase.path("late").asInt(0);
-            return reportChartsSvg.renderDeaths(laning, mid, late, total, longestRespawn);
+            Optional<CoachDeathsData> deathsOpt = parseCoachDeaths(tree);
+            return deathsOpt.flatMap(d -> reportChartsSvg.renderDeaths(d.laning(), d.mid(), d.late(), d.total(), d.longestRespawnS()));
         } catch (Exception ex) {
             log.warn("Failed to parse deaths for SVG publicId={}: {}", publicId, ex.getMessage());
             return Optional.empty();
@@ -414,7 +378,7 @@ public class ReportService {
      * Renders the metrics vs peers comparison as SVG. Empty when no report, no metrics, or rendering fails.
      */
     public Optional<String> metricsSvg(UUID publicId) {
-        if (publicId == null || reportChartsSvg == null) {
+        if (publicId == null) {
             return Optional.empty();
         }
         Optional<MatchAnalysis> storedOpt = repository.findByPublicId(publicId);
@@ -638,6 +602,40 @@ public class ReportService {
             rows.add(new ReportView.MetricRow(metricKey, labelKey, yourValueStr, p25Str, p50Str, verdict, widthClass));
         }
         return Collections.unmodifiableList(rows);
+    }
+
+    private record CoachDeathsData(int laning, int mid, int late, int total, int longestRespawnS) { }
+
+    private static Optional<List<ReportChartsSvg.PhaseScore>> parseCoachPhases(JsonNode root) {
+        if (root == null) {
+            return Optional.empty();
+        }
+        JsonNode phasesNode = root.path("coach").path("phases").path("phases");
+        if (!phasesNode.isArray() || phasesNode.isEmpty()) {
+            return Optional.empty();
+        }
+        List<ReportChartsSvg.PhaseScore> phases = new ArrayList<>();
+        for (JsonNode p : phasesNode) {
+            phases.add(new ReportChartsSvg.PhaseScore(p.path("name").asText(), p.path("change").asDouble()));
+        }
+        return Optional.of(phases);
+    }
+
+    private static Optional<CoachDeathsData> parseCoachDeaths(JsonNode root) {
+        if (root == null) {
+            return Optional.empty();
+        }
+        JsonNode deathsNode = root.path("coach").path("deaths");
+        if (!deathsNode.isObject() || deathsNode.isEmpty()) {
+            return Optional.empty();
+        }
+        int total = deathsNode.path("total").asInt(0);
+        int longestRespawn = deathsNode.path("longest_respawn_s").asInt(0);
+        JsonNode byPhase = deathsNode.path("by_phase");
+        int laning = byPhase.path("laning").asInt(0);
+        int mid = byPhase.path("mid").asInt(0);
+        int late = byPhase.path("late").asInt(0);
+        return Optional.of(new CoachDeathsData(laning, mid, late, total, longestRespawn));
     }
 
     private static List<ReportView.CoachSection> parseCoachSections(JsonNode coachNode) {

@@ -255,8 +255,9 @@ public class ReportChartsSvg {
         }
 
         // Annotate largest swing
-        String swingLabel = String.format(Locale.ROOT, "Biggest swing: %+.1fk between %d and %d min",
-                biggestSwing / 1000.0, swingStartMin, swingEndMin);
+        String swingAmount = String.format(Locale.ROOT, "%+.1f", biggestSwing / 1000.0);
+        String swingLabel = messages.get("report.chart.soul_lead.swing",
+                swingAmount, String.valueOf(swingStartMin), String.valueOf(swingEndMin));
         builder.append(String.format(Locale.ROOT,
                 "<text class=\"annotation-text\" x=\"%.1f\" y=\"%.1f\" text-anchor=\"end\">%s</text>\n",
                 plotRight, plotTop - 12.0, escapeXml(swingLabel)));
@@ -299,9 +300,9 @@ public class ReportChartsSvg {
         return Optional.of(builder.build());
     }
 
-    public static String computeSoulLeadAlt(List<Integer> timesS, List<Long> soulLead) {
+    public String computeSoulLeadAlt(List<Integer> timesS, List<Long> soulLead) {
         if (timesS == null || soulLead == null || timesS.size() < 2 || soulLead.size() != timesS.size()) {
-            return "Soul lead over time chart";
+            return messages.get("report.chart.soul_lead.alt_empty");
         }
         int n = timesS.size();
         long peakLead = soulLead.get(0);
@@ -324,9 +325,10 @@ public class ReportChartsSvg {
                 swingEnd = timesS.get(i + 1) / 60;
             }
         }
-        return String.format(Locale.ROOT,
-                "Soul lead over time: peak %+.1fk at %d min; biggest swing %+.1fk between %d and %d min.",
-                peakLead / 1000.0, peakMin, biggestSwing / 1000.0, swingStart, swingEnd);
+        String peakAmount = String.format(Locale.ROOT, "%+.1f", peakLead / 1000.0);
+        String swingAmount = String.format(Locale.ROOT, "%+.1f", biggestSwing / 1000.0);
+        return messages.get("report.chart.soul_lead.alt",
+                peakAmount, String.valueOf(peakMin), swingAmount, String.valueOf(swingStart), String.valueOf(swingEnd));
     }
 
     // -------------------------------------------------------------------------
@@ -400,11 +402,13 @@ public class ReportChartsSvg {
                     barX, y, barW, 22.0, barClass));
 
             // Plain words label next to bar
-            String verdictText = (z >= 0.1)
-                    ? String.format(Locale.ROOT, "%+.1f z (%s)", z, messages.get("report.chart.phases.better"))
+            String verdictWord = (z >= 0.1)
+                    ? messages.get("report.chart.phases.better")
                     : (z <= -0.1)
-                    ? String.format(Locale.ROOT, "%+.1f z (%s)", z, messages.get("report.chart.phases.worse"))
-                    : String.format(Locale.ROOT, "%+.1f z (%s)", z, messages.get("report.chart.phases.average"));
+                    ? messages.get("report.chart.phases.worse")
+                    : messages.get("report.chart.phases.average");
+            String verdictText = messages.get("report.chart.phases.verdict",
+                    String.format(Locale.ROOT, "%+.1f", z), verdictWord);
 
             if (z >= 0) {
                 builder.append(String.format(Locale.ROOT,
@@ -420,15 +424,27 @@ public class ReportChartsSvg {
         return Optional.of(builder.build());
     }
 
-    public static String computePhasesAlt(List<PhaseScore> phases) {
+    public String computePhasesAlt(List<PhaseScore> phases) {
         if (phases == null || phases.isEmpty()) {
-            return "Phase scorecard chart";
+            return messages.get("report.chart.phases.alt_empty");
         }
-        StringBuilder sb = new StringBuilder("Phase scorecard: ");
+        StringBuilder sb = new StringBuilder(messages.get("report.chart.phases.alt_prefix"));
         for (int i = 0; i < phases.size(); i++) {
             PhaseScore p = phases.get(i);
             if (i > 0) sb.append(", ");
-            sb.append(p.name()).append(String.format(Locale.ROOT, " %+.1f z", p.change()));
+            String phaseLabel = switch (p.name().toLowerCase(Locale.ROOT)) {
+                case "laning" -> messages.get("analyze.chart.phase.laning");
+                case "mid" -> messages.get("analyze.chart.phase.mid");
+                case "late" -> messages.get("analyze.chart.phase.late");
+                default -> capitalize(p.name());
+            };
+            String verdictWord = (p.change() >= 0.1)
+                    ? messages.get("report.chart.phases.better")
+                    : (p.change() <= -0.1)
+                    ? messages.get("report.chart.phases.worse")
+                    : messages.get("report.chart.phases.average");
+            String formattedZ = String.format(Locale.ROOT, "%+.1f", p.change());
+            sb.append(phaseLabel).append(" ").append(messages.get("report.chart.phases.verdict", formattedZ, verdictWord));
         }
         return sb.toString();
     }
@@ -452,7 +468,8 @@ public class ReportChartsSvg {
                 messages.get("report.chart.deaths.title"));
 
         // Header info: Total deaths & longest respawn
-        String summary = String.format(Locale.ROOT, "Total: %d deaths · Longest respawn: %ds", total, longestRespawnS);
+        String summary = messages.get("report.chart.deaths.summary",
+                String.valueOf(total), String.valueOf(longestRespawnS));
         builder.append(String.format(Locale.ROOT,
                 "<text class=\"annotation-text\" x=\"%.1f\" y=\"%.1f\" text-anchor=\"start\">%s</text>\n",
                 plotLeft, plotTop - 12.0, escapeXml(summary)));
@@ -478,7 +495,9 @@ public class ReportChartsSvg {
                         plotLeft, y, barW, 20.0));
             }
 
-            String countText = counts[i] == 1 ? "1 death" : counts[i] + " deaths";
+            String countText = (counts[i] == 1)
+                    ? messages.get("report.chart.deaths.count_one")
+                    : messages.get("report.chart.deaths.count_many", String.valueOf(counts[i]));
             builder.append(String.format(Locale.ROOT,
                     "<text class=\"bar-value-text\" x=\"%.1f\" y=\"%.1f\" text-anchor=\"start\">%s</text>\n",
                     plotLeft + barW + 8.0, y + 15.0, escapeXml(countText)));
@@ -487,10 +506,10 @@ public class ReportChartsSvg {
         return Optional.of(builder.build());
     }
 
-    public static String computeDeathsAlt(int laning, int mid, int late, int total, int longestRespawnS) {
-        return String.format(Locale.ROOT,
-                "Deaths breakdown: %d in laning, %d in mid game, %d in late game (total %d). Longest respawn %ds.",
-                laning, mid, late, total, longestRespawnS);
+    public String computeDeathsAlt(int laning, int mid, int late, int total, int longestRespawnS) {
+        return messages.get("report.chart.deaths.alt",
+                String.valueOf(laning), String.valueOf(mid), String.valueOf(late),
+                String.valueOf(total), String.valueOf(longestRespawnS));
     }
 
     // -------------------------------------------------------------------------
@@ -565,7 +584,8 @@ public class ReportChartsSvg {
                     dotX, y + 9.0, dotClass));
 
             // Value and verdict text
-            String verdictText = m.yourValue() + " (" + m.verdict() + ")";
+            String verdictText = messages.get("report.chart.metrics.value_with_verdict",
+                    m.yourValue(), m.verdict());
             builder.append(String.format(Locale.ROOT,
                     "<text class=\"metric-val-text\" x=\"%.1f\" y=\"%.1f\" text-anchor=\"start\">%s</text>\n",
                     plotRight + 12.0, y + 13.0, escapeXml(verdictText)));
@@ -611,9 +631,9 @@ public class ReportChartsSvg {
         }
     }
 
-    public static String computeMetricsAlt(List<ReportView.MetricRow> metrics) {
+    public String computeMetricsAlt(List<ReportView.MetricRow> metrics) {
         if (metrics == null || metrics.isEmpty()) {
-            return "Metrics vs peers comparison chart";
+            return messages.get("report.chart.metrics.alt_empty");
         }
         int above = 0;
         int below = 0;
@@ -625,9 +645,8 @@ public class ReportChartsSvg {
                 default -> between++;
             }
         }
-        return String.format(Locale.ROOT,
-                "Metrics vs peers: %d above average, %d average, %d below average across %d metrics.",
-                above, between, below, metrics.size());
+        return messages.get("report.chart.metrics.alt",
+                String.valueOf(above), String.valueOf(between), String.valueOf(below), String.valueOf(metrics.size()));
     }
 
     // -------------------------------------------------------------------------

@@ -268,7 +268,7 @@ class SoulCurveSvgTest {
 
     @Test
     void computeSoulCurveAltSummarizesDifference() {
-        String alt = SoulCurveSvg.computeSoulCurveAlt(6000L, 5000.0, 9);
+        String alt = svgRenderer.computeSoulCurveAlt(6000L, 5000.0, 9);
         assertThat(alt).contains("Net worth vs lobby average: finished above the average by 20% at 9 min.");
     }
 }

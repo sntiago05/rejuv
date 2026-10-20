@@ -264,11 +264,11 @@ public class SoulCurveSvg {
             double diff = lastPlayer - lastAvg;
             long pct = Math.round((Math.abs(diff) / lastAvg) * 100.0);
             if (diff > 0) {
-                verdictText = "above the average by " + pct + "%";
+                verdictText = messages.get("report.curve.verdict_above", String.valueOf(pct));
             } else if (diff < 0) {
-                verdictText = "below the average by " + pct + "%";
+                verdictText = messages.get("report.curve.verdict_below", String.valueOf(pct));
             } else {
-                verdictText = "tied with the average";
+                verdictText = messages.get("report.curve.verdict_tied");
             }
         } else {
             verdictText = "";
@@ -321,14 +321,18 @@ public class SoulCurveSvg {
         return PLOT_BOTTOM - ratio * PLOT_HEIGHT;
     }
 
-    public static String computeSoulCurveAlt(long finalPlayer, double finalAvg, int durationMin) {
+    public String computeSoulCurveAlt(long finalPlayer, double finalAvg, int durationMin) {
         if (finalAvg <= 0) {
-            return "Net worth vs lobby average chart";
+            return messages.get("report.curve.alt_empty");
         }
         double diff = finalPlayer - finalAvg;
         long pct = Math.round((Math.abs(diff) / finalAvg) * 100.0);
-        String standing = (diff >= 0) ? ("above the average by " + pct + "%") : ("below the average by " + pct + "%");
-        return String.format(Locale.ROOT, "Net worth vs lobby average: finished %s at %d min.", standing, durationMin);
+        String standing = (diff > 0)
+                ? messages.get("report.curve.verdict_above", String.valueOf(pct))
+                : (diff < 0)
+                ? messages.get("report.curve.verdict_below", String.valueOf(pct))
+                : messages.get("report.curve.verdict_tied");
+        return messages.get("report.curve.alt", standing, String.valueOf(durationMin));
     }
 
     static String escapeXml(String text) {
