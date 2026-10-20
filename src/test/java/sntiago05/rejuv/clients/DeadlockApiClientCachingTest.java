@@ -293,6 +293,36 @@ class DeadlockApiClientCachingTest {
     }
 
     @Test
+    void heroSynergiesAreCachedPerTierAndTimestamp() {
+        server.expect(once(), requestTo(startsWith(BASE_URL + "/v1/analytics/hero-synergy-stats?")))
+                .andExpect(queryParam("min_average_badge", "70"))
+                .andExpect(queryParam("max_average_badge", "79"))
+                .andExpect(queryParam("min_unix_timestamp", "1000"))
+                .andRespond(withSuccess(fixture("hero-synergy-stats.json"), MediaType.APPLICATION_JSON));
+        server.expect(once(), requestTo(startsWith(BASE_URL + "/v1/analytics/hero-synergy-stats?")))
+                .andExpect(queryParam("min_average_badge", "80"))
+                .andExpect(queryParam("max_average_badge", "89"))
+                .andExpect(queryParam("min_unix_timestamp", "1000"))
+                .andRespond(withSuccess(fixture("hero-synergy-stats.json"), MediaType.APPLICATION_JSON));
+        server.expect(once(), requestTo(startsWith(BASE_URL + "/v1/analytics/hero-synergy-stats?")))
+                .andExpect(queryParam("min_average_badge", "70"))
+                .andExpect(queryParam("max_average_badge", "79"))
+                .andExpect(queryParam("min_unix_timestamp", "2000"))
+                .andRespond(withSuccess(fixture("hero-synergy-stats.json"), MediaType.APPLICATION_JSON));
+        server.expect(once(), requestTo(startsWith(BASE_URL + "/v1/analytics/hero-synergy-stats?")))
+                .andExpect(DeadlockApiClientTest.noQueryParam("min_average_badge"))
+                .andExpect(queryParam("min_unix_timestamp", "1000"))
+                .andRespond(withSuccess(fixture("hero-synergy-stats.json"), MediaType.APPLICATION_JSON));
+
+        for (int round = 0; round < 2; round++) {
+            assertThat(client.getHeroSynergyStats(7, 1000L)).hasSize(6);
+            assertThat(client.getHeroSynergyStats(8, 1000L)).hasSize(6);
+            assertThat(client.getHeroSynergyStats(7, 2000L)).hasSize(6);
+            assertThat(client.getHeroSynergyStats(null, 1000L)).hasSize(6);
+        }
+    }
+
+    @Test
     void itemStatsAgainstAreCachedPerHeroTierAndTimestamp() {
         server.expect(once(), requestTo(startsWith(BASE_URL + "/v1/analytics/item-stats?")))
                 .andExpect(queryParam("enemy_hero_ids", "61"))
@@ -525,6 +555,7 @@ class DeadlockApiClientCachingTest {
                 Map.entry(CacheConfig.DEADLOCK_ITEM_FLOW, Duration.ofHours(3)),
                 Map.entry(CacheConfig.DEADLOCK_ABILITY_ORDER, Duration.ofHours(3)),
                 Map.entry(CacheConfig.DEADLOCK_HERO_COUNTERS, Duration.ofHours(3)),
+                Map.entry(CacheConfig.DEADLOCK_HERO_SYNERGIES, Duration.ofHours(3)),
                 Map.entry(CacheConfig.DEADLOCK_COUNTER_ITEMS, Duration.ofHours(3)),
                 Map.entry(CacheConfig.DEADLOCK_PLAYER_HERO_STATS, Duration.ofMinutes(5)),
                 Map.entry(CacheConfig.DEADLOCK_MATE_STATS, Duration.ofMinutes(5)),
@@ -545,6 +576,7 @@ class DeadlockApiClientCachingTest {
                 Map.entry(CacheConfig.DEADLOCK_ITEM_FLOW, 200L),
                 Map.entry(CacheConfig.DEADLOCK_ABILITY_ORDER, 200L),
                 Map.entry(CacheConfig.DEADLOCK_HERO_COUNTERS, 50L),
+                Map.entry(CacheConfig.DEADLOCK_HERO_SYNERGIES, 50L),
                 Map.entry(CacheConfig.DEADLOCK_COUNTER_ITEMS, 200L),
                 Map.entry(CacheConfig.DEADLOCK_PLAYER_HERO_STATS, 500L),
                 Map.entry(CacheConfig.DEADLOCK_MATE_STATS, 500L),

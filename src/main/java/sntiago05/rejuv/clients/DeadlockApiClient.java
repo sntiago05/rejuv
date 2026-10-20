@@ -19,6 +19,7 @@ import sntiago05.rejuv.clients.dto.AccountRank;
 import sntiago05.rejuv.clients.dto.HeroAsset;
 import sntiago05.rejuv.clients.dto.HeroCounterStat;
 import sntiago05.rejuv.clients.dto.HeroStat;
+import sntiago05.rejuv.clients.dto.HeroSynergyStat;
 import sntiago05.rejuv.clients.dto.ItemAsset;
 import sntiago05.rejuv.clients.dto.ItemFlowStats;
 import sntiago05.rejuv.clients.dto.ItemStat;
@@ -57,6 +58,7 @@ public class DeadlockApiClient {
     private static final String PLAYER_HERO_STATS_PATH = "/v1/players/hero-stats";
     private static final String MATE_STATS_PATH = "/v1/players/{account_id}/mate-stats";
     private static final String HERO_COUNTERS_PATH = "/v1/analytics/hero-counter-stats";
+    private static final String HERO_SYNERGY_PATH = "/v1/analytics/hero-synergy-stats";
     private static final String ITEM_FLOW_PATH = "/v1/analytics/item-flow-stats";
     private static final String ABILITY_ORDER_PATH = "/v1/analytics/ability-order-stats";
     private static final String RANKS_PATH = "/v1/assets/ranks";
@@ -77,6 +79,7 @@ public class DeadlockApiClient {
     private static final BodyReader<List<PlayerHeroStat>> PLAYER_HERO_STATS_READER = DeadlockApiRequests.json(new ParameterizedTypeReference<>() { });
     private static final BodyReader<List<MateStat>> MATE_STATS_READER = DeadlockApiRequests.json(new ParameterizedTypeReference<>() { });
     private static final BodyReader<List<HeroCounterStat>> HERO_COUNTERS_READER = DeadlockApiRequests.json(new ParameterizedTypeReference<>() { });
+    private static final BodyReader<List<HeroSynergyStat>> HERO_SYNERGY_READER = DeadlockApiRequests.json(new ParameterizedTypeReference<>() { });
     private static final BodyReader<ItemFlowStats> ITEM_FLOW_READER = DeadlockApiRequests.json(new ParameterizedTypeReference<>() { });
     private static final BodyReader<List<AbilityOrderStat>> ABILITY_ORDER_READER = DeadlockApiRequests.json(new ParameterizedTypeReference<>() { });
     private static final BodyReader<List<RankAsset>> RANKS_READER = DeadlockApiRequests.json(new ParameterizedTypeReference<>() { });
@@ -314,6 +317,20 @@ public class DeadlockApiClient {
         List<HeroCounterStat> stats = requests.get(HERO_COUNTERS_PATH,
                 uri -> badgeRange(uri.path(HERO_COUNTERS_PATH).queryParam("min_unix_timestamp", minUnixTimestamp), rankTier),
                 HERO_COUNTERS_READER);
+        return List.copyOf(stats);
+    }
+
+    /**
+     * Every hero-with-hero pair synergy since minUnixTimestamp. rankTier null = all ranks (no badge filter).
+     * Callers must not call the analytics methods in parallel for different uncached keys.
+     * @throws IllegalArgumentException if rankTier is non-null and not in 0..11 (before any HTTP call)
+     */
+    @Cacheable(cacheNames = CacheConfig.DEADLOCK_HERO_SYNERGIES, sync = true, key = "#rankTier + ':' + #minUnixTimestamp")
+    public List<HeroSynergyStat> getHeroSynergyStats(Integer rankTier, long minUnixTimestamp) {
+        requireRankTierIfPresent(rankTier);
+        List<HeroSynergyStat> stats = requests.get(HERO_SYNERGY_PATH,
+                uri -> badgeRange(uri.path(HERO_SYNERGY_PATH).queryParam("min_unix_timestamp", minUnixTimestamp), rankTier),
+                HERO_SYNERGY_READER);
         return List.copyOf(stats);
     }
 
