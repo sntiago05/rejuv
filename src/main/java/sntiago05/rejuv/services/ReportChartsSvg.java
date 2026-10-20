@@ -44,8 +44,13 @@ public class ReportChartsSvg {
     public static final int LANING_PHASE_END_S = 720;
     public static final int MID_GAME_END_S = 1200;
 
-    private static final int DEFAULT_WIDTH = 640;
+    private static final int DEFAULT_WIDTH = 480;
     private static final int DEFAULT_HEIGHT = 320;
+    /** Text size in viewBox units: at 480 wide the chart is drawn at 1x to 1.4x on screens, so this is 12 to 17 px. */
+    private static final int TEXT_PX = 17;
+    private static final int SOUL_LEAD_HEIGHT = 348;
+    /** A phase name is only drawn when its band is at least this wide (units), so it never runs past the plot. */
+    private static final double MIN_PHASE_LABEL_BAND = 92.0;
 
     private final Messages messages;
 
@@ -71,7 +76,7 @@ public class ReportChartsSvg {
         if (maxTimeMin <= 0) {
             return Optional.empty();
         }
-        double tickStepX = (maxTimeMin <= 12.0) ? 2.0 : 5.0;
+        double tickStepX = timeTickStepMinutes(maxTimeMin);
         double maxXMinutes = Math.max(tickStepX, Math.ceil(maxTimeMin / tickStepX) * tickStepX);
 
         long maxAbsLead = 0;
@@ -102,15 +107,15 @@ public class ReportChartsSvg {
         }
         double yMaxSouls = maxYK * 1000.0;
 
-        double plotLeft = 65.0;
-        double plotRight = 605.0;
-        double plotTop = 45.0;
-        double plotBottom = 265.0;
+        double plotLeft = 58.0;
+        double plotRight = 450.0;
+        double plotTop = 62.0;
+        double plotBottom = 268.0;
         double plotW = plotRight - plotLeft;
         double plotH = plotBottom - plotTop;
         double centerY = plotTop + plotH / 2.0;
 
-        SvgBuilder builder = new SvgBuilder(DEFAULT_WIDTH, DEFAULT_HEIGHT,
+        SvgBuilder builder = new SvgBuilder(DEFAULT_WIDTH, SOUL_LEAD_HEIGHT,
                 messages.get("report.chart.soul_lead.title"),
                 messages.get("report.chart.soul_lead.title"));
 
@@ -132,19 +137,23 @@ public class ReportChartsSvg {
                     x20, plotTop, plotRight - x20, plotH));
         }
 
-        // Phase labels
-        builder.append(String.format(Locale.ROOT,
-                "<text class=\"phase-text\" x=\"%.1f\" y=\"%.1f\" text-anchor=\"middle\">%s</text>\n",
-                (plotLeft + Math.min(x12, plotRight)) / 2.0, plotTop + 14.0, messages.get("analyze.chart.phase.laning")));
-        if (x12 < plotRight) {
+        // Phase labels (only where the band is wide enough for the text)
+        double laningEnd = Math.min(x12, plotRight);
+        if (laningEnd - plotLeft >= MIN_PHASE_LABEL_BAND) {
             builder.append(String.format(Locale.ROOT,
                     "<text class=\"phase-text\" x=\"%.1f\" y=\"%.1f\" text-anchor=\"middle\">%s</text>\n",
-                    (x12 + Math.min(x20, plotRight)) / 2.0, plotTop + 14.0, messages.get("analyze.chart.phase.mid")));
+                    (plotLeft + laningEnd) / 2.0, plotTop + 20.0, messages.get("analyze.chart.phase.laning")));
         }
-        if (x20 < plotRight) {
+        double midEnd = Math.min(x20, plotRight);
+        if (x12 < plotRight && midEnd - x12 >= MIN_PHASE_LABEL_BAND) {
             builder.append(String.format(Locale.ROOT,
                     "<text class=\"phase-text\" x=\"%.1f\" y=\"%.1f\" text-anchor=\"middle\">%s</text>\n",
-                    (x20 + plotRight) / 2.0, plotTop + 14.0, messages.get("analyze.chart.phase.late")));
+                    (x12 + midEnd) / 2.0, plotTop + 20.0, messages.get("analyze.chart.phase.mid")));
+        }
+        if (x20 < plotRight && plotRight - x20 >= MIN_PHASE_LABEL_BAND) {
+            builder.append(String.format(Locale.ROOT,
+                    "<text class=\"phase-text\" x=\"%.1f\" y=\"%.1f\" text-anchor=\"middle\">%s</text>\n",
+                    (x20 + plotRight) / 2.0, plotTop + 20.0, messages.get("analyze.chart.phase.late")));
         }
 
         // Y grid lines and ticks
@@ -162,7 +171,7 @@ public class ReportChartsSvg {
             }
             builder.append(String.format(Locale.ROOT,
                     "<text class=\"axis-text\" x=\"%.1f\" y=\"%.1f\" text-anchor=\"end\">%s</text>\n",
-                    plotLeft - 8.0, y + 4.0, label));
+                    plotLeft - 8.0, y + 6.0, label));
         }
 
         // X grid lines and ticks
@@ -172,20 +181,21 @@ public class ReportChartsSvg {
                     "<line class=\"grid\" x1=\"%.1f\" y1=\"%.1f\" x2=\"%.1f\" y2=\"%.1f\" />\n",
                     x, plotTop, x, plotBottom));
             builder.append(String.format(Locale.ROOT,
-                    "<text class=\"axis-text\" x=\"%.1f\" y=\"%.1f\" text-anchor=\"middle\">%d min</text>\n",
-                    x, plotBottom + 16.0, (long) m));
+                    "<text class=\"axis-text\" x=\"%.1f\" y=\"%.1f\" text-anchor=\"middle\">%dm</text>\n",
+                    x, plotBottom + 22.0, (long) m));
         }
 
         // Zero line with side indicator texts
         builder.append(String.format(Locale.ROOT,
                 "<line class=\"zero-line\" x1=\"%.1f\" y1=\"%.1f\" x2=\"%.1f\" y2=\"%.1f\" />\n",
                 plotLeft, centerY, plotRight, centerY));
+        // Which side is which: a legend row under the axis, so the labels never sit on the line
         builder.append(String.format(Locale.ROOT,
-                "<text class=\"side-you\" x=\"%.1f\" y=\"%.1f\">%s</text>\n",
-                plotLeft + 6.0, centerY - 6.0, messages.get("analyze.chart.side_you")));
+                "<text class=\"side-you\" x=\"12.0\" y=\"%.1f\">&#9650; %s</text>\n",
+                SOUL_LEAD_HEIGHT - 10.0, messages.get("analyze.chart.side_you")));
         builder.append(String.format(Locale.ROOT,
-                "<text class=\"side-enemy\" x=\"%.1f\" y=\"%.1f\">%s</text>\n",
-                plotLeft + 6.0, centerY + 15.0, messages.get("analyze.chart.side_enemy")));
+                "<text class=\"side-enemy\" x=\"250.0\" y=\"%.1f\">&#9660; %s</text>\n",
+                SOUL_LEAD_HEIGHT - 10.0, messages.get("analyze.chart.side_enemy")));
 
         // Map data points
         double[] xs = new double[n];
@@ -256,8 +266,8 @@ public class ReportChartsSvg {
         String swingLabel = messages.get("report.chart.soul_lead.swing",
                 swingAmount, String.valueOf(swingStartMin), String.valueOf(swingEndMin));
         builder.append(String.format(Locale.ROOT,
-                "<text class=\"annotation-text\" x=\"%.1f\" y=\"%.1f\" text-anchor=\"end\">%s</text>\n",
-                plotRight, plotTop - 12.0, escapeXml(swingLabel)));
+                "<text class=\"annotation-text\" x=\"%.1f\" y=\"%.1f\" text-anchor=\"start\">%s</text>\n",
+                12.0, 44.0, escapeXml(swingLabel)));
 
         // Death markers if provided
         if (deathTimesS != null && !deathTimesS.isEmpty()) {
@@ -280,7 +290,7 @@ public class ReportChartsSvg {
                     }
                 }
                 builder.append(String.format(Locale.ROOT,
-                        "<circle cx=\"%.1f\" cy=\"%.1f\" r=\"4.5\" class=\"death-marker\" />\n",
+                        "<circle cx=\"%.1f\" cy=\"%.1f\" r=\"6\" class=\"death-marker\" />\n",
                         xDeath, yDeath));
             }
         }
@@ -288,13 +298,24 @@ public class ReportChartsSvg {
         // Axis title
         builder.append(String.format(Locale.ROOT,
                 "<text class=\"axis-title\" x=\"%.1f\" y=\"%.1f\" text-anchor=\"start\">%s</text>\n",
-                plotLeft, plotTop - 12.0, escapeXml(messages.get("report.curve.axis.souls"))));
+                12.0, 22.0, escapeXml(messages.get("report.curve.axis.souls"))));
 
         builder.append(String.format(Locale.ROOT,
                 "<text class=\"axis-title\" x=\"%.1f\" y=\"%.1f\" text-anchor=\"middle\">%s</text>\n",
-                plotLeft + plotW / 2.0, plotBottom + 34.0, escapeXml(messages.get("report.curve.axis.minutes"))));
+                plotLeft + plotW / 2.0, plotBottom + 46.0, escapeXml(messages.get("report.curve.axis.minutes"))));
 
         return Optional.of(builder.build());
+    }
+
+    /** Minutes between time-axis ticks: never more than 6 ticks, so the labels do not touch at 17 units wide. */
+    static double timeTickStepMinutes(double maxMinutes) {
+        if (maxMinutes <= 12.0) {
+            return 2.0;
+        }
+        if (maxMinutes <= 30.0) {
+            return 5.0;
+        }
+        return maxMinutes <= 60.0 ? 10.0 : 15.0;
     }
 
     public String computeSoulLeadAlt(List<Integer> timesS, List<Long> soulLead) {
@@ -336,14 +357,14 @@ public class ReportChartsSvg {
             return Optional.empty();
         }
 
-        int width = 640;
-        int height = 240;
-        double plotLeft = 140.0;
-        double plotRight = 580.0;
-        double plotW = plotRight - plotLeft;
-        double centerX = plotLeft + plotW / 2.0;
-        double plotTop = 45.0;
-        double rowHeight = 48.0;
+        int width = DEFAULT_WIDTH;
+        double left = 16.0;
+        double plotW = width - 2 * left;
+        double centerX = left + plotW / 2.0;
+        double headY = 26.0;
+        double plotTop = 50.0;
+        double rowHeight = 66.0;
+        int height = (int) (plotTop + phases.size() * rowHeight + 10.0);
 
         double maxAbsZ = 1.0;
         for (PhaseScore p : phases) {
@@ -358,47 +379,26 @@ public class ReportChartsSvg {
                 messages.get("report.chart.phases.title"),
                 messages.get("report.chart.phases.title"));
 
-        // Header guides
         builder.append(String.format(Locale.ROOT,
                 "<line class=\"zero-line\" x1=\"%.1f\" y1=\"%.1f\" x2=\"%.1f\" y2=\"%.1f\" />\n",
-                centerX, plotTop - 5.0, centerX, plotTop + phases.size() * rowHeight + 10.0));
-
+                centerX, plotTop - 6.0, centerX, plotTop + phases.size() * rowHeight));
         builder.append(String.format(Locale.ROOT,
                 "<text class=\"phase-head-worse\" x=\"%.1f\" y=\"%.1f\" text-anchor=\"end\">&#8592; %s</text>\n",
-                centerX - 10.0, plotTop - 12.0, escapeXml(messages.get("report.chart.phases.worse"))));
+                centerX - 8.0, headY, escapeXml(messages.get("report.chart.phases.worse"))));
         builder.append(String.format(Locale.ROOT,
                 "<text class=\"phase-head-better\" x=\"%.1f\" y=\"%.1f\" text-anchor=\"start\">%s &#8594;</text>\n",
-                centerX + 10.0, plotTop - 12.0, escapeXml(messages.get("report.chart.phases.better"))));
+                centerX + 8.0, headY, escapeXml(messages.get("report.chart.phases.better"))));
 
         for (int i = 0; i < phases.size(); i++) {
             PhaseScore phase = phases.get(i);
-            double y = plotTop + i * rowHeight + 10.0;
-            String phaseName = capitalize(phase.name());
+            double y = plotTop + i * rowHeight;
             String phaseLabel = switch (phase.name().toLowerCase(Locale.ROOT)) {
                 case "laning" -> messages.get("analyze.chart.phase.laning");
                 case "mid" -> messages.get("analyze.chart.phase.mid");
                 case "late" -> messages.get("analyze.chart.phase.late");
-                default -> phaseName;
+                default -> capitalize(phase.name());
             };
-
-            // Left phase label
-            builder.append(String.format(Locale.ROOT,
-                    "<text class=\"bar-row-label\" x=\"%.1f\" y=\"%.1f\" text-anchor=\"end\">%s</text>\n",
-                    plotLeft - 16.0, y + 16.0, escapeXml(phaseLabel)));
-
-            // Horizontal bar
             double z = phase.change();
-            double barW = Math.abs(z) / scaleZ * (plotW / 2.0);
-            barW = Math.max(2.0, Math.min(barW, plotW / 2.0));
-
-            double barX = (z >= 0) ? centerX : (centerX - barW);
-            String barClass = (z >= 0) ? "bar-better" : "bar-worse";
-
-            builder.append(String.format(Locale.ROOT,
-                    "<rect x=\"%.1f\" y=\"%.1f\" width=\"%.1f\" height=\"%.1f\" rx=\"3\" class=\"%s\" />\n",
-                    barX, y, barW, 22.0, barClass));
-
-            // Plain words label next to bar
             String verdictWord = (z >= 0.1)
                     ? messages.get("report.chart.phases.better")
                     : (z <= -0.1)
@@ -407,15 +407,18 @@ public class ReportChartsSvg {
             String verdictText = messages.get("report.chart.phases.verdict",
                     String.format(Locale.ROOT, "%+.1f", z), verdictWord);
 
-            if (z >= 0) {
-                builder.append(String.format(Locale.ROOT,
-                        "<text class=\"bar-value-text\" x=\"%.1f\" y=\"%.1f\" text-anchor=\"start\">%s</text>\n",
-                        barX + barW + 8.0, y + 16.0, escapeXml(verdictText)));
-            } else {
-                builder.append(String.format(Locale.ROOT,
-                        "<text class=\"bar-value-text\" x=\"%.1f\" y=\"%.1f\" text-anchor=\"end\">%s</text>\n",
-                        barX - 8.0, y + 16.0, escapeXml(verdictText)));
-            }
+            // Name and plain-words verdict on one line above the bar, so nothing competes for space beside it
+            builder.append(String.format(Locale.ROOT,
+                    "<text class=\"bar-row-label\" x=\"%.1f\" y=\"%.1f\">%s<tspan class=\"bar-value-text\" dx=\"10\">%s</tspan></text>\n",
+                    left, y + 18.0, escapeXml(phaseLabel), escapeXml(verdictText)));
+
+            double barW = Math.abs(z) / scaleZ * (plotW / 2.0);
+            barW = Math.max(3.0, Math.min(barW, plotW / 2.0));
+            double barX = (z >= 0) ? centerX : (centerX - barW);
+            String barClass = (z >= 0) ? "bar-better" : "bar-worse";
+            builder.append(String.format(Locale.ROOT,
+                    "<rect x=\"%.1f\" y=\"%.1f\" width=\"%.1f\" height=\"%.1f\" rx=\"3\" class=\"%s\" />\n",
+                    barX, y + 28.0, barW, 24.0, barClass));
         }
 
         return Optional.of(builder.build());
@@ -450,13 +453,13 @@ public class ReportChartsSvg {
     // 3. Deaths timeline / breakdown
     // -------------------------------------------------------------------------
     public Optional<String> renderDeaths(int laning, int mid, int late, int total, int longestRespawnS) {
-        int width = 640;
-        int height = 240;
-        double plotLeft = 140.0;
-        double plotRight = 580.0;
-        double plotW = plotRight - plotLeft;
-        double plotTop = 45.0;
-        double rowHeight = 44.0;
+        int width = DEFAULT_WIDTH;
+        double left = 16.0;
+        double plotW = width - 2 * left;
+        double headY = 26.0;
+        double plotTop = 50.0;
+        double rowHeight = 62.0;
+        int height = (int) (plotTop + 3 * rowHeight + 6.0);
 
         int maxDeaths = Math.max(1, Math.max(laning, Math.max(mid, late)));
 
@@ -464,12 +467,11 @@ public class ReportChartsSvg {
                 messages.get("report.chart.deaths.title"),
                 messages.get("report.chart.deaths.title"));
 
-        // Header info: Total deaths & longest respawn
         String summary = messages.get("report.chart.deaths.summary",
                 String.valueOf(total), String.valueOf(longestRespawnS));
         builder.append(String.format(Locale.ROOT,
                 "<text class=\"annotation-text\" x=\"%.1f\" y=\"%.1f\" text-anchor=\"start\">%s</text>\n",
-                plotLeft, plotTop - 12.0, escapeXml(summary)));
+                left, headY, escapeXml(summary)));
 
         String[] phaseNames = {
                 messages.get("analyze.chart.phase.laning"),
@@ -479,25 +481,20 @@ public class ReportChartsSvg {
         int[] counts = {laning, mid, late};
 
         for (int i = 0; i < 3; i++) {
-            double y = plotTop + i * rowHeight + 6.0;
-            builder.append(String.format(Locale.ROOT,
-                    "<text class=\"bar-row-label\" x=\"%.1f\" y=\"%.1f\" text-anchor=\"end\">%s</text>\n",
-                    plotLeft - 16.0, y + 15.0, escapeXml(phaseNames[i])));
-
-            double barW = (counts[i] == 0) ? 0.0 : Math.max(6.0, ((double) counts[i] / (double) maxDeaths) * (plotW - 80.0));
-
-            if (barW > 0) {
-                builder.append(String.format(Locale.ROOT,
-                        "<rect x=\"%.1f\" y=\"%.1f\" width=\"%.1f\" height=\"%.1f\" rx=\"3\" class=\"bar-death\" />\n",
-                        plotLeft, y, barW, 20.0));
-            }
-
+            double y = plotTop + i * rowHeight;
             String countText = (counts[i] == 1)
                     ? messages.get("report.chart.deaths.count_one")
                     : messages.get("report.chart.deaths.count_many", String.valueOf(counts[i]));
             builder.append(String.format(Locale.ROOT,
-                    "<text class=\"bar-value-text\" x=\"%.1f\" y=\"%.1f\" text-anchor=\"start\">%s</text>\n",
-                    plotLeft + barW + 8.0, y + 15.0, escapeXml(countText)));
+                    "<text class=\"bar-row-label\" x=\"%.1f\" y=\"%.1f\">%s<tspan class=\"bar-value-text\" dx=\"10\">%s</tspan></text>\n",
+                    left, y + 18.0, escapeXml(phaseNames[i]), escapeXml(countText)));
+
+            double barW = (counts[i] == 0) ? 0.0 : Math.max(8.0, ((double) counts[i] / (double) maxDeaths) * plotW);
+            if (barW > 0) {
+                builder.append(String.format(Locale.ROOT,
+                        "<rect x=\"%.1f\" y=\"%.1f\" width=\"%.1f\" height=\"%.1f\" rx=\"3\" class=\"bar-death\" />\n",
+                        left, y + 28.0, barW, 22.0));
+            }
         }
 
         return Optional.of(builder.build());
@@ -518,56 +515,53 @@ public class ReportChartsSvg {
         }
 
         int n = metrics.size();
-        double rowH = 34.0;
-        int width = 640;
-        int height = (int) Math.max(260.0, 50.0 + n * rowH + 30.0);
-
-        double labelW = 160.0;
-        double plotLeft = labelW + 10.0;
-        double plotRight = 520.0;
+        double rowH = 58.0;
+        int width = DEFAULT_WIDTH;
+        double plotLeft = 16.0;
+        double plotRight = width - 16.0;
         double plotW = plotRight - plotLeft;
-        double plotTop = 45.0;
+        double headY = 26.0;
+        double plotTop = 44.0;
+        int height = (int) (plotTop + n * rowH + 8.0);
 
         SvgBuilder builder = new SvgBuilder(width, height,
                 messages.get("report.chart.metrics.title"),
                 messages.get("report.chart.metrics.title"));
 
-        // Header guides
         builder.append(String.format(Locale.ROOT,
                 "<text class=\"annotation-text\" x=\"%.1f\" y=\"%.1f\" text-anchor=\"middle\">p25</text>\n",
-                plotLeft + 0.25 * plotW, plotTop - 12.0));
+                plotLeft + 0.25 * plotW, headY));
         builder.append(String.format(Locale.ROOT,
                 "<text class=\"annotation-text\" x=\"%.1f\" y=\"%.1f\" text-anchor=\"middle\">p50 (Median)</text>\n",
-                plotLeft + 0.50 * plotW, plotTop - 12.0));
-
+                plotLeft + 0.50 * plotW, headY));
         builder.append(String.format(Locale.ROOT,
                 "<line class=\"guide-dashed\" x1=\"%.1f\" y1=\"%.1f\" x2=\"%.1f\" y2=\"%.1f\" />\n",
-                plotLeft + 0.25 * plotW, plotTop - 4.0, plotLeft + 0.25 * plotW, plotTop + n * rowH));
+                plotLeft + 0.25 * plotW, headY + 6.0, plotLeft + 0.25 * plotW, plotTop + n * rowH));
         builder.append(String.format(Locale.ROOT,
                 "<line class=\"guide-dashed\" x1=\"%.1f\" y1=\"%.1f\" x2=\"%.1f\" y2=\"%.1f\" />\n",
-                plotLeft + 0.50 * plotW, plotTop - 4.0, plotLeft + 0.50 * plotW, plotTop + n * rowH));
+                plotLeft + 0.50 * plotW, headY + 6.0, plotLeft + 0.50 * plotW, plotTop + n * rowH));
 
         for (int i = 0; i < n; i++) {
             ReportView.MetricRow m = metrics.get(i);
             double y = plotTop + i * rowH;
             String label = resolveLabel(m.labelKey(), m.key());
+            String verdictText = messages.get("report.chart.metrics.value_with_verdict",
+                    m.yourValue(), m.verdict());
 
-            // Metric label
             builder.append(String.format(Locale.ROOT,
-                    "<text class=\"metric-row-label\" x=\"%.1f\" y=\"%.1f\" text-anchor=\"end\">%s</text>\n",
-                    plotLeft - 10.0, y + 14.0, escapeXml(label)));
-
-            // Track background
+                    "<text class=\"metric-row-label\" x=\"%.1f\" y=\"%.1f\" text-anchor=\"start\">%s</text>\n",
+                    plotLeft, y + 18.0, escapeXml(label)));
             builder.append(String.format(Locale.ROOT,
-                    "<rect x=\"%.1f\" y=\"%.1f\" width=\"%.1f\" height=\"%.1f\" rx=\"3\" class=\"metric-track\" />\n",
-                    plotLeft, y + 5.0, plotW, 8.0));
+                    "<text class=\"metric-val-text\" x=\"%.1f\" y=\"%.1f\" text-anchor=\"end\">%s</text>\n",
+                    plotRight, y + 18.0, escapeXml(verdictText)));
 
-            // Peer range bar: p25 to p50 (25% to 50%)
+            builder.append(String.format(Locale.ROOT,
+                    "<rect x=\"%.1f\" y=\"%.1f\" width=\"%.1f\" height=\"%.1f\" rx=\"4\" class=\"metric-track\" />\n",
+                    plotLeft, y + 28.0, plotW, 10.0));
             builder.append(String.format(Locale.ROOT,
                     "<rect x=\"%.1f\" y=\"%.1f\" width=\"%.1f\" height=\"%.1f\" rx=\"2\" class=\"metric-range-band\" />\n",
-                    plotLeft + 0.25 * plotW, y + 5.0, 0.25 * plotW, 8.0));
+                    plotLeft + 0.25 * plotW, y + 28.0, 0.25 * plotW, 10.0));
 
-            // Dot for your value
             double dotRatio = computeDotRatio(m);
             double dotX = plotLeft + dotRatio * plotW;
             String dotClass = switch (m.verdict()) {
@@ -575,17 +569,9 @@ public class ReportChartsSvg {
                 case "below p25" -> "dot-worse";
                 default -> "dot-neutral";
             };
-
             builder.append(String.format(Locale.ROOT,
-                    "<circle cx=\"%.1f\" cy=\"%.1f\" r=\"6\" class=\"%s\" />\n",
-                    dotX, y + 9.0, dotClass));
-
-            // Value and verdict text
-            String verdictText = messages.get("report.chart.metrics.value_with_verdict",
-                    m.yourValue(), m.verdict());
-            builder.append(String.format(Locale.ROOT,
-                    "<text class=\"metric-val-text\" x=\"%.1f\" y=\"%.1f\" text-anchor=\"start\">%s</text>\n",
-                    plotRight + 12.0, y + 13.0, escapeXml(verdictText)));
+                    "<circle cx=\"%.1f\" cy=\"%.1f\" r=\"8\" class=\"%s\" />\n",
+                    dotX, y + 33.0, dotClass));
         }
 
         return Optional.of(builder.build());
@@ -665,79 +651,36 @@ public class ReportChartsSvg {
             return Optional.empty();
         }
 
-        int width = 640;
-        int height = 240;
-        double plotLeft = 55.0;
-        double plotRight = 585.0;
-        double plotW = plotRight - plotLeft;
-        double centerY = 120.0;
-
-        int lastSec = timeline.get(timeline.size() - 1).boughtAtS();
-        double lastMin = lastSec / 60.0;
-        double maxAxisMin = Math.max(10.0, Math.ceil(Math.max(lastMin, 5.0) / 5.0) * 5.0);
+        // Vertical list: item names read left to right at any width and never overlap
+        int width = DEFAULT_WIDTH;
+        double rowH = 32.0;
+        double top = 24.0;
+        double axisX = 78.0;
+        int height = (int) (top + timeline.size() * rowH + 16.0);
 
         SvgBuilder builder = new SvgBuilder(width, height,
                 messages.get("report.chart.build.title"),
                 messages.get("report.chart.build.title"));
 
-        // Horizontal axis line
+        double firstY = top + rowH / 2.0;
+        double lastY = top + (timeline.size() - 1) * rowH + rowH / 2.0;
         builder.append(String.format(Locale.ROOT,
                 "<line class=\"zero-line\" x1=\"%.1f\" y1=\"%.1f\" x2=\"%.1f\" y2=\"%.1f\" />\n",
-                plotLeft, centerY, plotRight, centerY));
+                axisX, firstY, axisX, lastY));
 
-        // Axis ticks every 5 or 10 min
-        double stepMin = (maxAxisMin <= 20.0) ? 5.0 : 10.0;
-        for (double m = 0; m <= maxAxisMin + 0.001; m += stepMin) {
-            double x = plotLeft + (m / maxAxisMin) * plotW;
-            builder.append(String.format(Locale.ROOT,
-                    "<line class=\"grid\" x1=\"%.1f\" y1=\"%.1f\" x2=\"%.1f\" y2=\"%.1f\" />\n",
-                    x, centerY - 6.0, x, centerY + 6.0));
-            builder.append(String.format(Locale.ROOT,
-                    "<text class=\"axis-text\" x=\"%.1f\" y=\"%.1f\" text-anchor=\"middle\">%dm</text>\n",
-                    x, centerY + 20.0, (int) m));
-        }
-
-        // Axis label
-        builder.append(String.format(Locale.ROOT,
-                "<text class=\"axis-title\" x=\"%.1f\" y=\"%.1f\" text-anchor=\"end\">%s</text>\n",
-                plotRight, centerY + 36.0, escapeXml(messages.get("report.curve.axis.minutes"))));
-
-        // Alternating items
         for (int i = 0; i < timeline.size(); i++) {
             MatchVisuals.PurchasedItem item = timeline.get(i);
-            double itemMin = item.boughtAtS() / 60.0;
-            double x = plotLeft + Math.clamp(itemMin / maxAxisMin, 0.0, 1.0) * plotW;
-            boolean above = (i % 2 == 0);
+            double y = top + i * rowH + rowH / 2.0;
+            int minute = item.boughtAtS() / 60;
 
-            // Tick circle on axis
             builder.append(String.format(Locale.ROOT,
-                    "<circle cx=\"%.1f\" cy=\"%.1f\" r=\"4.5\" class=\"dot-neutral\" />\n",
-                    x, centerY));
-
-            double textY;
-            double lineY1;
-            double lineY2;
-            if (above) {
-                lineY1 = centerY - 5.0;
-                lineY2 = centerY - 32.0;
-                textY = centerY - 38.0;
-            } else {
-                lineY1 = centerY + 5.0;
-                lineY2 = centerY + 32.0;
-                textY = centerY + 54.0;
-            }
-
-            // Connecting guide line
+                    "<text class=\"axis-text\" x=\"%.1f\" y=\"%.1f\" text-anchor=\"end\">%dm</text>\n",
+                    axisX - 14.0, y + 6.0, minute));
             builder.append(String.format(Locale.ROOT,
-                    "<line class=\"guide-dashed\" x1=\"%.1f\" y1=\"%.1f\" x2=\"%.1f\" y2=\"%.1f\" />\n",
-                    x, lineY1, x, lineY2));
-
-            // Item name and buy minute
-            String anchor = (x <= plotLeft + 45.0) ? "start" : ((x >= plotRight - 45.0) ? "end" : "middle");
-            String label = String.format(Locale.ROOT, "%s (%dm)", escapeXml(item.name()), (int) itemMin);
+                    "<circle cx=\"%.1f\" cy=\"%.1f\" r=\"6\" class=\"dot-neutral\" />\n", axisX, y));
             builder.append(String.format(Locale.ROOT,
-                    "<text class=\"annotation-text\" x=\"%.1f\" y=\"%.1f\" text-anchor=\"%s\">%s</text>\n",
-                    x, textY, anchor, label));
+                    "<text class=\"bar-value-text\" x=\"%.1f\" y=\"%.1f\" text-anchor=\"start\">%s</text>\n",
+                    axisX + 16.0, y + 6.0, escapeXml(item.name())));
         }
 
         return Optional.of(builder.build());
@@ -775,43 +718,43 @@ public class ReportChartsSvg {
 
             sb.append("<style>\n");
             sb.append(".bg { fill: ").append(COLOR_BG_DARK).append("; }\n");
-            sb.append(".grid { stroke: ").append(COLOR_GRID_DARK).append("; stroke-width: 1; }\n");
-            sb.append(".zero-line { stroke: #4e5058; stroke-width: 1.5; }\n");
+            sb.append(".grid { stroke: ").append(COLOR_GRID_DARK).append("; stroke-width: 1.5; }\n");
+            sb.append(".zero-line { stroke: #6b6f78; stroke-width: 2; }\n");
             sb.append(".guide-dashed { stroke: #4e5058; stroke-width: 1; stroke-dasharray: 4 4; }\n");
-            sb.append(".axis-text { fill: ").append(COLOR_MUTED_DARK).append("; font-size: 12px; font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, sans-serif; }\n");
-            sb.append(".axis-title { fill: ").append(COLOR_MUTED_DARK).append("; font-size: 12px; font-weight: 600; font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, sans-serif; }\n");
-            sb.append(".annotation-text { fill: ").append(COLOR_TEXT_DARK).append("; font-size: 12px; font-weight: 600; font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, sans-serif; }\n");
+            sb.append(".axis-text { fill: ").append(COLOR_MUTED_DARK).append("; font-size: 17px; font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, sans-serif; }\n");
+            sb.append(".axis-title { fill: ").append(COLOR_MUTED_DARK).append("; font-size: 17px; font-weight: 600; font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, sans-serif; }\n");
+            sb.append(".annotation-text { fill: ").append(COLOR_TEXT_DARK).append("; font-size: 17px; font-weight: 600; font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, sans-serif; }\n");
             sb.append(".phase-band { fill: rgba(255, 255, 255, 0.02); stroke: none; }\n");
             sb.append(".phase-band-alt { fill: rgba(255, 255, 255, 0.05); stroke: none; }\n");
-            sb.append(".phase-text { fill: #72767d; font-size: 12px; font-weight: 600; font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, sans-serif; }\n");
-            sb.append(".side-you { fill: ").append(COLOR_SIDE_BLUE).append("; font-size: 12px; font-weight: 600; font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, sans-serif; }\n");
-            sb.append(".side-enemy { fill: ").append(COLOR_SIDE_ORANGE).append("; font-size: 12px; font-weight: 600; font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, sans-serif; }\n");
-            sb.append(".lead-line { stroke: ").append(COLOR_YOU_GOLD).append("; stroke-width: 2.4; fill: none; stroke-linecap: round; stroke-linejoin: round; }\n");
+            sb.append(".phase-text { fill: #72767d; font-size: 17px; font-weight: 600; font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, sans-serif; }\n");
+            sb.append(".side-you { fill: ").append(COLOR_SIDE_BLUE).append("; font-size: 17px; font-weight: 600; font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, sans-serif; }\n");
+            sb.append(".side-enemy { fill: ").append(COLOR_SIDE_ORANGE).append("; font-size: 17px; font-weight: 600; font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, sans-serif; }\n");
+            sb.append(".lead-line { stroke: ").append(COLOR_YOU_GOLD).append("; stroke-width: 3; fill: none; stroke-linecap: round; stroke-linejoin: round; }\n");
             sb.append(".lead-fill-you { fill: ").append(COLOR_SIDE_BLUE).append("; fill-opacity: 0.18; stroke: none; }\n");
             sb.append(".lead-fill-enemy { fill: ").append(COLOR_SIDE_ORANGE).append("; fill-opacity: 0.18; stroke: none; }\n");
             sb.append(".death-marker { fill: ").append(COLOR_WORSE_RED).append("; stroke: #1e1f22; stroke-width: 1.5; }\n");
             sb.append(".bar-better { fill: ").append(COLOR_BETTER_GREEN).append("; }\n");
             sb.append(".bar-worse { fill: ").append(COLOR_WORSE_RED).append("; }\n");
             sb.append(".bar-death { fill: ").append(COLOR_WORSE_RED).append("; fill-opacity: 0.85; }\n");
-            sb.append(".phase-head-worse { fill: ").append(COLOR_WORSE_RED).append("; font-size: 12px; font-weight: 600; font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, sans-serif; }\n");
-            sb.append(".phase-head-better { fill: ").append(COLOR_BETTER_GREEN).append("; font-size: 12px; font-weight: 600; font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, sans-serif; }\n");
-            sb.append(".bar-row-label { fill: ").append(COLOR_TEXT_DARK).append("; font-size: 12px; font-weight: 600; font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, sans-serif; }\n");
-            sb.append(".bar-value-text { fill: ").append(COLOR_TEXT_DARK).append("; font-size: 12px; font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, sans-serif; }\n");
-            sb.append(".metric-row-label { fill: ").append(COLOR_TEXT_DARK).append("; font-size: 12px; font-weight: 500; font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, sans-serif; }\n");
+            sb.append(".phase-head-worse { fill: ").append(COLOR_WORSE_RED).append("; font-size: 17px; font-weight: 600; font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, sans-serif; }\n");
+            sb.append(".phase-head-better { fill: ").append(COLOR_BETTER_GREEN).append("; font-size: 17px; font-weight: 600; font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, sans-serif; }\n");
+            sb.append(".bar-row-label { fill: ").append(COLOR_TEXT_DARK).append("; font-size: 17px; font-weight: 600; font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, sans-serif; }\n");
+            sb.append(".bar-value-text { fill: ").append(COLOR_TEXT_DARK).append("; font-size: 17px; font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, sans-serif; }\n");
+            sb.append(".metric-row-label { fill: ").append(COLOR_TEXT_DARK).append("; font-size: 17px; font-weight: 500; font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, sans-serif; }\n");
             sb.append(".metric-track { fill: #2b2d31; }\n");
             sb.append(".metric-range-band { fill: #4e5058; }\n");
             sb.append(".dot-better { fill: ").append(COLOR_BETTER_GREEN).append("; stroke: #1e1f22; stroke-width: 1.5; }\n");
             sb.append(".dot-neutral { fill: ").append(COLOR_YOU_GOLD).append("; stroke: #1e1f22; stroke-width: 1.5; }\n");
             sb.append(".dot-worse { fill: ").append(COLOR_WORSE_RED).append("; stroke: #1e1f22; stroke-width: 1.5; }\n");
-            sb.append(".metric-val-text { fill: ").append(COLOR_MUTED_DARK).append("; font-size: 12px; font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, sans-serif; }\n");
+            sb.append(".metric-val-text { fill: ").append(COLOR_MUTED_DARK).append("; font-size: 17px; font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, sans-serif; }\n");
             sb.append(".band { fill: ").append(COLOR_SIDE_BLUE).append("; fill-opacity: 0.18; stroke: none; }\n");
-            sb.append(".avg-line { stroke: ").append(COLOR_SIDE_BLUE).append("; stroke-width: 2; stroke-dasharray: 6 4; fill: none; }\n");
-            sb.append(".player-line { stroke: ").append(COLOR_YOU_GOLD).append("; stroke-width: 3; fill: none; stroke-linecap: round; stroke-linejoin: round; }\n");
-            sb.append(".direct-label-player { fill: ").append(COLOR_YOU_GOLD).append("; font-size: 12px; font-weight: 700; font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, sans-serif; }\n");
-            sb.append(".direct-label-avg { fill: ").append(COLOR_SIDE_BLUE).append("; font-size: 12px; font-weight: 600; font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, sans-serif; }\n");
-            sb.append(".verdict-text { fill: ").append(COLOR_TEXT_DARK).append("; font-size: 12px; font-weight: 600; font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, sans-serif; }\n");
-            sb.append(".legend-text { fill: ").append(COLOR_TEXT_DARK).append("; font-size: 12px; font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, sans-serif; }\n");
-            sb.append(".caption { fill: ").append(COLOR_TEXT_DARK).append("; font-size: 13px; font-weight: 600; font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, sans-serif; }\n");
+            sb.append(".avg-line { stroke: ").append(COLOR_SIDE_BLUE).append("; stroke-width: 2.5; stroke-dasharray: 6 4; fill: none; }\n");
+            sb.append(".player-line { stroke: ").append(COLOR_YOU_GOLD).append("; stroke-width: 3.5; fill: none; stroke-linecap: round; stroke-linejoin: round; }\n");
+            sb.append(".direct-label-player { fill: ").append(COLOR_YOU_GOLD).append("; font-size: 17px; font-weight: 700; font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, sans-serif; }\n");
+            sb.append(".direct-label-avg { fill: ").append(COLOR_SIDE_BLUE).append("; font-size: 17px; font-weight: 600; font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, sans-serif; }\n");
+            sb.append(".verdict-text { fill: ").append(COLOR_TEXT_DARK).append("; font-size: 17px; font-weight: 600; font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, sans-serif; }\n");
+            sb.append(".legend-text { fill: ").append(COLOR_TEXT_DARK).append("; font-size: 17px; font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, sans-serif; }\n");
+            sb.append(".caption { fill: ").append(COLOR_TEXT_DARK).append("; font-size: 18px; font-weight: 600; font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, sans-serif; }\n");
 
             sb.append("@media (prefers-color-scheme: light) {\n");
             sb.append("  .bg { fill: ").append(COLOR_BG_LIGHT).append("; }\n");

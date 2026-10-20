@@ -57,7 +57,8 @@
   --color-team-orange: var(--c-orange);
 }
 
-/* Bar widths, in steps of 10 percent */
+/* Bar widths, in steps of 10 percent. The Java helper builds these names at run time, so list them for the scanner. */
+@source inline("w{0,10,20,30,40,50,60,70,80,90,100}");
 @utility w0 { width: 0%; }
 @utility w10 { width: 10%; }
 @utility w20 { width: 20%; }
@@ -201,7 +202,7 @@
   .player-row {
     @apply grid gap-x-4 gap-y-2 border-b px-4 py-3;
     border-color: var(--c-border);
-    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-columns: minmax(0, 1fr);
   }
   .player-row:last-child {
     border-bottom-width: 0;
@@ -231,7 +232,7 @@
     color: var(--c-on-accent);
   }
   .stat-grid {
-    @apply flex items-start gap-4;
+    @apply flex items-start justify-between gap-4;
   }
   .stat {
     @apply flex flex-col text-right leading-tight;
@@ -243,11 +244,8 @@
   .stat-value {
     @apply font-mono text-sm font-bold;
   }
-  .damage-bar {
-    @apply col-span-2;
-  }
   .items-line {
-    @apply col-span-2 flex flex-wrap gap-1;
+    @apply flex flex-wrap gap-1;
   }
   .item-icon {
     @apply h-8 w-8 rounded border object-cover;
@@ -260,8 +258,8 @@
       grid-template-columns: minmax(0, 15rem) auto minmax(0, 1fr);
       align-items: center;
     }
-    .damage-bar {
-      @apply col-span-1;
+    .stat-grid {
+      @apply justify-start;
     }
     .items-line {
       @apply col-span-3;

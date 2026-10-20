@@ -85,6 +85,11 @@ public record ReportView(UUID publicId,
                 metricsAlt, buildAlt, tips, null);
     }
 
+    /** Analysis date as plain {@code yyyy-MM-dd} (UTC) for the page; empty when unknown. */
+    public String analyzedOn() {
+        return analyzedAt == null ? "" : java.time.LocalDate.ofInstant(analyzedAt, java.time.ZoneOffset.UTC).toString();
+    }
+
     /** True when the match scoreboard has at least one team with rows. */
     public boolean hasScoreboard() {
         return scoreboard != null && !scoreboard.teams().isEmpty();
