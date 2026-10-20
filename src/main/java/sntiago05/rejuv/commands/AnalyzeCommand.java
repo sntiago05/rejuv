@@ -42,12 +42,12 @@ import sntiago05.rejuv.domain.MatchVisuals;
 import sntiago05.rejuv.services.AnalyzeService;
 import sntiago05.rejuv.services.AssetImages;
 import sntiago05.rejuv.services.ChartRenderer;
+import sntiago05.rejuv.services.DonationService;
 import sntiago05.rejuv.services.GameAssets;
 import sntiago05.rejuv.services.HeroResolver;
 import sntiago05.rejuv.services.IconCatalog;
 import sntiago05.rejuv.config.DonationProperties;
 import sntiago05.rejuv.config.WebProperties;
-import sntiago05.rejuv.services.DonationService;
 import sntiago05.rejuv.services.MatchNotFoundException;
 import sntiago05.rejuv.services.MatchSearchService;
 import sntiago05.rejuv.services.Messages;
@@ -95,9 +95,7 @@ public class AnalyzeCommand implements SlashCommand {
         this.iconCatalog = iconCatalog;
         this.chartRenderer = chartRenderer;
         this.webProperties = webProperties != null ? webProperties : new WebProperties(null);
-        this.donationService = donationService != null
-                ? donationService
-                : new DonationService(new DonationProperties(null, null), messages);
+        this.donationService = donationService != null ? donationService : disabledDonationService(messages);
     }
 
     public AnalyzeCommand(AnalyzeService analyzeService, ProfileService profileService, Messages messages,
@@ -106,7 +104,7 @@ public class AnalyzeCommand implements SlashCommand {
                           WebProperties webProperties) {
         this(analyzeService, profileService, messages, assetImages, matchSearchService, gameAssets,
                 heroResolver, iconCatalog, chartRenderer, webProperties,
-                new DonationService(new DonationProperties(null, null), messages));
+                disabledDonationService(messages));
     }
 
     public AnalyzeCommand(AnalyzeService analyzeService, ProfileService profileService, Messages messages,
@@ -114,7 +112,7 @@ public class AnalyzeCommand implements SlashCommand {
                           HeroResolver heroResolver, IconCatalog iconCatalog, ChartRenderer chartRenderer) {
         this(analyzeService, profileService, messages, assetImages, matchSearchService, gameAssets,
                 heroResolver, iconCatalog, chartRenderer, new WebProperties(null),
-                new DonationService(new DonationProperties(null, null), messages));
+                disabledDonationService(messages));
     }
 
     @Override
@@ -359,6 +357,10 @@ public class AnalyzeCommand implements SlashCommand {
         addSupportField(builder);
 
         return builder.build();
+    }
+
+    private static DonationService disabledDonationService(Messages messages) {
+        return new DonationService(new DonationProperties(null, null), messages);
     }
 
     private void addSupportField(EmbedBuilder builder) {
