@@ -186,7 +186,7 @@ class AnalyzeCommandTest {
         assertThat(embed.getFields().get(2).getName()).isEqualTo(messages.get("analyze.field.strength"));
         assertThat(embed.getFields().get(2).getValue()).isEqualTo("Great farming");
         assertThat(embed.getFields().get(3).getName()).isEqualTo(messages.get("analyze.field.key_numbers"));
-        assertThat(embed.getFields().get(3).getValue()).isEqualTo("```\n10 kills\n20k souls\n```");
+        assertThat(embed.getFields().get(3).getValue()).isEqualTo("• 10 kills\n• 20k souls");
         assertThat(embed.getFooter()).isNotNull();
         assertThat(embed.getFooter().getText()).isEqualTo(messages.get("analyze.footer", "Infernus", "Archon 3"));
     }
@@ -984,37 +984,83 @@ class AnalyzeCommandTest {
         assertThat(messages.get("analyze.field.build")).startsWith("🎒 ");
     }
 
-    @Test
-    void keyNumbersTableAlignsColumnsAndKeepsMalformedLinesVerbatim() {
-        List<String> rawLines = List.of(
-                "Kills: 10 / 5",
-                "Souls / min: 750.5 / 600.0",
-                "Custom note without pattern",
-                "Deaths: 2 / 3"
-        );
-        String table = EmbedStyle.formatKeyNumbersTable(rawLines);
+    private MessageEmbed buildEmbedWithKeyNumbers(List<String> keyNumbers) {
+        SlashCommandInteractionEvent event = mockEvent();
+        when(profileService.findLinkedAccountId(CALLER_ID)).thenReturn(OptionalLong.of(ACCOUNT_ID));
+        deferFor(event);
+        InteractionHook hook = hookFor(event);
+        AnalysisResult aiResult = new AnalysisResult("Great farming", "Too many deaths", "Ward more", keyNumbers);
+        AnalysisReport report = new AnalysisReport(1, "Infernus", "Archon 3", "win", 30.0, aiResult, Map.of(), false);
+        when(analyzeService.analyze(eq(CALLER_ID), eq(ACCOUNT_ID), any())).thenReturn(report);
 
-        assertThat(table).startsWith("```\n").endsWith("\n```");
-        assertThat(table).contains("Kills       | 10    | 5");
-        assertThat(table).contains("Souls / min | 750.5 | 600.0");
-        assertThat(table).contains("Custom note without pattern");
-        assertThat(table).contains("Deaths      | 2     | 3");
+        command.handle(event);
 
-        assertThat(EmbedStyle.formatKeyNumbersTable(null)).isEmpty();
-        assertThat(EmbedStyle.formatKeyNumbersTable(List.of())).isEmpty();
+        return capturedEmbed(hook);
     }
 
     @Test
-    void keyNumbersTableDropsWholeTrailingLinesAtLimit() {
+    void tipsAreBoldTitlesWithQuotedEvidenceAndDrillAndSkipBlankParts() {
+        SlashCommandInteractionEvent event = mockEvent();
+        when(profileService.findLinkedAccountId(CALLER_ID)).thenReturn(OptionalLong.of(ACCOUNT_ID));
+        deferFor(event);
+        InteractionHook hook = hookFor(event);
+        AnalysisResult aiResult = new AnalysisResult("Great farming", "Too many deaths", "Ward more",
+                List.of("Kills: 10 / 5"), null, null,
+                List.of(new AnalysisResult.Tip("Retreat early", "Deaths: 9 / 5", "Max 5 deaths"),
+                        new AnalysisResult.Tip("Keep farming", "", null)));
+        AnalysisReport report = new AnalysisReport(1, "Infernus", "Archon 3", "win", 30.0, aiResult, Map.of(), false);
+        when(analyzeService.analyze(eq(CALLER_ID), eq(ACCOUNT_ID), any())).thenReturn(report);
+
+        command.handle(event);
+
+        String tips = capturedEmbed(hook).getFields().stream()
+                .filter(f -> f.getName().equals(messages.get("analyze.field.tips")))
+                .findFirst().orElseThrow().getValue();
+        assertThat(tips).isEqualTo("**1. Retreat early**\n> Evidence: Deaths: 9 / 5\n> Drill: Max 5 deaths\n**2. Keep farming**");
+    }
+
+    @Test
+    void parseKeyNumberSplitsMetricYoursAndReference() {
+        assertThat(EmbedStyle.parseKeyNumber("Souls / min: 750.5 / 600.0"))
+                .contains(new EmbedStyle.KeyNumber("Souls / min", "750.5", "600.0"));
+        assertThat(EmbedStyle.parseKeyNumber("Kills: 10 / 5"))
+                .contains(new EmbedStyle.KeyNumber("Kills", "10", "5"));
+
+        assertThat(EmbedStyle.parseKeyNumber("Custom note without pattern")).isEmpty();
+        assertThat(EmbedStyle.parseKeyNumber("Kills: 10")).isEmpty();
+        assertThat(EmbedStyle.parseKeyNumber("Kills:  / 5")).isEmpty();
+        assertThat(EmbedStyle.parseKeyNumber(": 1 / 2")).isEmpty();
+        assertThat(EmbedStyle.parseKeyNumber(null)).isEmpty();
+    }
+
+    @Test
+    void keyNumbersBecomeShortBulletLinesNotAWideTable() {
+        MessageEmbed embed = buildEmbedWithKeyNumbers(List.of(
+                "Kills: 10 / 5", "Custom note without pattern", "Deaths: 2 / 3"));
+
+        String value = embed.getFields().stream()
+                .filter(f -> f.getName().equals(messages.get("analyze.field.key_numbers")))
+                .findFirst().orElseThrow().getValue();
+
+        assertThat(value).isEqualTo("• **Kills:** 10 (peers: 5)\n• Custom note without pattern\n• **Deaths:** 2 (peers: 3)");
+        assertThat(value).doesNotContain("```").doesNotContain(" | ");
+    }
+
+    @Test
+    void keyNumbersDropWholeTrailingLinesAtTheFieldLimit() {
         List<String> lines = new ArrayList<>();
-        for (int i = 0; i < 25; i++) {
+        for (int i = 0; i < 60; i++) {
             lines.add("Metric " + String.format("%02d", i) + ": 100 / 200");
         }
-        String table = EmbedStyle.formatKeyNumbersTable(lines);
 
-        assertThat(table.length()).isLessThanOrEqualTo(1024);
-        assertThat(table).startsWith("```\n").endsWith("\n```");
-        assertThat(table).contains("Metric 00");
+        MessageEmbed embed = buildEmbedWithKeyNumbers(lines);
+
+        String value = embed.getFields().stream()
+                .filter(f -> f.getName().equals(messages.get("analyze.field.key_numbers")))
+                .findFirst().orElseThrow().getValue();
+        assertThat(value.length()).isLessThanOrEqualTo(1024);
+        assertThat(value).contains("Metric 00").doesNotContain("Metric 59");
+        assertThat(value).endsWith("(peers: 200)");
     }
 
     @Test
