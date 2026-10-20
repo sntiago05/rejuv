@@ -717,5 +717,141 @@ class ReportServiceTest {
         assertThat(reportService.deathsSvg(null)).isEmpty();
         assertThat(reportService.metricsSvg(null)).isEmpty();
         assertThat(reportService.soulLeadSvg(null)).isEmpty();
+        assertThat(reportService.buildSvg(null)).isEmpty();
+    }
+
+    @Test
+    void parseTipsFromStoredResultJson() throws Exception {
+        tools.jackson.databind.ObjectMapper mapper = new tools.jackson.databind.json.JsonMapper();
+
+        // 1. Normal 3 tips
+        String json3 = """
+                {"tips": [
+                    {"tip": "Tip 1", "evidence": "Ev 1", "drill": "Drill 1"},
+                    {"tip": "Tip 2", "evidence": "Ev 2", "drill": "Drill 2"},
+                    {"tip": "Tip 3", "evidence": "Ev 3", "drill": "Drill 3"}
+                ]}
+                """;
+        List<ReportView.Tip> tips3 = reportService.parseTips(mapper.readTree(json3));
+        assertThat(tips3).hasSize(3);
+        assertThat(tips3.get(0).tip()).isEqualTo("Tip 1");
+        assertThat(tips3.get(0).evidence()).isEqualTo("Ev 1");
+        assertThat(tips3.get(0).drill()).isEqualTo("Drill 1");
+
+        // 2. 5 tips capped to 3
+        String json5 = """
+                {"tips": [
+                    {"tip": "T1"}, {"tip": "T2"}, {"tip": "T3"}, {"tip": "T4"}, {"tip": "T5"}
+                ]}
+                """;
+        List<ReportView.Tip> tips5 = reportService.parseTips(mapper.readTree(json5));
+        assertThat(tips5).hasSize(3);
+        assertThat(tips5.stream().map(ReportView.Tip::tip)).containsExactly("T1", "T2", "T3");
+
+        // 3. Blank tip dropped
+        String jsonBlank = """
+                {"tips": [
+                    {"tip": "Valid 1"},
+                    {"tip": ""},
+                    {"tip": "   "},
+                    {"evidence": "No tip here"},
+                    {"tip": "Valid 2"}
+                ]}
+                """;
+        List<ReportView.Tip> tipsBlank = reportService.parseTips(mapper.readTree(jsonBlank));
+        assertThat(tipsBlank).hasSize(2);
+        assertThat(tipsBlank.stream().map(ReportView.Tip::tip)).containsExactly("Valid 1", "Valid 2");
+
+        // 4. Missing tips key
+        String jsonMissing = "{\"strength\": \"great\"}";
+        assertThat(reportService.parseTips(mapper.readTree(jsonMissing))).isEmpty();
+
+        // 5. Malformed tips value (string instead of array)
+        String jsonMalformed = "{\"tips\": \"not an array\"}";
+        assertThat(reportService.parseTips(mapper.readTree(jsonMalformed))).isEmpty();
+    }
+
+    @Test
+    void buildTimelineFlagAndSvgDelegationRules() {
+        // Fewer than 3 items -> hasBuildTimeline is false
+        MatchAnalysis stored = createStoredEntity(RESULT_JSON);
+        when(repository.findByPublicId(PUBLIC_ID)).thenReturn(Optional.of(stored));
+        when(gameAssets.heroNames()).thenReturn(Map.of(HERO_ID, "Infernus"));
+
+        MatchTelemetry telemetry2Items = new MatchTelemetry(MATCH_ID, 1200, List.of(new PlayerTelemetry(
+                ACCOUNT_ID, 0, HERO_ID,
+                List.of(new ItemPurchase(101L, 100, null), new ItemPurchase(102L, 200, null)),
+                List.of(), List.of())));
+        when(matchMetadataSource.getMatch(MATCH_ID)).thenReturn(telemetry2Items);
+
+        MatchVisuals visuals2 = new MatchVisuals(List.of(
+                new MatchVisuals.PurchasedItem(101L, "Item 1", 100),
+                new MatchVisuals.PurchasedItem(102L, "Item 2", 200)
+        ), null);
+        when(visualsService.build(ACCOUNT_ID, telemetry2Items)).thenReturn(Optional.of(visuals2));
+
+        Optional<ReportView> view2 = reportService.find(PUBLIC_ID);
+        assertThat(view2).isPresent();
+        assertThat(view2.get().hasBuildTimeline()).isFalse();
+
+        // 3 or more items with buy times -> hasBuildTimeline is true
+        MatchTelemetry telemetry3Items = new MatchTelemetry(MATCH_ID, 1200, List.of(new PlayerTelemetry(
+                ACCOUNT_ID, 0, HERO_ID,
+                List.of(new ItemPurchase(101L, 100, null), new ItemPurchase(102L, 200, null), new ItemPurchase(103L, 300, null)),
+                List.of(), List.of())));
+        when(matchMetadataSource.getMatch(MATCH_ID)).thenReturn(telemetry3Items);
+
+        List<MatchVisuals.PurchasedItem> items3 = List.of(
+                new MatchVisuals.PurchasedItem(101L, "Item 1", 100),
+                new MatchVisuals.PurchasedItem(102L, "Item 2", 200),
+                new MatchVisuals.PurchasedItem(103L, "Item 3", 300)
+        );
+        MatchVisuals visuals3 = new MatchVisuals(items3, null);
+        when(visualsService.build(ACCOUNT_ID, telemetry3Items)).thenReturn(Optional.of(visuals3));
+        when(reportChartsSvg.computeBuildAlt(any())).thenReturn("3 items bought; first at minute 1, last at minute 5.");
+        when(reportChartsSvg.renderBuildTimeline(items3)).thenReturn(Optional.of("<svg>build-timeline</svg>"));
+
+        Optional<ReportView> view3 = reportService.find(PUBLIC_ID);
+        assertThat(view3).isPresent();
+        assertThat(view3.get().hasBuildTimeline()).isTrue();
+        assertThat(view3.get().buildAlt()).contains("3 items bought");
+
+        // buildSvg delegation
+        Optional<String> svg = reportService.buildSvg(PUBLIC_ID);
+        assertThat(svg).contains("<svg>build-timeline</svg>");
+    }
+
+    @Test
+    void severityAndVerdictClassNamesExistInGeneratedStylesheet() throws Exception {
+        String css = java.nio.file.Files.readString(java.nio.file.Path.of("src/main/resources/static/report.css"));
+
+        // Severity mapping
+        List<String> severities = List.of("major", "notable", "minor", "none");
+        for (String s : severities) {
+            String badgeClass = ReportService.severityBadgeClass(s);
+            assertThat(badgeClass).isNotEmpty();
+            assertThat(css).contains("." + badgeClass);
+
+            String leakClass = ReportService.leakBorderClass(s);
+            if (!leakClass.isEmpty()) {
+                assertThat(css).contains("." + leakClass);
+            }
+        }
+
+        // Verdict mapping
+        List<String> verdicts = List.of("above p50", "below p25", "between p25 and p50", "-");
+        for (String v : verdicts) {
+            String vClass = ReportService.verdictClass(v);
+            assertThat(vClass).isNotEmpty();
+            assertThat(css).contains("." + vClass);
+        }
+
+        // Result mapping
+        List<String> results = List.of("win", "loss");
+        for (String r : results) {
+            String rClass = ReportService.resultBadgeClass(r);
+            assertThat(rClass).isNotEmpty();
+            assertThat(css).contains("." + rClass);
+        }
     }
 }

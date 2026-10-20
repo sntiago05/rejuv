@@ -264,10 +264,138 @@ class ReportChartsSvgTest {
                 List.of(200.0, 400.0, 600.0, 800.0)).orElseThrow();
         java.nio.file.Files.writeString(targetDir.resolve("soul-curve.svg"), soulCurve);
 
+        List<sntiago05.rejuv.domain.MatchVisuals.PurchasedItem> sampleItems = List.of(
+                new sntiago05.rejuv.domain.MatchVisuals.PurchasedItem(1L, "Basic Magazine", 120),
+                new sntiago05.rejuv.domain.MatchVisuals.PurchasedItem(2L, "Extra Health", 240),
+                new sntiago05.rejuv.domain.MatchVisuals.PurchasedItem(3L, "Kinetic Dash", 480),
+                new sntiago05.rejuv.domain.MatchVisuals.PurchasedItem(4L, "Mystic Burst", 720)
+        );
+        String buildSvg = svgRenderer.renderBuildTimeline(sampleItems).orElseThrow();
+        java.nio.file.Files.writeString(targetDir.resolve("build.svg"), buildSvg);
+
         assertThat(java.nio.file.Files.exists(targetDir.resolve("soul-lead.svg"))).isTrue();
         assertThat(java.nio.file.Files.exists(targetDir.resolve("phases.svg"))).isTrue();
         assertThat(java.nio.file.Files.exists(targetDir.resolve("deaths.svg"))).isTrue();
         assertThat(java.nio.file.Files.exists(targetDir.resolve("metrics.svg"))).isTrue();
         assertThat(java.nio.file.Files.exists(targetDir.resolve("soul-curve.svg"))).isTrue();
+        assertThat(java.nio.file.Files.exists(targetDir.resolve("build.svg"))).isTrue();
+    }
+
+    @Test
+    void buildTimelineReturnsWellFormedSvg() throws Exception {
+        List<sntiago05.rejuv.domain.MatchVisuals.PurchasedItem> items = List.of(
+                new sntiago05.rejuv.domain.MatchVisuals.PurchasedItem(1L, "Basic Magazine", 120),
+                new sntiago05.rejuv.domain.MatchVisuals.PurchasedItem(2L, "Extra Health", 240),
+                new sntiago05.rejuv.domain.MatchVisuals.PurchasedItem(3L, "Kinetic Dash", 480),
+                new sntiago05.rejuv.domain.MatchVisuals.PurchasedItem(4L, "Mystic Burst", 720)
+        );
+
+        Optional<String> result = svgRenderer.renderBuildTimeline(items);
+
+        assertThat(result).isPresent();
+        String svg = result.get();
+        Document doc = parseXml(svg);
+
+        assertThat(doc.getDocumentElement().getTagName()).isEqualTo("svg");
+        assertThat(doc.getDocumentElement().getAttribute("role")).isEqualTo("img");
+        assertThat(svg).contains("Basic Magazine (2m)");
+        assertThat(svg).contains("Mystic Burst (12m)");
+        assertThat(svg).contains("dot-neutral");
+    }
+
+    @Test
+    void buildTimelineHandlesEmptyOrInsufficientData() {
+        assertThat(svgRenderer.renderBuildTimeline(null)).isEmpty();
+        assertThat(svgRenderer.renderBuildTimeline(List.of())).isEmpty();
+        assertThat(svgRenderer.renderBuildTimeline(List.of(
+                new sntiago05.rejuv.domain.MatchVisuals.PurchasedItem(1L, "Item 1", 100),
+                new sntiago05.rejuv.domain.MatchVisuals.PurchasedItem(2L, "Item 2", 200)
+        ))).isEmpty();
+    }
+
+    @Test
+    void buildTimelineCapsAtTwelveItemsAndAlternatesRows() throws Exception {
+        List<sntiago05.rejuv.domain.MatchVisuals.PurchasedItem> items = new ArrayList<>();
+        for (int i = 1; i <= 15; i++) {
+            items.add(new sntiago05.rejuv.domain.MatchVisuals.PurchasedItem((long) i, "Item " + i, i * 60));
+        }
+
+        Optional<String> result = svgRenderer.renderBuildTimeline(items);
+        assertThat(result).isPresent();
+        String svg = result.get();
+
+        for (int i = 1; i <= 12; i++) {
+            assertThat(svg).contains("Item " + i + " (" + i + "m)");
+        }
+        assertThat(svg).doesNotContain("Item 13");
+        assertThat(svg).doesNotContain("Item 14");
+        assertThat(svg).doesNotContain("Item 15");
+
+        // Alternating row lines: centerY = 120.0, above y2 = 88.0, below y2 = 152.0
+        assertThat(svg).contains("88.0");
+        assertThat(svg).contains("152.0");
+    }
+
+    @Test
+    void buildTimelineEscapesSpecialCharacters() throws Exception {
+        List<sntiago05.rejuv.domain.MatchVisuals.PurchasedItem> items = List.of(
+                new sntiago05.rejuv.domain.MatchVisuals.PurchasedItem(1L, "Item <Tag> & 'Quote' \"Test\"", 120),
+                new sntiago05.rejuv.domain.MatchVisuals.PurchasedItem(2L, "Normal Item", 240),
+                new sntiago05.rejuv.domain.MatchVisuals.PurchasedItem(3L, "Another Item", 360)
+        );
+
+        String svg = svgRenderer.renderBuildTimeline(items).orElseThrow();
+        parseXml(svg);
+
+        assertThat(svg).contains("Item &lt;Tag&gt; &amp; &apos;Quote&apos; &quot;Test&quot; (2m)");
+        assertThat(svg).doesNotContain("<Tag>");
+    }
+
+    @Test
+    void allChartsHaveNoTextElementWithFontSizeUnder12() {
+        List<Integer> times = List.of(0, 180, 360, 540);
+        List<Long> lead = List.of(0L, 500L, 1000L, 800L);
+        List<ReportChartsSvg.PhaseScore> phases = List.of(new ReportChartsSvg.PhaseScore("laning", 1.0));
+        List<ReportView.MetricRow> metrics = List.of(
+                new ReportView.MetricRow("kills", "analyze.metric.kills", "10", "5", "8", "above p50", "w60"));
+        List<sntiago05.rejuv.domain.MatchVisuals.PurchasedItem> items = List.of(
+                new sntiago05.rejuv.domain.MatchVisuals.PurchasedItem(1L, "Item 1", 100),
+                new sntiago05.rejuv.domain.MatchVisuals.PurchasedItem(2L, "Item 2", 200),
+                new sntiago05.rejuv.domain.MatchVisuals.PurchasedItem(3L, "Item 3", 300)
+        );
+
+        List<String> renderedSvgs = List.of(
+                svgRenderer.renderSoulLead(times, lead, List.of()).orElseThrow(),
+                svgRenderer.renderPhases(phases).orElseThrow(),
+                svgRenderer.renderDeaths(1, 2, 1, 4, 30).orElseThrow(),
+                svgRenderer.renderMetrics(metrics).orElseThrow(),
+                svgRenderer.renderBuildTimeline(items).orElseThrow()
+        );
+
+        java.util.regex.Pattern fontPattern = java.util.regex.Pattern.compile("font-size:\\s*(\\d+)px");
+        for (String svg : renderedSvgs) {
+            java.util.regex.Matcher matcher = fontPattern.matcher(svg);
+            boolean found = false;
+            while (matcher.find()) {
+                found = true;
+                int size = Integer.parseInt(matcher.group(1));
+                assertThat(size).as("Font size in SVG must be >= 12px").isGreaterThanOrEqualTo(12);
+            }
+            assertThat(found).isTrue();
+        }
+    }
+
+    @Test
+    void computeBuildAltFormatsSummary() {
+        List<sntiago05.rejuv.domain.MatchVisuals.PurchasedItem> items = List.of(
+                new sntiago05.rejuv.domain.MatchVisuals.PurchasedItem(1L, "Item 1", 60),
+                new sntiago05.rejuv.domain.MatchVisuals.PurchasedItem(2L, "Item 2", 300),
+                new sntiago05.rejuv.domain.MatchVisuals.PurchasedItem(3L, "Item 3", 600)
+        );
+        String alt = svgRenderer.computeBuildAlt(items);
+        assertThat(alt).isEqualTo("3 items bought; first at minute 1, last at minute 10.");
+
+        assertThat(svgRenderer.computeBuildAlt(null)).isEqualTo("Build timeline chart");
+        assertThat(svgRenderer.computeBuildAlt(List.of())).isEqualTo("Build timeline chart");
     }
 }
