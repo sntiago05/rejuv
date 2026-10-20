@@ -20,6 +20,7 @@ import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import sntiago05.rejuv.clients.DeadlockApiClient;
+import sntiago05.rejuv.clients.DeadlockApiException;
 import sntiago05.rejuv.clients.DeadlockApiUnavailableException;
 import sntiago05.rejuv.clients.MatchMetadataNotFoundException;
 import sntiago05.rejuv.clients.MatchMetadataSource;
@@ -52,6 +53,7 @@ class ReportServiceTest {
     private DeadlockApiClient deadlockApiClient;
     private SoulCurveSvg soulCurveSvg;
     private ReportChartsSvg reportChartsSvg;
+    private ReportIconService iconService;
     private ReportService reportService;
 
     @BeforeEach
@@ -64,8 +66,9 @@ class ReportServiceTest {
         deadlockApiClient = mock(DeadlockApiClient.class);
         soulCurveSvg = mock(SoulCurveSvg.class);
         reportChartsSvg = mock(ReportChartsSvg.class);
+        iconService = mock(ReportIconService.class);
         reportService = new ReportService(repository, matchMetadataSource, visualsService,
-                gameAssets, chartRenderer, deadlockApiClient, soulCurveSvg, reportChartsSvg);
+                gameAssets, chartRenderer, deadlockApiClient, soulCurveSvg, reportChartsSvg, iconService);
     }
 
     private MatchAnalysis createStoredEntity(String resultJson) {
@@ -853,5 +856,77 @@ class ReportServiceTest {
             assertThat(rClass).isNotEmpty();
             assertThat(css).contains("." + rClass);
         }
+    }
+
+    private MatchTelemetry twoPlayerTelemetry() {
+        return new MatchTelemetry(MATCH_ID, 600, List.of(
+                new PlayerTelemetry(ACCOUNT_ID, 0, HERO_ID, List.of(new ItemPurchase(101L, 250, null)),
+                        List.of(new StatSnapshot(180, 1500, 2000, 0)), List.of()),
+                new PlayerTelemetry(ACCOUNT_ID + 1, 1, 2, List.of(),
+                        List.of(new StatSnapshot(180, 1200, 900, 0)), List.of())));
+    }
+
+    @Test
+    void findBuildsScoreboardWithNamesFromOneLookup() {
+        when(repository.findByPublicId(PUBLIC_ID)).thenReturn(Optional.of(createStoredEntity(RESULT_JSON)));
+        when(gameAssets.heroNames()).thenReturn(Map.of(HERO_ID, "Infernus", 2, "Bebop"));
+        when(matchMetadataSource.getMatch(MATCH_ID)).thenReturn(twoPlayerTelemetry());
+        when(deadlockApiClient.getPlayerNames(List.of(ACCOUNT_ID, ACCOUNT_ID + 1)))
+                .thenReturn(Map.of(ACCOUNT_ID, "Me", ACCOUNT_ID + 1, "Rival"));
+
+        ReportView view = reportService.find(PUBLIC_ID).orElseThrow();
+
+        assertThat(view.hasScoreboard()).isTrue();
+        assertThat(view.scoreboard().teams()).hasSize(2);
+        assertThat(view.scoreboard().teams().get(0).rows().get(0).playerName()).isEqualTo("Me");
+        assertThat(view.scoreboard().teams().get(1).rows().get(0).heroName()).isEqualTo("Bebop");
+    }
+
+    @Test
+    void findKeepsScoreboardWithoutNamesWhenNameLookupFails() {
+        when(repository.findByPublicId(PUBLIC_ID)).thenReturn(Optional.of(createStoredEntity(RESULT_JSON)));
+        when(matchMetadataSource.getMatch(MATCH_ID)).thenReturn(twoPlayerTelemetry());
+        when(deadlockApiClient.getPlayerNames(List.of(ACCOUNT_ID, ACCOUNT_ID + 1)))
+                .thenThrow(new DeadlockApiException("down"));
+
+        ReportView view = reportService.find(PUBLIC_ID).orElseThrow();
+
+        assertThat(view.hasScoreboard()).isTrue();
+        assertThat(view.scoreboard().teams().get(0).rows().get(0).playerName()).isEmpty();
+    }
+
+    @Test
+    void findHasNoScoreboardWhenMetadataIsUnavailable() {
+        when(repository.findByPublicId(PUBLIC_ID)).thenReturn(Optional.of(createStoredEntity(RESULT_JSON)));
+        when(matchMetadataSource.getMatch(MATCH_ID)).thenThrow(new IllegalStateException("no metadata"));
+
+        ReportView view = reportService.find(PUBLIC_ID).orElseThrow();
+
+        assertThat(view.hasScoreboard()).isFalse();
+    }
+
+    @Test
+    void iconsAreServedOnlyForIdsOfThatMatch() {
+        when(repository.findByPublicId(PUBLIC_ID)).thenReturn(Optional.of(createStoredEntity(RESULT_JSON)));
+        when(matchMetadataSource.getMatch(MATCH_ID)).thenReturn(twoPlayerTelemetry());
+        ReportIconService.Icon icon = new ReportIconService.Icon(new byte[] {1}, "image/png");
+        when(iconService.hero(2)).thenReturn(Optional.of(icon));
+        when(iconService.item(101L)).thenReturn(Optional.of(icon));
+
+        assertThat(reportService.heroIcon(PUBLIC_ID, 2)).contains(icon);
+        assertThat(reportService.itemIcon(PUBLIC_ID, 101L)).contains(icon);
+        assertThat(reportService.heroIcon(PUBLIC_ID, 99)).isEmpty();
+        assertThat(reportService.itemIcon(PUBLIC_ID, 555L)).isEmpty();
+        org.mockito.Mockito.verify(iconService, org.mockito.Mockito.never()).hero(99);
+        org.mockito.Mockito.verify(iconService, org.mockito.Mockito.never()).item(555L);
+    }
+
+    @Test
+    void iconsAreEmptyForUnknownReportOrMissingMetadata() {
+        assertThat(reportService.heroIcon(PUBLIC_ID, 1)).isEmpty();
+        assertThat(reportService.heroIcon(null, 1)).isEmpty();
+        when(repository.findByPublicId(PUBLIC_ID)).thenReturn(Optional.of(createStoredEntity(RESULT_JSON)));
+        when(matchMetadataSource.getMatch(MATCH_ID)).thenThrow(new IllegalStateException("no metadata"));
+        assertThat(reportService.itemIcon(PUBLIC_ID, 101L)).isEmpty();
     }
 }

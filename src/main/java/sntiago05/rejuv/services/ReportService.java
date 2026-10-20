@@ -1,16 +1,22 @@
 package sntiago05.rejuv.services;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import sntiago05.rejuv.clients.DeadlockApiClient;
+import sntiago05.rejuv.clients.DeadlockApiException;
 import sntiago05.rejuv.clients.MatchMetadataSource;
 import sntiago05.rejuv.clients.dto.PerformanceCurvePoint;
 import sntiago05.rejuv.clients.dto.PlayerRank;
@@ -44,6 +50,11 @@ public class ReportService {
     private final DeadlockApiClient deadlockApiClient;
     private final SoulCurveSvg soulCurveSvg;
     private final ReportChartsSvg reportChartsSvg;
+    private final ReportIconService iconService;
+    private final Cache<UUID, IconScope> iconScopes = Caffeine.newBuilder()
+            .maximumSize(500)
+            .expireAfterWrite(Duration.ofMinutes(10))
+            .build();
 
     public ReportService(MatchAnalysisRepository repository,
                          MatchMetadataSource matchMetadataSource,
@@ -52,7 +63,8 @@ public class ReportService {
                          ChartRenderer chartRenderer,
                          DeadlockApiClient deadlockApiClient,
                          SoulCurveSvg soulCurveSvg,
-                         ReportChartsSvg reportChartsSvg) {
+                         ReportChartsSvg reportChartsSvg,
+                         ReportIconService iconService) {
         this.repository = repository;
         this.matchMetadataSource = matchMetadataSource;
         this.visualsService = visualsService;
@@ -61,6 +73,7 @@ public class ReportService {
         this.deadlockApiClient = deadlockApiClient;
         this.soulCurveSvg = soulCurveSvg;
         this.reportChartsSvg = reportChartsSvg;
+        this.iconService = iconService;
     }
 
     /**
@@ -97,10 +110,12 @@ public class ReportService {
         String soulLeadAlt = "";
         String soulCurveAlt = "";
         String buildAlt = "";
+        MatchTelemetry scoreboardTelemetry = null;
 
         try {
             MatchTelemetry telemetry = matchMetadataSource.getMatch(stored.getMatchId());
             if (telemetry != null) {
+                scoreboardTelemetry = telemetry;
                 durationMin = Math.round((telemetry.durationS() / 60.0) * 10.0) / 10.0;
                 Optional<MatchVisuals> visuals = visualsService.build(stored.getAccountId(), telemetry);
                 if (visuals.isPresent()) {
@@ -243,8 +258,89 @@ public class ReportService {
                 deathsAlt,
                 metricsAlt,
                 buildAlt,
-                tips
+                tips,
+                buildScoreboard(stored, scoreboardTelemetry, result)
         ));
+    }
+
+    /** Scoreboard of all players; null when telemetry is missing or building fails. Never throws. */
+    private ReportView.Scoreboard buildScoreboard(MatchAnalysis stored, MatchTelemetry telemetry, String result) {
+        if (telemetry == null) {
+            return null;
+        }
+        try {
+            return ReportScoreboardBuilder.build(telemetry, stored.getAccountId(), result, gameAssets.heroNames(),
+                    playerNames(telemetry), gameAssets.itemsById()).orElse(null);
+        } catch (RuntimeException ex) {
+            log.warn("Scoreboard unavailable for match {}: {}", stored.getMatchId(), ex.getClass().getSimpleName());
+            return null;
+        }
+    }
+
+    /** Steam names of the players in one cached call; empty when the lookup fails (rows then show no name). */
+    private Map<Long, String> playerNames(MatchTelemetry telemetry) {
+        List<Long> ids = telemetry.players().stream().map(PlayerTelemetry::accountId)
+                .filter(id -> id > 0).distinct().sorted().toList();
+        if (ids.isEmpty()) {
+            return Map.of();
+        }
+        try {
+            return deadlockApiClient.getPlayerNames(ids);
+        } catch (DeadlockApiException ex) {
+            log.warn("Persona names unavailable for {} players: {}", ids.size(), ex.getClass().getSimpleName());
+            return Map.of();
+        }
+    }
+
+    /** Hero icon, only when that hero played in the report's match. */
+    public Optional<ReportIconService.Icon> heroIcon(UUID publicId, int heroId) {
+        return iconScope(publicId)
+                .filter(scope -> scope.heroIds().contains(heroId))
+                .flatMap(scope -> iconService.hero(heroId));
+    }
+
+    /** Item icon, only when a player of the report's match bought that item. */
+    public Optional<ReportIconService.Icon> itemIcon(UUID publicId, long itemId) {
+        return iconScope(publicId)
+                .filter(scope -> scope.itemIds().contains(itemId))
+                .flatMap(scope -> iconService.item(itemId));
+    }
+
+    /**
+     * Ids an icon request may ask for. A page view requests up to about 150 icons, so the scope is cached for a
+     * few minutes instead of reading the database and the match metadata once per icon. Misses are not cached.
+     */
+    private Optional<IconScope> iconScope(UUID publicId) {
+        if (publicId == null) {
+            return Optional.empty();
+        }
+        IconScope cached = iconScopes.getIfPresent(publicId);
+        if (cached != null) {
+            return Optional.of(cached);
+        }
+        Optional<IconScope> scope = repository.findByPublicId(publicId).flatMap(stored -> {
+            try {
+                return Optional.ofNullable(matchMetadataSource.getMatch(stored.getMatchId()));
+            } catch (RuntimeException ex) {
+                log.warn("Match metadata unavailable for icons of {}: {}", publicId, ex.getClass().getSimpleName());
+                return Optional.empty();
+            }
+        }).map(ReportService::toIconScope);
+        scope.ifPresent(value -> iconScopes.put(publicId, value));
+        return scope;
+    }
+
+    private static IconScope toIconScope(MatchTelemetry telemetry) {
+        Set<Integer> heroIds = new HashSet<>();
+        Set<Long> itemIds = new HashSet<>();
+        for (PlayerTelemetry player : telemetry.players()) {
+            heroIds.add(player.heroId());
+            player.items().forEach(item -> itemIds.add(item.itemId()));
+        }
+        return new IconScope(Set.copyOf(heroIds), Set.copyOf(itemIds));
+    }
+
+    private record IconScope(Set<Integer> heroIds, Set<Long> itemIds) {
     }
 
     /**

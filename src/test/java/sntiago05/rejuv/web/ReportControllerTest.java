@@ -30,6 +30,7 @@ import sntiago05.rejuv.TestcontainersConfiguration;
 import sntiago05.rejuv.domain.AnalysisResult;
 import sntiago05.rejuv.domain.ReportView;
 import sntiago05.rejuv.services.DonationService;
+import sntiago05.rejuv.services.ReportIconService;
 import sntiago05.rejuv.services.ReportService;
 
 @SpringBootTest(properties = {"bot.token=", "bot.dev-guild-id="})
@@ -444,6 +445,40 @@ class ReportControllerTest {
     }
 
     @Test
+    void iconEndpointsReturnBytesWithSecurityHeadersAndLongCache() throws Exception {
+        byte[] png = new byte[] {(byte) 0x89, 'P', 'N', 'G', 1, 2, 3, 4, 5, 6, 7, 8};
+        ReportIconService.Icon icon = new ReportIconService.Icon(png, "image/png");
+        when(reportService.heroIcon(KNOWN_ID, 7)).thenReturn(Optional.of(icon));
+        when(reportService.itemIcon(KNOWN_ID, 4242L)).thenReturn(Optional.of(icon));
+
+        for (String path : List.of("hero/7.png", "item/4242.png")) {
+            mockMvc.perform(get("/r/" + KNOWN_ID + "/img/" + path))
+                    .andExpect(status().isOk())
+                    .andExpect(content().contentType("image/png"))
+                    .andExpect(content().bytes(png))
+                    .andExpect(header().string("X-Robots-Tag", "noindex, nofollow"))
+                    .andExpect(header().string("Content-Security-Policy", "default-src 'none'; img-src 'self'; style-src 'self'; base-uri 'none'; frame-ancestors 'none'"))
+                    .andExpect(header().string("Referrer-Policy", "no-referrer"))
+                    .andExpect(header().string("X-Content-Type-Options", "nosniff"))
+                    .andExpect(header().string("Cache-Control", "private, max-age=86400"));
+        }
+    }
+
+    @Test
+    void iconEndpointsReturn404ForUnknownIdsAndMalformedReports() throws Exception {
+        for (String path : List.of("hero/7.png", "item/4242.png")) {
+            mockMvc.perform(get("/r/" + UNKNOWN_ID + "/img/" + path))
+                    .andExpect(status().isNotFound())
+                    .andExpect(content().string(""))
+                    .andExpect(header().string("Content-Security-Policy", "default-src 'none'; img-src 'self'; style-src 'self'; base-uri 'none'; frame-ancestors 'none'"));
+            MvcResult malformed = mockMvc.perform(get("/r/not-a-valid-uuid/img/" + path))
+                    .andExpect(status().isNotFound())
+                    .andReturn();
+            assertThat(malformed.getResponse().getContentAsString()).doesNotContain("not-a-valid-uuid");
+        }
+    }
+
+    @Test
     void allNewSvgEndpointsReturn404WhenEmptyOrMalformedWithoutEcho() throws Exception {
         List<String> paths = List.of("soul-lead.svg", "lead.svg", "phases.svg", "deaths.svg", "metrics.svg", "build.svg");
 
@@ -491,6 +526,41 @@ class ReportControllerTest {
         java.nio.file.Files.createDirectories(targetDir);
         java.nio.file.Files.writeString(targetDir.resolve("report.html"), html);
         assertThat(java.nio.file.Files.exists(targetDir.resolve("report.html"))).isTrue();
+    }
+
+    @Test
+    void viewReportRendersScoreboardWithIconsLandmarksAndNoUnsafeMarkup() throws Exception {
+        AnalysisResult analysis = new AnalysisResult("Strength", "Leak", "Action", List.of("10 kills"));
+        ReportView.Row you = new ReportView.Row(true, 1, "Infernus", "Me <b>x</b>", 5, 5, 31, "7.2", 215, "29,907", "w30",
+                List.of(new ReportView.ScoreItem(4242L, "Basic Magazine")));
+        ReportView.Row foe = new ReportView.Row(false, 2, "Bebop", "", 28, 11, 10, "3.5", 267, "107,441", "w100", List.of());
+        ReportView.Scoreboard board = new ReportView.Scoreboard(List.of(
+                new ReportView.Team("report.scoreboard.team.you", true, "win", "65", "120.3k", List.of(you)),
+                new ReportView.Team("report.scoreboard.team.enemy", false, "loss", "49", "98.0k", List.of(foe))));
+        ReportView report = new ReportView(KNOWN_ID, 987654321L, "Infernus", 1, "Archon 3", "win",
+                30.5, analysis, List.of(new sntiago05.rejuv.domain.MatchVisuals.PurchasedItem(4242L, "Basic Magazine", 120)),
+                false, Instant.now(), false, true, List.of(), List.of(), List.of(),
+                false, false, false, false, false, "", "", "", "", "", "",
+                List.of(new ReportView.Tip("Farm more", "40 CS behind", "Last-hit drill")), board);
+        when(reportService.find(KNOWN_ID)).thenReturn(Optional.of(report));
+
+        String html = mockMvc.perform(get("/r/" + KNOWN_ID))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+
+        assertThat(html).contains("Match Scoreboard").contains("Your team").contains("Enemy team");
+        assertThat(html).contains("Victory").contains("Defeat");
+        assertThat(html).contains("/r/" + KNOWN_ID + "/img/hero/1.png").contains("/r/" + KNOWN_ID + "/img/item/4242.png");
+        assertThat(html).contains("Me &lt;b&gt;x&lt;/b&gt;").doesNotContain("<b>x</b>");
+        assertThat(html).contains("Player 1").contains(">You<");
+        assertThat(html).contains("alt=\"Basic Magazine\"");
+        assertThat(html).contains("class=\"skip-link\"").contains("<main id=\"report-main\"").contains("<html lang=\"en\"");
+        assertThat(html.split("<h1", -1)).hasSize(2);
+        assertThat(html).doesNotContain("style=").doesNotContain("<script").doesNotContain("http://").doesNotContain("https://");
+
+        java.nio.file.Path targetDir = java.nio.file.Path.of("target/samples");
+        java.nio.file.Files.createDirectories(targetDir);
+        java.nio.file.Files.writeString(targetDir.resolve("report-full.html"), html);
     }
 
     private ReportView simpleReport() {

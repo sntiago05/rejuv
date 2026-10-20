@@ -40,7 +40,7 @@ class SoulCurveSvgTest {
         Document doc = dbf.newDocumentBuilder().parse(new InputSource(new StringReader(svg)));
 
         assertThat(doc.getDocumentElement().getTagName()).isEqualTo("svg");
-        assertThat(doc.getDocumentElement().getAttribute("viewBox")).isEqualTo("0 0 640 360");
+        assertThat(doc.getDocumentElement().getAttribute("viewBox")).isEqualTo("0 0 480 372");
         assertThat(doc.getDocumentElement().getAttribute("role")).isEqualTo("img");
         assertThat(doc.getDocumentElement().getAttribute("aria-label")).isNotEmpty();
     }
@@ -128,9 +128,9 @@ class SoulCurveSvgTest {
         assertThat(result).isPresent();
 
         String svg = result.get();
-        // PLOT_BOTTOM is 290.0 (where souls = 0)
-        // With clamping at 0, the lower bound at index 0 should map to exactly 290.0, not > 290.0
-        assertThat(svg).contains("290.0");
+        // PLOT_BOTTOM is 280.0 (where souls = 0)
+        // With clamping at 0, the lower bound at index 0 should map to exactly 280.0, not > 280.0
+        assertThat(svg).contains("280.0");
 
         // Verify no coordinate exceeds the plot area bounds
         Pattern pathPattern = Pattern.compile("d=\"([^\"]+)\"");
@@ -141,8 +141,8 @@ class SoulCurveSvgTest {
             for (int i = 0; i < tokens.length; i++) {
                 if (!tokens[i].isBlank()) {
                     double val = Double.parseDouble(tokens[i]);
-                    // Y coordinates in paths should never exceed 290.0 (bottom of plot)
-                    assertThat(val).isLessThanOrEqualTo(605.0);
+                    // Y coordinates in paths should never exceed the right edge (450.0) of the plot
+                    assertThat(val).isLessThanOrEqualTo(450.0);
                 }
             }
         }
@@ -175,8 +175,8 @@ class SoulCurveSvgTest {
         Matcher matcher = pattern.matcher(svg);
         while (matcher.find()) {
             double coord = Double.parseDouble(matcher.group(1));
-            // All coordinates inside SVG must be within 0..640
-            assertThat(coord).isBetween(0.0, 640.0);
+            // All coordinates inside SVG must be within 0..480
+            assertThat(coord).isBetween(0.0, 480.0);
         }
     }
 
