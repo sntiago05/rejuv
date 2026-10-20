@@ -90,7 +90,6 @@ class AnalyzeServiceTest {
     private MetricsService metricsService;
     private AnalysisClient analysisClient;
     private MatchAnalysisRepository repository;
-    private UsageService usageService;
     private MatchVisualsService visualsService;
     private CoachContextService coachContextService;
     private AnalyzeService service;
@@ -102,7 +101,6 @@ class AnalyzeServiceTest {
         metricsService = new MetricsService();
         analysisClient = mock(AnalysisClient.class);
         repository = mock(MatchAnalysisRepository.class);
-        usageService = mock(UsageService.class);
         visualsService = mock(MatchVisualsService.class);
         coachContextService = mock(CoachContextService.class);
         when(coachContextService.build(any())).thenReturn(Map.of());
@@ -110,7 +108,7 @@ class AnalyzeServiceTest {
         when(gameAssets.heroNames()).thenReturn(Map.of(HERO_ID, "Infernus", 2, "Seven"));
         MatchSearchService matchSearchService = new MatchSearchService(deadlockApiClient, gameAssets);
         AnthropicPricingProperties pricing = new AnthropicPricingProperties(0, 0);
-        service = new AnalyzeService(deadlockApiClient, matchMetadataSource, metricsService, analysisClient, repository, matchSearchService, pricing, usageService, visualsService, coachContextService);
+        service = new AnalyzeService(deadlockApiClient, matchMetadataSource, metricsService, analysisClient, repository, matchSearchService, pricing, visualsService, coachContextService);
     }
 
     @Test
@@ -149,15 +147,12 @@ class AnalyzeServiceTest {
         assertThat(saved.getOutputTokens()).isEqualTo(250);
         assertThat(report.publicId()).isNotNull().isEqualTo(saved.getPublicId());
 
-        verify(usageService).recordAnalysis(CALLER_ID, MATCH_ID);
-
-        InOrder inOrder = inOrder(deadlockApiClient, repository, usageService, matchMetadataSource, analysisClient);
+        InOrder inOrder = inOrder(deadlockApiClient, repository, matchMetadataSource, analysisClient);
         inOrder.verify(deadlockApiClient).getMatchHistory(ACCOUNT_ID);
         inOrder.verify(deadlockApiClient).getPlayerRank(ACCOUNT_ID);
         inOrder.verify(deadlockApiClient).getHeroes();
         inOrder.verify(deadlockApiClient).getRanks();
         inOrder.verify(repository).findByAccountIdAndMatchId(ACCOUNT_ID, MATCH_ID);
-        inOrder.verify(usageService).checkAllowance(CALLER_ID);
         inOrder.verify(matchMetadataSource).getMatch(MATCH_ID);
         inOrder.verify(deadlockApiClient).getBenchmarks(HERO_ID, 7);
         inOrder.verify(deadlockApiClient).getItemStats(HERO_ID, 7);
@@ -200,8 +195,6 @@ class AnalyzeServiceTest {
         assertThat(report.degraded()).isFalse();
         assertThat(report.publicId()).isNotNull().isEqualTo(stored.getPublicId());
 
-        verify(usageService, never()).checkAllowance(anyLong());
-        verify(usageService, never()).recordAnalysis(anyLong(), anyLong());
         verify(matchMetadataSource, times(1)).getMatch(MATCH_ID);
         assertThat(report.visuals()).isNull();
         verify(deadlockApiClient, never()).getBenchmarks(anyInt(), anyInt());
@@ -213,7 +206,7 @@ class AnalyzeServiceTest {
     }
 
     @Test
-    void storedPathAttachesVisualsFromCachedTelemetryWithoutAiOrUsage() throws Exception {
+    void storedPathAttachesVisualsFromCachedTelemetryWithoutAi() throws Exception {
         MatchVisuals visuals = new MatchVisuals(List.of(new MatchVisuals.PurchasedItem(101L, "Basic Magazine", 250)), null);
         stubStored();
         when(matchMetadataSource.getMatch(MATCH_ID)).thenReturn(TELEMETRY);
@@ -225,8 +218,6 @@ class AnalyzeServiceTest {
         assertThat(report.visuals()).isSameAs(visuals);
         verify(matchMetadataSource, times(1)).getMatch(MATCH_ID);
         verify(analysisClient, never()).analyze(any());
-        verify(usageService, never()).checkAllowance(anyLong());
-        verify(usageService, never()).recordAnalysis(anyLong(), anyLong());
         verify(repository, never()).save(any());
     }
 
@@ -283,7 +274,6 @@ class AnalyzeServiceTest {
         assertThat(report.publicId()).isNull();
         assertThat(report.analysis()).isNotNull();
         verify(repository, never()).save(any());
-        verify(usageService, never()).recordAnalysis(anyLong(), anyLong());
     }
 
     @Test
@@ -304,7 +294,6 @@ class AnalyzeServiceTest {
 
         verify(analysisClient, times(2)).analyze(any());
         verify(repository, never()).save(any());
-        verify(usageService, never()).recordAnalysis(anyLong(), anyLong());
     }
 
     private void stubStored() throws Exception {
@@ -381,7 +370,6 @@ class AnalyzeServiceTest {
         assertThat(report.analysis()).isEqualTo(AI_RESULT);
         assertThat(report.publicId()).isNull();
         verify(repository, never()).save(any());
-        verify(usageService, never()).recordAnalysis(anyLong(), anyLong());
         verify(deadlockApiClient, never()).getItemStats(anyInt(), anyInt());
         verify(deadlockApiClient, never()).getItems();
         verify(analysisClient).analyze(any());
@@ -455,7 +443,6 @@ class AnalyzeServiceTest {
         assertThat(report.metrics()).isNotEmpty();
         assertThat(report.publicId()).isNull();
         verify(repository, never()).save(any());
-        verify(usageService, never()).recordAnalysis(anyLong(), anyLong());
     }
 
     @Test
@@ -487,7 +474,6 @@ class AnalyzeServiceTest {
         assertThat(report.analysis()).isEqualTo(AI_RESULT);
         assertThat(report.degraded()).isFalse();
         assertThat(report.publicId()).isNotNull().isEqualTo(concurrent.getPublicId());
-        verify(usageService, never()).recordAnalysis(anyLong(), anyLong());
     }
 
     @Test
@@ -639,7 +625,6 @@ class AnalyzeServiceTest {
         // Verification: exactly one AI call, exactly one save
         verify(analysisClient, times(1)).analyze(any());
         verify(repository, times(1)).save(any());
-        verify(usageService, times(1)).recordAnalysis(CALLER_ID, MATCH_ID);
     }
 
     @Test
@@ -650,14 +635,14 @@ class AnalyzeServiceTest {
         // Zero pricing
         AnalyzeService zeroService = new AnalyzeService(
                 deadlockApiClient, matchMetadataSource, metricsService, analysisClient, repository,
-                searchService, new AnthropicPricingProperties(0, 0), usageService, visualsService, coachContextService);
+                searchService, new AnthropicPricingProperties(0, 0), visualsService, coachContextService);
         assertThat(zeroService.estimatedCostUsd(1000, 250)).isEqualTo("unknown");
 
         // Configured pricing: e.g. input $0.80 / 1M, output $4.00 / 1M
         // 1000 / 1e6 * 0.80 + 250 / 1e6 * 4.00 = 0.0008 + 0.0010 = 0.001800
         AnalyzeService pricedService = new AnalyzeService(
                 deadlockApiClient, matchMetadataSource, metricsService, analysisClient, repository,
-                searchService, new AnthropicPricingProperties(0.80, 4.00), usageService, visualsService, coachContextService);
+                searchService, new AnthropicPricingProperties(0.80, 4.00), visualsService, coachContextService);
         assertThat(pricedService.estimatedCostUsd(1000, 250)).isEqualTo("0.001800");
 
         // Trigger AI analysis with pricedService and check log output
@@ -674,31 +659,6 @@ class AnalyzeServiceTest {
 
         pricedService.analyze(CALLER_ID, ACCOUNT_ID, MatchFilter.LATEST);
         assertThat(output.getOut()).contains("estimatedCostUsd=0.001800");
-    }
-
-    @Test
-    void overLimitUserTriggersNoMetadataBenchmarkOrAiCallAndThrows() {
-        when(deadlockApiClient.getMatchHistory(ACCOUNT_ID)).thenReturn(List.of(MATCH));
-        when(deadlockApiClient.getPlayerRank(ACCOUNT_ID)).thenReturn(RANK);
-        when(deadlockApiClient.getHeroes()).thenReturn(HEROES);
-        when(deadlockApiClient.getRanks()).thenReturn(RANKS);
-        when(repository.findByAccountIdAndMatchId(ACCOUNT_ID, MATCH_ID)).thenReturn(Optional.empty());
-
-        Instant resetTime = Instant.parse("2026-10-26T00:00:00Z");
-        UsageLimitExceededException ex = new UsageLimitExceededException(resetTime, 3);
-        doThrow(ex).when(usageService).checkAllowance(CALLER_ID);
-
-        assertThatThrownBy(() -> service.analyze(CALLER_ID, ACCOUNT_ID, MatchFilter.LATEST))
-                .isSameAs(ex);
-
-        verify(matchMetadataSource, never()).getMatch(anyLong());
-        verify(deadlockApiClient, never()).getBenchmarks(anyInt(), anyInt());
-        verify(deadlockApiClient, never()).getItemStats(anyInt(), anyInt());
-        verify(deadlockApiClient, never()).getItems();
-        verify(analysisClient, never()).analyze(any());
-        verify(repository, never()).save(any());
-        verify(usageService, never()).recordAnalysis(anyLong(), anyLong());
-        verify(coachContextService, never()).build(any());
     }
 
     @Test

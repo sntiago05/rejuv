@@ -21,7 +21,6 @@ import sntiago05.rejuv.services.IconCatalog;
 import sntiago05.rejuv.services.Messages;
 import sntiago05.rejuv.services.NoMatchHistoryException;
 import sntiago05.rejuv.services.NotEnoughGamesException;
-import sntiago05.rejuv.services.PremiumFeatureGate;
 import sntiago05.rejuv.services.ProfileService;
 
 @Component
@@ -31,20 +30,17 @@ public class CompareCommand implements SlashCommand {
 
     private final CompareService compareService;
     private final ProfileService profileService;
-    private final PremiumFeatureGate premiumFeatureGate;
     private final Messages messages;
     private final AssetImages assetImages;
     private final IconCatalog iconCatalog;
 
     public CompareCommand(CompareService compareService,
                           ProfileService profileService,
-                          PremiumFeatureGate premiumFeatureGate,
                           Messages messages,
                           AssetImages assetImages,
                           IconCatalog iconCatalog) {
         this.compareService = compareService;
         this.profileService = profileService;
-        this.premiumFeatureGate = premiumFeatureGate;
         this.messages = messages;
         this.assetImages = assetImages;
         this.iconCatalog = iconCatalog;
@@ -68,11 +64,6 @@ public class CompareCommand implements SlashCommand {
         OptionalLong accountId = profileService.findLinkedAccountId(callerId);
         if (accountId.isEmpty()) {
             event.reply(messages.get("compare.not_linked")).setEphemeral(true).queue();
-            return;
-        }
-
-        if (!premiumFeatureGate.allowed(callerId)) {
-            event.reply(messages.get("compare.premium_required")).setEphemeral(true).queue();
             return;
         }
 

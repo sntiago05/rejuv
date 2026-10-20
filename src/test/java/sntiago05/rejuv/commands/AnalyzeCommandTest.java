@@ -72,7 +72,6 @@ import sntiago05.rejuv.services.Messages;
 import sntiago05.rejuv.services.MessagesFixture;
 import sntiago05.rejuv.services.NoMatchHistoryException;
 import sntiago05.rejuv.services.ProfileService;
-import sntiago05.rejuv.services.UsageLimitExceededException;
 
 class AnalyzeCommandTest {
 
@@ -674,24 +673,6 @@ class AnalyzeCommandTest {
     }
 
     @Test
-    void usageLimitExceededExceptionEditsOriginalWithLimitReachedMessage() {
-        SlashCommandInteractionEvent event = mockEvent();
-        when(profileService.findLinkedAccountId(CALLER_ID)).thenReturn(OptionalLong.of(ACCOUNT_ID));
-        deferFor(event);
-        InteractionHook hook = hookFor(event);
-
-        Instant resetTime = Instant.parse("2026-10-26T00:00:00Z");
-        when(analyzeService.analyze(eq(CALLER_ID), eq(ACCOUNT_ID), any()))
-                .thenThrow(new UsageLimitExceededException(resetTime, 3));
-
-        command.handle(event);
-
-        ArgumentCaptor<String> captor = ArgumentCaptor.forClass(String.class);
-        verify(hook).editOriginal(captor.capture());
-        assertThat(captor.getValue()).isEqualTo(messages.get("analyze.limit_reached", 3, "<t:" + resetTime.getEpochSecond() + ":R>"));
-    }
-
-    @Test
     void typedNumericMatchIdPassesFilterWithCallerId() {
         SlashCommandInteractionEvent event = mockEvent();
         when(profileService.findLinkedAccountId(CALLER_ID)).thenReturn(OptionalLong.of(ACCOUNT_ID));
@@ -808,7 +789,6 @@ class AnalyzeCommandTest {
                 "analyze.match_not_found",
                 "analyze.match_invalid",
                 "analyze.autocomplete.match",
-                "analyze.limit_reached",
                 "analyze.report_button",
                 "analyze.severity.major",
                 "analyze.severity.notable",

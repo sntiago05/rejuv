@@ -51,7 +51,6 @@ public class AnalyzeService {
     private final MatchAnalysisRepository repository;
     private final MatchSearchService matchSearchService;
     private final AnthropicPricingProperties pricingProperties;
-    private final UsageService usageService;
     private final MatchVisualsService visualsService;
     private final CoachContextService coachContextService;
 
@@ -62,7 +61,6 @@ public class AnalyzeService {
                           MatchAnalysisRepository repository,
                           MatchSearchService matchSearchService,
                           AnthropicPricingProperties pricingProperties,
-                          UsageService usageService,
                           MatchVisualsService visualsService,
                           CoachContextService coachContextService) {
         this.deadlockApiClient = deadlockApiClient;
@@ -72,13 +70,11 @@ public class AnalyzeService {
         this.repository = repository;
         this.matchSearchService = matchSearchService;
         this.pricingProperties = pricingProperties;
-        this.usageService = usageService;
         this.visualsService = visualsService;
         this.coachContextService = coachContextService;
     }
 
     /**
-     * @throws UsageLimitExceededException when the free weekly limit is used up and a fresh AI call would be needed
      * @throws NoMatchHistoryException when the account has no match history
      * @throws MatchNotFoundException when nothing passes the filter
      * @throws sntiago05.rejuv.clients.DeadlockApiException (including DeadlockApiUnavailableException) when history,
@@ -116,8 +112,6 @@ public class AnalyzeService {
                 repository.delete(stored);
             }
         }
-
-        usageService.checkAllowance(discordUserId);
 
         MatchTelemetry telemetry;
         boolean degraded = false;
@@ -201,7 +195,6 @@ public class AnalyzeService {
                 inputJson);
         try {
             repository.save(entity);
-            usageService.recordAnalysis(discordUserId, match.matchId());
             log.info("Analyze accountId={} matchId={} source=ai degraded={} inputTokens={} outputTokens={} estimatedCostUsd={}",
                     accountId, match.matchId(), degraded, outcome.inputTokens(), outcome.outputTokens(),
                     estimatedCostUsd(outcome.inputTokens(), outcome.outputTokens()));
@@ -230,7 +223,7 @@ public class AnalyzeService {
         return visualsService.build(accountId, telemetry).orElse(null);
     }
 
-    /** Cached metadata read (not an AI call, no usage); any API failure just means no details. */
+    /** Cached metadata read (not an AI call); any API failure just means no details. */
     private MatchVisuals storedVisuals(long accountId, long matchId) {
         try {
             return visuals(accountId, matchMetadataSource.getMatch(matchId));

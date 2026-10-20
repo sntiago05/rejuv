@@ -185,4 +185,27 @@ class FlywayMigrationTest {
 
         assertThat(inputs).containsExactly(null, "{\"hero\":\"Infernus\"}");
     }
+
+    @Test
+    void appliesVersion6Successfully() {
+        List<Map<String, Object>> rows = jdbcTemplate.queryForList(
+                "SELECT description, success FROM flyway_schema_history WHERE version = '6'");
+
+        assertThat(rows).hasSize(1);
+        assertThat(rows.get(0).get("description")).isEqualTo("drop analysis usage");
+        assertThat(rows.get(0).get("success")).isEqualTo(true);
+    }
+
+    @Test
+    void analysisUsageTableDoesNotExistAfterAllMigrations() {
+        List<String> tables = jdbcTemplate.queryForList("""
+                SELECT table_name
+                FROM information_schema.tables
+                WHERE table_schema = current_schema()
+                  AND table_name IN ('analysis_usage', 'linked_account', 'match_analysis')
+                ORDER BY table_name
+                """, String.class);
+
+        assertThat(tables).containsExactly("linked_account", "match_analysis");
+    }
 }
