@@ -51,7 +51,6 @@ import sntiago05.rejuv.services.MatchSearchService;
 import sntiago05.rejuv.services.Messages;
 import sntiago05.rejuv.services.NoMatchHistoryException;
 import sntiago05.rejuv.services.ProfileService;
-import sntiago05.rejuv.services.UsageLimitExceededException;
 
 @Component
 @EnableConfigurationProperties(WebProperties.class)
@@ -275,9 +274,6 @@ public class AnalyzeCommand implements SlashCommand {
                 action = action.setActionRow(Button.link(url, messages.get("analyze.report_button")));
             }
             action.queue();
-        } catch (UsageLimitExceededException ex) {
-            String resetTimestamp = "<t:" + ex.resetsAt().getEpochSecond() + ":R>";
-            hook.editOriginal(messages.get("analyze.limit_reached", ex.limit(), resetTimestamp)).queue();
         } catch (NoMatchHistoryException ex) {
             hook.editOriginal(messages.get("analyze.no_matches")).queue();
         } catch (MatchNotFoundException ex) {

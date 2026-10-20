@@ -20,7 +20,6 @@ import sntiago05.rejuv.services.IconCatalog;
 import sntiago05.rejuv.services.ItemsService;
 import sntiago05.rejuv.services.Messages;
 import sntiago05.rejuv.services.NoRankException;
-import sntiago05.rejuv.services.PremiumFeatureGate;
 import sntiago05.rejuv.services.ProfileService;
 
 @Component
@@ -30,20 +29,17 @@ public class ItemsCommand implements SlashCommand {
 
     private final ItemsService itemsService;
     private final ProfileService profileService;
-    private final PremiumFeatureGate premiumFeatureGate;
     private final Messages messages;
     private final AssetImages assetImages;
     private final IconCatalog iconCatalog;
 
     public ItemsCommand(ItemsService itemsService,
                         ProfileService profileService,
-                        PremiumFeatureGate premiumFeatureGate,
                         Messages messages,
                         AssetImages assetImages,
                         IconCatalog iconCatalog) {
         this.itemsService = itemsService;
         this.profileService = profileService;
-        this.premiumFeatureGate = premiumFeatureGate;
         this.messages = messages;
         this.assetImages = assetImages;
         this.iconCatalog = iconCatalog;
@@ -67,11 +63,6 @@ public class ItemsCommand implements SlashCommand {
         OptionalLong accountId = profileService.findLinkedAccountId(callerId);
         if (accountId.isEmpty()) {
             event.reply(messages.get("items.not_linked")).setEphemeral(true).queue();
-            return;
-        }
-
-        if (!premiumFeatureGate.allowed(callerId)) {
-            event.reply(messages.get("items.premium_required")).setEphemeral(true).queue();
             return;
         }
 
