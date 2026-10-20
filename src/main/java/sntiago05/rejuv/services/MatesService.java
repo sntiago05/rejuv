@@ -69,16 +69,7 @@ public class MatesService {
     }
 
     private Map<Long, String> fetchNames(List<Teammate> teammates) {
-        if (teammates.isEmpty()) {
-            return Map.of();
-        }
-        List<Long> ids = teammates.stream().map(Teammate::accountId).distinct().sorted().toList();
-        try {
-            return deadlockApiClient.getPlayerNames(ids);
-        } catch (DeadlockApiException ex) {
-            log.warn("Persona names unavailable for {} teammates: {}: {}", ids.size(), ex.getClass().getSimpleName(),
-                    ex.getMessage());
-            return Map.of();
-        }
+        List<Long> ids = teammates.stream().map(Teammate::accountId).toList();
+        return ServiceSupport.fetchPlayerNames(deadlockApiClient, ids, log, "teammates");
     }
 }
