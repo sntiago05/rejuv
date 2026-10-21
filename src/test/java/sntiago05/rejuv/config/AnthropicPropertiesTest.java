@@ -27,7 +27,7 @@ class AnthropicPropertiesTest {
                                 "https://api.anthropic.com",
                                 "",
                                 "claude-haiku-5-5",
-                                "medium",
+                                "low",
                                 4000,
                                 Duration.ofSeconds(3),
                                 Duration.ofSeconds(30),
