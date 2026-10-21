@@ -111,7 +111,7 @@ Set `WEB_BASE_URL=http://localhost:8080` in `.env` and restart (blank = no butto
 `/mates` (or `user:`). Expected: top 5 teammates of the last 90 days with at least 5 games together, each as `Name (#accountId)`; a teammate without a Steam profile shows `Player #accountId`. A user without a linked account gets the ephemeral "not linked" message.
 
 ### Other commands (earlier tasks, no new changes)
-`/ping`, `/help` (lists every command, including `/items` and `/compare`; `/usage` no longer exists), `/donate` (section 2.1), `/link`, `/unlink`, `/profile`, `/heroes`, `/meta`, `/build`, `/counter`, `/leaderboard server`. A quick pass is enough after the build.
+`/ping`, `/help` (lists every command, including `/items`, `/compare`, `/synergy`, `/draft`, `/trends`, `/nemesis` and `/heroinfo`; `/usage` no longer exists), `/donate` (section 2.1), `/link`, `/unlink`, `/profile`, `/heroes`, `/meta`, `/build`, `/counter`, `/leaderboard server`. A quick pass is enough after the build.
 
 ## 2.2 Coach tips and spend guard (Task 052)
 1. Run `/analyze` on a match that has no stored analysis. The embed shows a "🧭 Top Tips" field right after "Next Game Focus", with up to 3 numbered tips, each with Evidence and Drill. The log line `Analysis completed` shows tokens, and `Analyze ... source=ai` shows a number in `estimatedCostUsd` (not `unknown`).
@@ -127,6 +127,29 @@ Needs a report of an analysis made after Task 052 (it has `tips`) and `WEB_BASE_
 3. A "Build Timeline" chart shows the first 12 purchases on a minute axis. `/r/<publicId>/build.svg` returns an SVG with the usual `Content-Security-Policy` and `X-Robots-Tag` headers. A match with fewer than 3 items has no timeline and `build.svg` answers 404.
 4. All chart text is readable at 360 px (at least 12 px); the other charts show `min` units on the time axis. Light mode, dark mode and print preview stay readable.
 5. After editing a template class, run `scripts/build-css.sh` and commit `static/report.css`; `scripts/build-css.sh --check` must print `OK`.
+
+## 2.4 Report scoreboard, readable charts and Discord format (Task 055, not yet checked)
+Needs a report from a match analyzed after Task 052 (it has tips) and `WEB_BASE_URL=http://localhost:8080`. Check on a desktop browser and at 360 px width:
+1. A "Match Scoreboard" lists both teams, your team first, your row marked `You`. Each row shows hero icon and name, player name (or `Player N`), K/D/A, KDA, CS, damage with a bar and the final item icons. In the browser network tab only `/r/<id>/img/...`, `report.css` and the SVG images load, and the icons do appear (the first load fetches them from the asset CDN: this was never checked).
+2. `/r/<id>/img/hero/999.png` (a hero not in the match) and `/r/<id>/img/item/1.png` return 404. A hero or item of the match returns an image with the usual security headers.
+3. Charts: text readable at 360 px, no label over a line, `Xm` units on the time axis; all six chart files open directly (`soul-lead.svg`, `soul-curve.svg`, `phases.svg`, `deaths.svg`, `metrics.svg`, `build.svg`).
+4. Accessibility: Tab shows the "Skip to the report" link first and a visible focus ring; the page works at 200% zoom; check the OS dark and light themes and the print preview.
+5. Discord `/analyze` embed: tips show as a bold title with quoted Evidence and Drill lines; key numbers are bullet lines, not a code-block table; look at it on desktop and on a phone.
+
+## 2.5 `/draft` and `/synergy` (Task 056, not yet checked)
+1. `/synergy hero:Infernus`: best 5 and worst 5 partners with win rate and games; a rank option changes the numbers.
+2. `/draft allies:Haze, Infernus enemies:Seven` (names separated by commas): an allied win chance with the two teams, top 3 pick suggestions when fewer than 6 allies, and the "estimate, not a forecast" footer. With 5 allies and 6 enemies there are no suggestions.
+3. Errors: an unknown hero name gives the not-recognized message; a repeated hero in one team, more than 5 allies and more than 6 enemies each give their own message.
+
+## 2.6 `/trends`, `/nemesis` and the percentile in `/profile` (Task 057, not yet checked)
+1. `/trends` (default 20 games) and `/trends games:10`: win rate, average K/D/A, the trend line (improving, steady or declining by 5 points) and your top heroes; with fewer than 5 games with a known result you get the "not enough games" message. `user:` shows another linked member.
+2. `/nemesis`: up to 5 opponents with at least 5 games, worst win rate first, names or `Player #<id>`. An account with no opponent data gets a clear message.
+3. `/profile`: a ranked account shows "Top X% of ranked players" under the rank; an unranked account shows no such line; `/profile` still works if the rank-distribution call fails.
+
+## 2.7 `/heroinfo` (Task 058, not yet checked)
+1. `/heroinfo hero:Infernus`, `hero:haze` (lower case) and `hero:Mo & Krill`: an embed with the hero color, role, type line, playstyle, tags, base stats and lore.
+2. `/heroinfo hero:zzz`: the not-recognized message. A hero that cannot be played (for example Kali, if the name is found) shows the extra "cannot be played" line.
+3. `/help` lists `/heroinfo`.
 
 ## 3. Metadata fallback (Task 023)
 Hard to trigger by hand. With a healthy API, no WARN `JSON match metadata failed` should appear. When the JSON metadata endpoint answers 503 or 429, expect that WARN once and the analysis still succeeding from the raw protobuf endpoint. The result is cached for 24 hours, so a second `/analyze` of the same match makes no new request.
@@ -148,6 +171,8 @@ Hard to trigger by hand. With a healthy API, no WARN `JSON match metadata failed
 | "Please wait N seconds" or "daily limit" on `/analyze` | spend guard (task 052); stored analyses are never limited; raise `ANALYSIS_*` values or restart |
 | CI fails at `build-css.sh --check` | `report.css` is out of date; run `scripts/build-css.sh` and commit the file |
 | Report page has no Top Tips card or no Build Timeline | the analysis was made before Task 052, or the match has fewer than 3 items |
+| Scoreboard shows broken hero or item icons | the icon endpoints could not fetch the image from the asset CDN (look for the WARN `Icon ... unavailable`), or the file is over 256 KB or not PNG, JPEG, WebP or SVG |
+| `HelpCommandTest` fails after adding a command | `/help` plus the donation text is over 2,000 characters; shorten other lines |
 | Report page has no charts | the analysis was made before Task 048 (no stored input) or the cached metadata expired |
 
 ## 5. Report back
