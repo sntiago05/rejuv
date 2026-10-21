@@ -739,16 +739,22 @@ public class ReportService {
     private static final List<String> KNOWN_COACH_KEYS = List.of(
             "phases", "deaths", "objectives", "aim_mechanics", "build", "recent_form", "matchup");
 
+    /**
+     * Higher is better: below p25 = weakest quarter, above p50 = better half. Lower is better (deaths, timings): the
+     * stored benchmark has no p75, so the weak edge is estimated by mirroring p25 around p50 (2 * p50 - p25, never
+     * below p50); above that estimate = weakest quarter, below p50 = better half.
+     */
     public static String computeVerdict(String metricKey, double value, Double p25, Double p50) {
         if (p25 == null || p50 == null) {
             return "-";
         }
         boolean lowerIsBetter = isLowerBetterMetric(metricKey);
         if (lowerIsBetter) {
-            if (value > p50) {
+            double estimatedP75 = Math.max(p50, 2.0 * p50 - p25);
+            if (value > estimatedP75) {
                 return "below p25";
             }
-            if (value < p25) {
+            if (value < p50) {
                 return "above p50";
             }
             return "between p25 and p50";
