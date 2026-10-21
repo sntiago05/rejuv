@@ -1,6 +1,6 @@
 # AGENTS.md — Rules for every AI agent working on Rejuv
 
-Rejuv is an English-language Discord bot that gives Deadlock players AI coaching on their matches.
+Rejuv is an English-language Discord bot with utilities and match reports for Deadlock players. Some features use AI.
 Read `docs/mvp-spec.md` for behavior and `docs/architecture.md` for structure when needed.
 
 ## Your role

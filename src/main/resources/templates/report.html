@@ -35,6 +35,27 @@
                 Match details unavailable
             </p>
 
+            <!-- How to read this report (collapsed) -->
+            <details th:if="${(report.metricsTable != null and !report.metricsTable.isEmpty()) or report.hasChart}" class="detail-card">
+                <summary class="detail-summary">
+                    <span th:text="#{report.legend.title}">How to read this report</span>
+                    <span class="muted text-xs print-hidden" aria-hidden="true">&#9660;</span>
+                </summary>
+                <p class="muted mt-4 text-sm" th:text="#{report.legend.intro}">Intro</p>
+                <ul class="mt-4 list-inside list-disc space-y-1 text-sm">
+                    <li th:text="#{report.legend.p25}">p25</li>
+                    <li th:text="#{report.legend.p50}">p50</li>
+                    <li th:text="#{report.legend.verdict}">Verdict</li>
+                    <li th:text="#{report.legend.z}">z</li>
+                    <li th:if="${report.hasSoulLead}" th:text="#{report.legend.soul_lead}">Soul lead</li>
+                    <li th:if="${report.hasSoulCurve}" th:text="#{report.legend.soul_curve}">Soul curve</li>
+                    <li th:if="${report.hasPhasesChart}" th:text="#{report.legend.phases}">Phases</li>
+                    <li th:if="${report.hasDeathsChart}" th:text="#{report.legend.deaths}">Deaths</li>
+                    <li th:if="${report.hasMetricsChart}" th:text="#{report.legend.metrics}">Metrics</li>
+                    <li th:if="${report.hasBuildTimeline}" th:text="#{report.legend.build}">Build</li>
+                </ul>
+            </details>
+
             <!-- 2. Verdict: biggest leak first, then the next action, then the strength -->
             <section th:if="${report.analysis != null}" class="space-y-4" aria-labelledby="verdict-title">
                 <h2 id="verdict-title" class="sr-only" th:text="#{report.verdict}">Verdict</h2>

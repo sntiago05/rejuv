@@ -598,7 +598,7 @@ class ReportServiceTest {
         assertThat(deathsRow.yourValue()).isEqualTo("7");
         assertThat(deathsRow.p25()).isEqualTo("4");
         assertThat(deathsRow.p50()).isEqualTo("6");
-        assertThat(deathsRow.verdict()).isEqualTo("below p25");
+        assertThat(deathsRow.verdict()).isEqualTo("between p25 and p50");
 
         // Coach sections
         assertThat(view.coachSections()).hasSize(2);
@@ -652,16 +652,23 @@ class ReportServiceTest {
 
     @Test
     void computeVerdictLowerIsBetterFlippedCases() {
-        // Lower is better (e.g. deaths, p25 = 3.0, p50 = 5.0: higher is worse)
+        // Lower is better (e.g. deaths, p25 = 3.0, p50 = 5.0, estimated p75 = 2 * 5 - 3 = 7.0)
         assertThat(ReportService.computeVerdict("deaths", 2.0, 3.0, 5.0)).isEqualTo("above p50");
-        assertThat(ReportService.computeVerdict("deaths", 3.0, 3.0, 5.0)).isEqualTo("between p25 and p50");
-        assertThat(ReportService.computeVerdict("deaths", 4.0, 3.0, 5.0)).isEqualTo("between p25 and p50");
+        assertThat(ReportService.computeVerdict("deaths", 4.0, 3.0, 5.0)).isEqualTo("above p50");
         assertThat(ReportService.computeVerdict("deaths", 5.0, 3.0, 5.0)).isEqualTo("between p25 and p50");
-        assertThat(ReportService.computeVerdict("deaths", 6.0, 3.0, 5.0)).isEqualTo("below p25");
+        // Just above the median is no longer reported as the weakest quarter.
+        assertThat(ReportService.computeVerdict("deaths", 6.0, 3.0, 5.0)).isEqualTo("between p25 and p50");
+        assertThat(ReportService.computeVerdict("deaths", 7.0, 3.0, 5.0)).isEqualTo("between p25 and p50");
+        assertThat(ReportService.computeVerdict("deaths", 7.1, 3.0, 5.0)).isEqualTo("below p25");
 
-        // Timings: first_permanent_buff_min
+        // Timings: first_permanent_buff_min (p25 = 12.0, p50 = 15.0, estimated p75 = 18.0)
         assertThat(ReportService.computeVerdict("first_permanent_buff_min", 10.0, 12.0, 15.0)).isEqualTo("above p50");
+        assertThat(ReportService.computeVerdict("first_permanent_buff_min", 16.0, 12.0, 15.0)).isEqualTo("between p25 and p50");
         assertThat(ReportService.computeVerdict("first_permanent_buff_min", 20.0, 12.0, 15.0)).isEqualTo("below p25");
+
+        // Odd data (p25 above p50): the estimate never drops below p50
+        assertThat(ReportService.computeVerdict("deaths", 5.5, 6.0, 5.0)).isEqualTo("below p25");
+        assertThat(ReportService.computeVerdict("deaths", 5.0, 6.0, 5.0)).isEqualTo("between p25 and p50");
 
         // Missing benchmark returns "-"
         assertThat(ReportService.computeVerdict("deaths_per_10_min", 3.0, null, 5.0)).isEqualTo("-");

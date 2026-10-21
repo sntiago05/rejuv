@@ -85,6 +85,7 @@ public class AnalyzeService {
      * @throws AnalysisLimitExceededException when a new AI call is needed and the spend guard refuses it
      */
     public AnalysisReport analyze(long discordUserId, long accountId, MatchFilter filter) {
+        long startNanos = System.nanoTime();
         MatchHistoryEntry match = matchSearchService.select(accountId, filter != null ? filter : MatchFilter.LATEST)
                 .orElseGet(() -> {
                     List<MatchHistoryEntry> history = deadlockApiClient.getMatchHistory(accountId);
@@ -106,8 +107,8 @@ public class AnalyzeService {
                 AnalysisResult analysis = JSON_MAPPER.readValue(stored.getResultJson(), AnalysisResult.class);
                 AnalysisInput headerInput = metricsService.buildInput(new MetricsRequest(
                         accountId, match, null, rank.orElse(null), Map.of(), Map.of(), List.of(), heroes, ranks));
-                log.info("Analyze accountId={} matchId={} source=stored degraded=false inputTokens={} outputTokens={}",
-                        accountId, match.matchId(), stored.getInputTokens(), stored.getOutputTokens());
+                log.info("Analyze accountId={} matchId={} source=stored degraded=false inputTokens={} outputTokens={} totalMs={}",
+                        accountId, match.matchId(), stored.getInputTokens(), stored.getOutputTokens(), elapsedMs(startNanos));
                 return new AnalysisReport(match.heroId(), headerInput.hero(), headerInput.rank(), headerInput.result(),
                         headerInput.durationMin(), analysis, Map.of(), false, storedVisuals(accountId, match.matchId()),
                         stored.getPublicId());
@@ -159,7 +160,11 @@ public class AnalyzeService {
         input = input.withCoach(coachContextService.build(coachRequest));
 
         spendGuard.reserve(discordUserId);
+        long dataMs = elapsedMs(startNanos);
+        long aiStartNanos = System.nanoTime();
         AnalysisOutcome outcome = analysisClient.analyze(input);
+        log.info("Analyze timing accountId={} matchId={} dataMs={} aiMs={}",
+                accountId, match.matchId(), dataMs, elapsedMs(aiStartNanos));
 
         if (outcome.isFallback()) {
             log.info("Analyze accountId={} matchId={} source=fallback degraded={} inputTokens={} outputTokens={}",
@@ -222,6 +227,10 @@ public class AnalyzeService {
             return new AnalysisReport(match.heroId(), input.hero(), input.rank(), input.result(), input.durationMin(),
                     outcome.result(), Map.of(), degraded, visuals(accountId, telemetry), publicId);
         }
+    }
+
+    private static long elapsedMs(long startNanos) {
+        return (System.nanoTime() - startNanos) / 1_000_000;
     }
 
     private MatchVisuals visuals(long accountId, MatchTelemetry telemetry) {
