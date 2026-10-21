@@ -102,7 +102,7 @@ Output: strict JSON only:
   ]
 }
 ```
-Model settings: `claude-haiku-5-5`, effort medium, `max_tokens` 4000 (thinking tokens count toward it). If JSON parsing fails → retry once, then fall back to a non-AI summary of the key numbers.
+Model settings: `claude-haiku-5-5`, effort low, `max_tokens` 4000 (thinking tokens count toward it). If JSON parsing fails → retry once, then fall back to a non-AI summary of the key numbers.
 
 ## Error handling (user-facing, English, from `messages.properties`)
 | Situation | Message intent |

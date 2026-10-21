@@ -43,7 +43,7 @@ src/main/java/<base>/
 3. If an analysis for `(account_id, match_id)` already exists in DB, it is returned immediately (stored analyses are free, bypass the spend guard, no AI cost).
 4. `MetricsService` and `CoachContextService` compute a compact summary (KDA, souls/min, item timings, comparison to rank averages, coach insights).
 5. `AnalysisSpendGuard` checks in-memory limits (60 s cooldown, 10 user daily, 150 global daily) right before invoking AI.
-6. `AnalysisClient` sends the summary to Claude Haiku 5.5 with medium effort and a `max_tokens` cap (4000).
+6. `AnalysisClient` sends the summary to Claude Haiku 5.5 with low effort and a `max_tokens` cap (4000).
 7. The result is stored (so the same match is never paid for twice) and returned as an English embed (all user-facing text from `messages.properties`).
 
 ## Non-functional guidelines

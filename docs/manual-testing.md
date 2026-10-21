@@ -118,7 +118,7 @@ Set `WEB_BASE_URL=http://localhost:8080` in `.env` and restart (blank = no butto
 2. Run `/analyze` again at once on another match: you get the cooldown message (wait about 60 s). Run it again on the same match: it returns the stored result for free, with no cooldown message.
 3. To test the daily caps without waiting, start with `ANALYSIS_COOLDOWN=0s ANALYSIS_USER_DAILY=2 ANALYSIS_GLOBAL_DAILY=3` and run three different matches: the third gives the daily-limit message. State resets on restart.
 4. Analyses made before task 052 show no tips field; nothing else changes.
-5. Confirm that Anthropic accepts `effort: medium` and `max_tokens: 4000` (a successful new analysis proves it).
+5. Confirm that Anthropic accepts `effort: low` and `max_tokens: 4000` (a successful new analysis proves it).
 
 ## 2.3 Report v2: Tailwind, Top Tips and Build Timeline (Task 053, not yet checked)
 Needs a report of an analysis made after Task 052 (it has `tips`) and `WEB_BASE_URL=http://localhost:8080`. Check in a desktop browser and at 360 px width:
