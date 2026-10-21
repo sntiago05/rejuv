@@ -85,6 +85,37 @@ class AnalysisSpendGuardTest {
     }
 
     @Test
+    void checkRefusesLikeReserveButRecordsNothing() {
+        AnalysisSpendGuard guard = guard(true, Duration.ofSeconds(60), 10, 150);
+
+        // Many checks never consume quota or start a cooldown.
+        for (int i = 0; i < 20; i++) {
+            guard.check(USER);
+        }
+        guard.reserve(USER);
+
+        try {
+            guard.check(USER);
+            throw new AssertionError("expected a refusal");
+        } catch (AnalysisLimitExceededException ex) {
+            assertThat(ex.reason()).isEqualTo(Reason.COOLDOWN);
+        }
+        clock.advance(Duration.ofSeconds(60));
+        assertThatCode(() -> guard.check(USER)).doesNotThrowAnyException();
+    }
+
+    @Test
+    void checkDoesNotCountTowardsTheDailyCaps() {
+        AnalysisSpendGuard guard = guard(true, Duration.ZERO, 1, 1);
+
+        guard.check(USER);
+        guard.check(USER);
+
+        assertThatCode(() -> guard.reserve(USER)).doesNotThrowAnyException();
+        assertThat(refusal(guard, USER).reason()).isEqualTo(Reason.USER_DAILY);
+    }
+
+    @Test
     void cooldownIsPerUser() {
         AnalysisSpendGuard guard = guard(true, Duration.ofSeconds(60), 10, 150);
         guard.reserve(USER);

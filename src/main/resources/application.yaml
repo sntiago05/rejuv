@@ -35,7 +35,7 @@ anthropic:
   base-url: https://api.anthropic.com
   api-key: ${ANTHROPIC_API_KEY:}
   model: claude-haiku-5-5
-  effort: medium
+  effort: low
   max-tokens: 4000
   connect-timeout: 3s
   read-timeout: 30s

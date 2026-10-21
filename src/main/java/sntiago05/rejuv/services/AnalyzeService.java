@@ -118,6 +118,10 @@ public class AnalyzeService {
             }
         }
 
+        // A new AI call is needed from here on: refuse early, before the slow data fetches. reserve() below
+        // still records the call right before the AI request.
+        spendGuard.check(discordUserId);
+
         MatchTelemetry telemetry;
         boolean degraded = false;
         try {
