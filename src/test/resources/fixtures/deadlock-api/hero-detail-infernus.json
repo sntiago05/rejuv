@@ -1,0 +1,83 @@
+{
+  "id": 1,
+  "class_name": "hero_inferno",
+  "name": "Infernus",
+  "description": {
+    "lore": "Like most teenagers; Infernus was wild, rebellious, and impetuous.  Unlike most teenagers, Infernus was a creature from another plane and had a supernatural mastery over fire.  Needless to say:  his youth was filled with no small amount of arson, murder, and evidence disposal.  But that was then.  Now an adult, Infernus has mellowed out considerably.  He's happy working at a bar with good live music, and talking to interesting people.  That being said when someone at the bar gets belligerent or violent, he's not afraid to dust off the skills he once honed.",
+    "role": "Lights up enemies and watches them burn",
+    "playstyle": "Infernus has many ways to deal damage over time, burning foes before swooping in for the kill. Due to Infernus' blazing speed, his enemies won't be able to escape the flames."
+  },
+  "player_selectable": true,
+  "disabled": false,
+  "in_development": false,
+  "tags": [
+    "Arsonist",
+    "Explosive",
+    "Burn Rubber"
+  ],
+  "gun_tag": "Rapid Fire",
+  "hero_type": "marksman",
+  "gender": "male",
+  "search_name": "Infernus",
+  "complexity": 1,
+  "skin": 0,
+  "colors": {
+    "ui": [
+      255,
+      70,
+      45
+    ],
+    "style": [
+      201,
+      60,
+      38
+    ],
+    "style_hex": "#C93C26"
+  },
+  "images": {
+    "icon_hero_card": "https://assets-bucket.deadlock-api.com/assets-api-res/images/heroes/inferno_card.png",
+    "icon_hero_card_webp": "https://assets-bucket.deadlock-api.com/assets-api-res/images/heroes/inferno_card.webp",
+    "icon_image_small": "https://assets-bucket.deadlock-api.com/assets-api-res/images/heroes/inferno_sm.png"
+  },
+  "starting_stats": {
+    "max_health": {
+      "value": 830,
+      "display_stat_name": "EMaxHealth"
+    },
+    "max_move_speed": {
+      "value": 6.7,
+      "display_stat_name": "EMaxMoveSpeed"
+    },
+    "sprint_speed": {
+      "value": 1.6,
+      "display_stat_name": "ESprintSpeed"
+    },
+    "stamina": {
+      "value": 3,
+      "display_stat_name": "EStamina"
+    },
+    "light_melee_damage": {
+      "value": 50.0,
+      "display_stat_name": "ELightMeleeDamage"
+    },
+    "heavy_melee_damage": {
+      "value": 116,
+      "display_stat_name": "EHeavyMeleeDamage"
+    },
+    "reload_speed": {
+      "value": 1,
+      "display_stat_name": "EReloadSpeed"
+    },
+    "base_health_regen": {
+      "value": 2.0,
+      "display_stat_name": "EBaseHealthRegen"
+    },
+    "crouch_speed": {
+      "value": 4.75,
+      "display_stat_name": "ECrouchSpeed"
+    }
+  },
+  "future_field": {
+    "ignored": true
+  }
+}
