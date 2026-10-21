@@ -265,6 +265,39 @@ class AnalyzeServiceTest {
     }
 
     @Test
+    void earlyCheckRefusalSkipsMetadataAndBenchmarkFetches() {
+        when(deadlockApiClient.getMatchHistory(ACCOUNT_ID)).thenReturn(List.of(MATCH));
+        when(deadlockApiClient.getPlayerRank(ACCOUNT_ID)).thenReturn(RANK);
+        when(deadlockApiClient.getHeroes()).thenReturn(HEROES);
+        when(deadlockApiClient.getRanks()).thenReturn(RANKS);
+        when(repository.findByAccountIdAndMatchId(ACCOUNT_ID, MATCH_ID)).thenReturn(Optional.empty());
+        doThrow(new AnalysisLimitExceededException(
+                AnalysisLimitExceededException.Reason.COOLDOWN, java.time.Duration.ofSeconds(29), 0))
+                .when(spendGuard).check(CALLER_ID);
+
+        assertThatThrownBy(() -> service.analyze(CALLER_ID, ACCOUNT_ID, MatchFilter.LATEST))
+                .isInstanceOf(AnalysisLimitExceededException.class);
+
+        verify(matchMetadataSource, never()).getMatch(anyLong());
+        verify(deadlockApiClient, never()).getBenchmarks(anyInt(), anyInt());
+        verify(spendGuard, never()).reserve(anyLong());
+        verify(analysisClient, never()).analyze(any());
+    }
+
+    @Test
+    void storedPathDoesNotRunTheEarlyCheck() throws Exception {
+        String resultJson = new JsonMapper().writeValueAsString(AI_RESULT);
+        MatchAnalysis stored = new MatchAnalysis(
+                ACCOUNT_ID, MATCH_ID, HERO_ID, resultJson, "claude-haiku-5-5", 800, 200, Instant.now());
+        when(deadlockApiClient.getMatchHistory(ACCOUNT_ID)).thenReturn(List.of(MATCH));
+        when(repository.findByAccountIdAndMatchId(ACCOUNT_ID, MATCH_ID)).thenReturn(Optional.of(stored));
+
+        service.analyze(CALLER_ID, ACCOUNT_ID, MatchFilter.LATEST);
+
+        verify(spendGuard, never()).check(anyLong());
+    }
+
+    @Test
     void storedPathAttachesVisualsFromCachedTelemetryWithoutAi() throws Exception {
         MatchVisuals visuals = new MatchVisuals(List.of(new MatchVisuals.PurchasedItem(101L, "Basic Magazine", 250)), null);
         stubStored();

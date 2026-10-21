@@ -54,6 +54,20 @@ public class AnalysisSpendGuard {
      * @throws AnalysisLimitExceededException when a limit is reached; nothing is recorded then
      */
     public synchronized void reserve(long discordUserId) {
+        evaluate(discordUserId, true);
+    }
+
+    /**
+     * Same checks as {@link #reserve(long)} but records nothing. Lets a caller refuse early, before slow data
+     * fetches; {@code reserve} must still be called right before the AI call because the state can change meanwhile.
+     *
+     * @throws AnalysisLimitExceededException when a limit is reached
+     */
+    public synchronized void check(long discordUserId) {
+        evaluate(discordUserId, false);
+    }
+
+    private void evaluate(long discordUserId, boolean record) {
         if (!properties.enabled()) {
             return;
         }
@@ -77,8 +91,10 @@ public class AnalysisSpendGuard {
             throw reject(discordUserId, Reason.GLOBAL_DAILY, untilExpiry(globalCalls.peekFirst(), now),
                     properties.globalDaily());
         }
-        user.addLast(now);
-        globalCalls.addLast(now);
+        if (record) {
+            user.addLast(now);
+            globalCalls.addLast(now);
+        }
     }
 
     private static void prune(Deque<Instant> calls, Instant windowStart) {
