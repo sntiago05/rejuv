@@ -488,6 +488,35 @@ class DeadlockApiClientCachingTest {
     }
 
     @Test
+    void enemyStatsAreCachedPerAccountAndTimestamp() {
+        server.expect(once(), requestTo(startsWith(BASE_URL + "/v1/players/1/enemy-stats?")))
+                .andExpect(queryParam("min_unix_timestamp", "1000"))
+                .andRespond(withSuccess(fixture("enemy-stats.json"), MediaType.APPLICATION_JSON));
+        server.expect(once(), requestTo(startsWith(BASE_URL + "/v1/players/2/enemy-stats?")))
+                .andExpect(queryParam("min_unix_timestamp", "1000"))
+                .andRespond(withSuccess(fixture("enemy-stats.json"), MediaType.APPLICATION_JSON));
+        server.expect(once(), requestTo(startsWith(BASE_URL + "/v1/players/1/enemy-stats?")))
+                .andExpect(queryParam("min_unix_timestamp", "2000"))
+                .andRespond(withSuccess(fixture("enemy-stats.json"), MediaType.APPLICATION_JSON));
+
+        for (int i = 0; i < 2; i++) {
+            assertThat(client.getEnemyStats(1, 1000L)).hasSize(3);
+            assertThat(client.getEnemyStats(2, 1000L)).hasSize(3);
+            assertThat(client.getEnemyStats(1, 2000L)).hasSize(3);
+        }
+    }
+
+    @Test
+    void rankDistributionIsCached() {
+        server.expect(once(), requestTo(BASE_URL + "/v1/players/rank/distribution"))
+                .andRespond(withSuccess(fixture("rank-distribution.json"), MediaType.APPLICATION_JSON));
+
+        for (int i = 0; i < 2; i++) {
+            assertThat(client.getRankDistribution()).hasSize(3);
+        }
+    }
+
+    @Test
     void playerItemStatsAreCachedPerAccountHeroAndTimestamp() {
         server.expect(once(), requestTo(startsWith(BASE_URL + "/v1/analytics/item-stats?")))
                 .andExpect(queryParam("account_id", "1"))
@@ -575,7 +604,9 @@ class DeadlockApiClientCachingTest {
                 Map.entry(CacheConfig.DEADLOCK_PLAYER_HERO_STATS, Duration.ofMinutes(5)),
                 Map.entry(CacheConfig.DEADLOCK_MATE_STATS, Duration.ofMinutes(5)),
                 Map.entry(CacheConfig.DEADLOCK_PLAYER_ITEM_STATS, Duration.ofMinutes(5)),
-                Map.entry(CacheConfig.DEADLOCK_PERFORMANCE_CURVE, Duration.ofHours(3)));
+                Map.entry(CacheConfig.DEADLOCK_PERFORMANCE_CURVE, Duration.ofHours(3)),
+                Map.entry(CacheConfig.DEADLOCK_ENEMY_STATS, Duration.ofMinutes(5)),
+                Map.entry(CacheConfig.DEADLOCK_RANK_DISTRIBUTION, Duration.ofHours(6)));
         Map<String, Long> sizes = Map.ofEntries(
                 Map.entry(CacheConfig.DEADLOCK_ASSETS, 10L),
                 Map.entry(CacheConfig.DEADLOCK_BENCHMARKS, 500L),
@@ -597,7 +628,9 @@ class DeadlockApiClientCachingTest {
                 Map.entry(CacheConfig.DEADLOCK_PLAYER_HERO_STATS, 500L),
                 Map.entry(CacheConfig.DEADLOCK_MATE_STATS, 500L),
                 Map.entry(CacheConfig.DEADLOCK_PLAYER_ITEM_STATS, 500L),
-                Map.entry(CacheConfig.DEADLOCK_PERFORMANCE_CURVE, 500L));
+                Map.entry(CacheConfig.DEADLOCK_PERFORMANCE_CURVE, 500L),
+                Map.entry(CacheConfig.DEADLOCK_ENEMY_STATS, 500L),
+                Map.entry(CacheConfig.DEADLOCK_RANK_DISTRIBUTION, 1L));
 
         assertThat(cacheManager.getCacheNames()).containsExactlyInAnyOrderElementsOf(ttls.keySet());
         for (String name : ttls.keySet()) {

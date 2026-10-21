@@ -35,6 +35,8 @@ public class CacheConfig {
     public static final String DEADLOCK_MATE_STATS = "deadlockMateStats";               // 5 min, max 500
     public static final String DEADLOCK_PLAYER_ITEM_STATS = "deadlockPlayerItemStats"; // 5 min, max 500
     public static final String DEADLOCK_PERFORMANCE_CURVE = "deadlockPerformanceCurve"; // 3 h, max 500
+    public static final String DEADLOCK_ENEMY_STATS = "deadlockEnemyStats";               // 5 min, max 500
+    public static final String DEADLOCK_RANK_DISTRIBUTION = "deadlockRankDistribution";  // 6 h, max 1
 
     @Bean
     CacheManager cacheManager() {
@@ -62,6 +64,8 @@ public class CacheConfig {
         register(cacheManager, DEADLOCK_MATE_STATS, Duration.ofMinutes(5), 500);
         register(cacheManager, DEADLOCK_PLAYER_ITEM_STATS, Duration.ofMinutes(5), 500);
         register(cacheManager, DEADLOCK_PERFORMANCE_CURVE, Duration.ofHours(3), 500);
+        register(cacheManager, DEADLOCK_ENEMY_STATS, Duration.ofMinutes(5), 500);
+        register(cacheManager, DEADLOCK_RANK_DISTRIBUTION, Duration.ofHours(6), 1);
         return cacheManager;
     }
 

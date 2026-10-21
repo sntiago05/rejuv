@@ -1,0 +1,30 @@
+[
+  {
+    "enemy_id": 4000001,
+    "matches_played": 20,
+    "wins": 5,
+    "matches": [
+      900000001,
+      900000002
+    ],
+    "extra_field": "ignored_string",
+    "unknown_metric": 42
+  },
+  {
+    "enemy_id": 4000002,
+    "matches_played": 10,
+    "wins": 2,
+    "matches": [
+      900000003
+    ],
+    "some_boolean_flag": true
+  },
+  {
+    "enemy_id": 4000003,
+    "matches_played": 6,
+    "wins": 1,
+    "matches": [
+      900000004
+    ]
+  }
+]

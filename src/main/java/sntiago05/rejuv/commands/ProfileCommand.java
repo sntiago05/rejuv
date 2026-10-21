@@ -110,13 +110,19 @@ public class ProfileCommand implements SlashCommand {
         if (summary.rankTier() == null) {
             return messages.get("profile.rank_unranked");
         }
+        String rank;
         if (summary.rankName() == null) {
-            return messages.get("profile.rank_unknown_tier", String.valueOf(summary.rankTier()));
+            rank = messages.get("profile.rank_unknown_tier", String.valueOf(summary.rankTier()));
+        } else if (summary.subrank() > 0) {
+            rank = messages.get("profile.rank_value", summary.rankName(), String.valueOf(summary.subrank()));
+        } else {
+            rank = summary.rankName();
         }
-        if (summary.subrank() > 0) {
-            return messages.get("profile.rank_value", summary.rankName(), String.valueOf(summary.subrank()));
+        if (summary.rankPercentile() != null) {
+            double topPercent = Math.max(0.0, Math.round((100.0 - summary.rankPercentile()) * 10.0) / 10.0);
+            return rank + "\n" + messages.get("profile.percentile", CommandSupport.oneDecimal(topPercent));
         }
-        return summary.rankName();
+        return rank;
     }
 
     private String recentValue(ProfileSummary summary) {

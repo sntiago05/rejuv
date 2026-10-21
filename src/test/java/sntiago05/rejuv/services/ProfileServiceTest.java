@@ -20,11 +20,13 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.InOrder;
 import sntiago05.rejuv.clients.DeadlockApiClient;
+import sntiago05.rejuv.clients.DeadlockApiException;
 import sntiago05.rejuv.clients.DeadlockApiUnavailableException;
 import sntiago05.rejuv.clients.dto.HeroAsset;
 import sntiago05.rejuv.clients.dto.MatchHistoryEntry;
 import sntiago05.rejuv.clients.dto.PlayerRank;
 import sntiago05.rejuv.clients.dto.RankAsset;
+import sntiago05.rejuv.clients.dto.RankDistributionEntry;
 import sntiago05.rejuv.domain.HeroUsage;
 import sntiago05.rejuv.domain.LinkedAccount;
 import sntiago05.rejuv.domain.ProfileSummary;
@@ -230,6 +232,44 @@ class ProfileServiceTest {
         when(client.getMatchHistory(ACCOUNT_ID)).thenThrow(new DeadlockApiUnavailableException("busy", null, null));
 
         assertThatThrownBy(() -> service.getProfile(ACCOUNT_ID)).isInstanceOf(DeadlockApiUnavailableException.class);
+    }
+
+    @Test
+    void percentileIsIncludedWhenDistributionAvailable() {
+        when(client.getMatchHistory(ACCOUNT_ID)).thenReturn(List.of(win(1, RECENT, 5, 2, 8)));
+        when(client.getRankDistribution()).thenReturn(List.of(
+                new RankDistributionEntry(72, 100L),
+                new RankDistributionEntry(73, 200L),
+                new RankDistributionEntry(74, 100L)
+        ));
+
+        ProfileSummary summary = service.getProfile(ACCOUNT_ID);
+
+        // midRank = 100 + 100 = 200 / 400 * 100 = 50.0%
+        assertThat(summary.rankPercentile()).isEqualTo(50.0);
+    }
+
+    @Test
+    void percentileIsIgnoredAndProfileStillRendersWhenDistributionFails() {
+        when(client.getMatchHistory(ACCOUNT_ID)).thenReturn(List.of(win(1, RECENT, 5, 2, 8)));
+        when(client.getRankDistribution()).thenThrow(new DeadlockApiException("Service busy", null));
+
+        ProfileSummary summary = service.getProfile(ACCOUNT_ID);
+
+        assertThat(summary.rankPercentile()).isNull();
+        assertThat(summary.rankTier()).isEqualTo(7);
+        assertThat(summary.rankName()).isEqualTo("Archon");
+    }
+
+    @Test
+    void percentileIsIgnoredWhenUnranked() {
+        when(client.getMatchHistory(ACCOUNT_ID)).thenReturn(List.of(win(1, RECENT, 5, 2, 8)));
+        when(client.getPlayerRank(ACCOUNT_ID)).thenReturn(new PlayerRank(0, 0, 0));
+
+        ProfileSummary summary = service.getProfile(ACCOUNT_ID);
+
+        assertThat(summary.rankPercentile()).isNull();
+        assertThat(summary.rankTier()).isNull();
     }
 
     private static MatchHistoryEntry win(int heroId, long startTime, int kills, int deaths, int assists) {

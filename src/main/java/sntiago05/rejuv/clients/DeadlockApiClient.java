@@ -17,6 +17,7 @@ import org.springframework.web.util.UriBuilder;
 import sntiago05.rejuv.clients.DeadlockApiRequests.BodyReader;
 import sntiago05.rejuv.clients.dto.AbilityOrderStat;
 import sntiago05.rejuv.clients.dto.AccountRank;
+import sntiago05.rejuv.clients.dto.EnemyStat;
 import sntiago05.rejuv.clients.dto.HeroAsset;
 import sntiago05.rejuv.clients.dto.HeroCounterStat;
 import sntiago05.rejuv.clients.dto.HeroDetail;
@@ -33,6 +34,7 @@ import sntiago05.rejuv.clients.dto.PlayerHeroStat;
 import sntiago05.rejuv.clients.dto.PlayerItemStat;
 import sntiago05.rejuv.clients.dto.PlayerRank;
 import sntiago05.rejuv.clients.dto.RankAsset;
+import sntiago05.rejuv.clients.dto.RankDistributionEntry;
 import sntiago05.rejuv.clients.dto.SteamProfile;
 import sntiago05.rejuv.config.CacheConfig;
 import sntiago05.rejuv.config.DeadlockApiProperties;
@@ -59,6 +61,8 @@ public class DeadlockApiClient {
     private static final String HERO_STATS_PATH = "/v1/analytics/hero-stats";
     private static final String PLAYER_HERO_STATS_PATH = "/v1/players/hero-stats";
     private static final String MATE_STATS_PATH = "/v1/players/{account_id}/mate-stats";
+    private static final String ENEMY_STATS_PATH = "/v1/players/{account_id}/enemy-stats";
+    private static final String RANK_DISTRIBUTION_PATH = "/v1/players/rank/distribution";
     private static final String HERO_COUNTERS_PATH = "/v1/analytics/hero-counter-stats";
     private static final String HERO_SYNERGY_PATH = "/v1/analytics/hero-synergy-stats";
     private static final String ITEM_FLOW_PATH = "/v1/analytics/item-flow-stats";
@@ -82,6 +86,8 @@ public class DeadlockApiClient {
     private static final BodyReader<List<HeroStat>> HERO_STATS_READER = DeadlockApiRequests.json(new ParameterizedTypeReference<>() { });
     private static final BodyReader<List<PlayerHeroStat>> PLAYER_HERO_STATS_READER = DeadlockApiRequests.json(new ParameterizedTypeReference<>() { });
     private static final BodyReader<List<MateStat>> MATE_STATS_READER = DeadlockApiRequests.json(new ParameterizedTypeReference<>() { });
+    private static final BodyReader<List<EnemyStat>> ENEMY_STATS_READER = DeadlockApiRequests.json(new ParameterizedTypeReference<>() { });
+    private static final BodyReader<List<RankDistributionEntry>> RANK_DISTRIBUTION_READER = DeadlockApiRequests.json(new ParameterizedTypeReference<>() { });
     private static final BodyReader<List<HeroCounterStat>> HERO_COUNTERS_READER = DeadlockApiRequests.json(new ParameterizedTypeReference<>() { });
     private static final BodyReader<List<HeroSynergyStat>> HERO_SYNERGY_READER = DeadlockApiRequests.json(new ParameterizedTypeReference<>() { });
     private static final BodyReader<ItemFlowStats> ITEM_FLOW_READER = DeadlockApiRequests.json(new ParameterizedTypeReference<>() { });
@@ -283,6 +289,31 @@ public class DeadlockApiClient {
                         .build(accountId),
                 MATE_STATS_READER);
         return List.copyOf(stats);
+    }
+
+    /**
+     * Opponents of one player (matches that started at or after minUnixTimestamp). Empty list = no data.
+     * Callers must not call the analytics-style methods in parallel for different uncached keys.
+     */
+    @Cacheable(cacheNames = CacheConfig.DEADLOCK_ENEMY_STATS, sync = true, key = "#accountId + ':' + #minUnixTimestamp")
+    public List<EnemyStat> getEnemyStats(long accountId, long minUnixTimestamp) {
+        List<EnemyStat> stats = requests.get(ENEMY_STATS_PATH,
+                uri -> uri.path(ENEMY_STATS_PATH)
+                        .queryParam("min_unix_timestamp", minUnixTimestamp)
+                        .build(accountId),
+                ENEMY_STATS_READER);
+        return List.copyOf(stats);
+    }
+
+    /**
+     * Global rank distribution of players across badges. Empty list = no data.
+     */
+    @Cacheable(cacheNames = CacheConfig.DEADLOCK_RANK_DISTRIBUTION, sync = true)
+    public List<RankDistributionEntry> getRankDistribution() {
+        List<RankDistributionEntry> distribution = requests.get(RANK_DISTRIBUTION_PATH,
+                uri -> uri.path(RANK_DISTRIBUTION_PATH).build(),
+                RANK_DISTRIBUTION_READER);
+        return List.copyOf(distribution);
     }
 
     /**

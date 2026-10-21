@@ -4,8 +4,14 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
+
+import org.slf4j.Logger;
+import sntiago05.rejuv.clients.DeadlockApiClient;
+import sntiago05.rejuv.clients.DeadlockApiException;
 
 /**
  * Shared helper methods and constants for services handling rank tiers and time windows.
@@ -52,5 +58,31 @@ final class ServiceSupport {
     static <T> List<T> top(List<T> candidates, Comparator<? super T> order, int limit) {
         candidates.sort(order);
         return List.copyOf(candidates.subList(0, Math.min(candidates.size(), limit)));
+    }
+
+    /**
+     * Best-effort persona name lookup for account IDs. Logs a warning and returns an empty map on API failure.
+     *
+     * @param deadlockApiClient API client
+     * @param accountIds account IDs to look up
+     * @param log logger of the calling service
+     * @param roleDescription description for logging (e.g. "teammates", "nemeses")
+     * @return map of accountId to persona name
+     */
+    static Map<Long, String> fetchPlayerNames(DeadlockApiClient deadlockApiClient,
+                                             Collection<Long> accountIds,
+                                             Logger log,
+                                             String roleDescription) {
+        if (accountIds.isEmpty()) {
+            return Map.of();
+        }
+        List<Long> ids = accountIds.stream().distinct().sorted().toList();
+        try {
+            return deadlockApiClient.getPlayerNames(ids);
+        } catch (DeadlockApiException ex) {
+            log.warn("Persona names unavailable for {} {}: {}: {}", ids.size(), roleDescription,
+                    ex.getClass().getSimpleName(), ex.getMessage());
+            return Map.of();
+        }
     }
 }
