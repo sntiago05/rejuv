@@ -5,9 +5,12 @@ import java.time.Duration;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.OptionalDouble;
 import java.util.OptionalLong;
 import java.util.stream.Collectors;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
@@ -24,6 +27,8 @@ import sntiago05.rejuv.repositories.LinkedAccountRepository;
 @Service
 public class ProfileService {
 
+    private static final Logger log = LoggerFactory.getLogger(ProfileService.class);
+
     static final int RECENT_MATCHES = 10;
     static final int TOP_HEROES = 3;
     static final Duration TOP_HEROES_WINDOW = Duration.ofDays(30);
@@ -31,20 +36,30 @@ public class ProfileService {
     private final LinkedAccountRepository repository;
     private final DeadlockApiClient deadlockApiClient;
     private final GameAssets gameAssets;
+    private final RankPercentileService rankPercentileService;
     private final Clock clock;
 
     @Autowired
     public ProfileService(LinkedAccountRepository repository, DeadlockApiClient deadlockApiClient,
-                          GameAssets gameAssets) {
-        this(repository, deadlockApiClient, gameAssets, Clock.systemUTC());
+                          GameAssets gameAssets,
+                          @Autowired(required = false) RankPercentileService rankPercentileService) {
+        this(repository, deadlockApiClient, gameAssets,
+                rankPercentileService != null ? rankPercentileService : new RankPercentileService(deadlockApiClient),
+                Clock.systemUTC());
+    }
+
+    ProfileService(LinkedAccountRepository repository, DeadlockApiClient deadlockApiClient, GameAssets gameAssets,
+                   RankPercentileService rankPercentileService, Clock clock) {
+        this.repository = repository;
+        this.deadlockApiClient = deadlockApiClient;
+        this.gameAssets = gameAssets;
+        this.rankPercentileService = rankPercentileService;
+        this.clock = clock;
     }
 
     ProfileService(LinkedAccountRepository repository, DeadlockApiClient deadlockApiClient, GameAssets gameAssets,
                    Clock clock) {
-        this.repository = repository;
-        this.deadlockApiClient = deadlockApiClient;
-        this.gameAssets = gameAssets;
-        this.clock = clock;
+        this(repository, deadlockApiClient, gameAssets, new RankPercentileService(deadlockApiClient), clock);
     }
 
     /** Linked Deadlock account of the Discord user, or empty. Database only, no API call. */
@@ -97,10 +112,22 @@ public class ProfileService {
         }
         int winRatePercent = (int) Math.round(recentWins * 100.0 / recentMatches);
 
+        Double rankPercentile = null;
+        if (rank.badge() != 0) {
+            try {
+                OptionalDouble p = rankPercentileService.percentile(rank);
+                if (p.isPresent()) {
+                    rankPercentile = p.getAsDouble();
+                }
+            } catch (Exception ex) {
+                log.warn("Failed to compute rank percentile for account {}: {}", accountId, ex.getMessage());
+            }
+        }
+
         return new ProfileSummary(accountId, rankTier, rankName, subrank,
                 recentMatches, recentWins, winRatePercent,
                 (double) kills / recentMatches, (double) deaths / recentMatches, (double) assists / recentMatches,
-                topHeroes(history, heroNames));
+                topHeroes(history, heroNames), rankPercentile);
     }
 
     private List<HeroUsage> topHeroes(List<MatchHistoryEntry> history, Map<Integer, String> namesById) {
